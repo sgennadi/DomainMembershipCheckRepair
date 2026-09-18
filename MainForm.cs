@@ -9,7 +9,7 @@ using Microsoft.Win32;
 
 namespace DomainMembershipCheckRepair
 {
-    internal sealed class MainForm : Form
+    internal sealed partial class MainForm : Form
     {
         private const string LogFile = DiagnosticsService.ApplicationLogPath;
 
@@ -44,12 +44,13 @@ namespace DomainMembershipCheckRepair
             initialFileLogging = enableFileLogging;
             Text = "Domain Membership Check & Repair v" + BuildInfo.Version;
             Width = 900;
-            Height = 720;
+            Height = 760;
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = true;
             Font = new Font("Segoe UI", 9F);
+            ApplyWindowPolish();
 
             BuildUi();
             RefreshStatus(true);
@@ -61,7 +62,7 @@ namespace DomainMembershipCheckRepair
             root.Dock = DockStyle.Fill;
             root.Padding = new Padding(14);
             root.ColumnCount = 2;
-            root.RowCount = 11;
+            root.RowCount = 12;
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170F));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
@@ -137,6 +138,7 @@ namespace DomainMembershipCheckRepair
             dcBox = new TextBox();
             dcBox.Width = 285;
             dcBox.Text = String.Empty;
+            dcBox.TextChanged += delegate { UpdatePreferredDcStatus(); };
             dcPanel.Controls.Add(dcBox);
 
             Label dcHint = new Label();
@@ -202,6 +204,7 @@ namespace DomainMembershipCheckRepair
 
             checkButton = CreateButton("Check Trust", 120);
             diagnosticsButton = CreateButton("Diagnostics", 120);
+            copyDiagnosticsButton = CreateButton("Copy Diagnostics", 135);
             exportButton = CreateButton("Export Diagnostics", 145);
             repairButton = CreateButton("Repair Trust", 120);
             joinButton = CreateButton("Join / Rejoin Domain", 170);
@@ -211,6 +214,7 @@ namespace DomainMembershipCheckRepair
 
             checkButton.Click += delegate { RefreshStatus(false); };
             diagnosticsButton.Click += delegate { DiagnosticsWorkflow(); };
+            copyDiagnosticsButton.Click += delegate { CopyDiagnosticsToClipboard(); };
             exportButton.Click += delegate { ExportDiagnosticsWorkflow(); };
             repairButton.Click += delegate { RepairTrustWorkflow(); };
             joinButton.Click += delegate { JoinCurrentNameWorkflow(); };
@@ -220,6 +224,7 @@ namespace DomainMembershipCheckRepair
 
             actions.Controls.Add(checkButton);
             actions.Controls.Add(diagnosticsButton);
+            actions.Controls.Add(copyDiagnosticsButton);
             actions.Controls.Add(exportButton);
             actions.Controls.Add(repairButton);
             actions.Controls.Add(joinButton);
@@ -268,6 +273,10 @@ namespace DomainMembershipCheckRepair
             root.Controls.Add(logBox, 0, 10);
             root.SetColumnSpan(logBox, 2);
 
+            Control statusFooter = CreateStatusFooterPanel();
+            root.Controls.Add(statusFooter, 0, 11);
+            root.SetColumnSpan(statusFooter, 2);
+
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 38F));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28F));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28F));
@@ -279,6 +288,7 @@ namespace DomainMembershipCheckRepair
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
 
             Controls.Add(root);
         }
@@ -374,6 +384,7 @@ namespace DomainMembershipCheckRepair
             }
             finally
             {
+                RefreshStatusCards();
                 SetBusy(false);
             }
         }
@@ -425,6 +436,7 @@ namespace DomainMembershipCheckRepair
             }
             finally
             {
+                RefreshStatusCards();
                 SetBusy(false);
             }
         }
@@ -452,6 +464,7 @@ namespace DomainMembershipCheckRepair
                 DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
                     (domainBox.Text ?? String.Empty).Trim(),
                     dcBox == null ? String.Empty : dcBox.Text);
+                lastDiagnosticsSnapshot = snapshot;
                 Log("INFO", "Diagnostics completed. " + BuildInfo.RuntimeSummary);
                 ReportDialog.ShowReport(this, "Diagnostics", DiagnosticsService.ToText(snapshot));
             }
@@ -511,11 +524,13 @@ namespace DomainMembershipCheckRepair
         {
             MessageBox.Show(this,
                 "Domain Membership Check & Repair\r\n" +
-                "Version " + BuildInfo.Version + "\r\n\r\n" +
+                "Version " + BuildInfo.Version + "\r\n" +
+                "Architecture: " + BuildInfo.TargetArchitecture + "\r\n\r\n" +
                 BuildInfo.RuntimeSummary + "\r\n\r\n" +
                 "GUI + CLI utility for Windows domain membership, secure-channel diagnostics, Join/Rejoin and AD computer-account recovery.\r\n\r\n" +
                 "Application file logging is disabled by default.\r\n" +
-                "License: MIT",
+                "License: MIT\r\n" +
+                "GitHub: github.com/sgennadi/DomainMembershipCheckRepair",
                 "About",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
@@ -551,10 +566,12 @@ namespace DomainMembershipCheckRepair
                 }
 
                 Log("INFO", "Performing read-only AD computer account check for '" + computerName + "'.");
+                SetAdStatus("Checking...", UiStatusKind.Info);
                 AdComputerAccountInfo account = FindComputerAccount(computerName, user, password, targetDomain);
 
                 if (!account.LookupSucceeded)
                 {
+                    SetAdStatus("Lookup failed", UiStatusKind.Error);
                     ReportDialog.ShowReport(this, "AD computer account check",
                         "The Active Directory lookup could not be completed.\r\n\r\n" +
                         "Computer: " + computerName + "\r\n" +
@@ -565,6 +582,7 @@ namespace DomainMembershipCheckRepair
 
                 if (!account.Exists)
                 {
+                    SetAdStatus("Not found", UiStatusKind.Warning);
                     ReportDialog.ShowReport(this, "AD computer account check",
                         "Computer account NOT FOUND.\r\n\r\n" +
                         "Computer: " + computerName + "\r\n" +
@@ -573,6 +591,8 @@ namespace DomainMembershipCheckRepair
                     return;
                 }
 
+                SetAdStatus(account.Enabled.HasValue && !account.Enabled.Value ? "Found / disabled" : "Found",
+                    account.Enabled.HasValue && !account.Enabled.Value ? UiStatusKind.Warning : UiStatusKind.Success);
                 ReportDialog.ShowReport(this, "AD computer account check", FormatAdAccountReport(computerName, targetDomain, account));
             }
             finally
@@ -1132,6 +1152,7 @@ namespace DomainMembershipCheckRepair
             if (joinButton != null) joinButton.Enabled = !busy;
             if (adCheckButton != null) adCheckButton.Enabled = !busy;
             if (diagnosticsButton != null) diagnosticsButton.Enabled = !busy;
+            if (copyDiagnosticsButton != null) copyDiagnosticsButton.Enabled = !busy;
             if (exportButton != null) exportButton.Enabled = !busy;
             if (restartButton != null) restartButton.Enabled = !busy;
             if (aboutButton != null) aboutButton.Enabled = !busy;

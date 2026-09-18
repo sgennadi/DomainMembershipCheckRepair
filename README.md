@@ -6,7 +6,7 @@ The project is domain-neutral. It contains no hard-coded organization, domain, d
 
 ## Current version
 
-`1.2.0`
+`1.2.1`
 
 The release version has one source of truth: `VersionInfo.cs`. Assembly metadata and the UI read that value, and the release workflow refuses to publish a tag that does not match it.
 
@@ -51,6 +51,7 @@ The GUI provides:
 - Detect Domain
 - Check Trust
 - Diagnostics
+- Copy Diagnostics
 - Export Diagnostics
 - Repair Trust
 - Join / Rejoin Domain
@@ -59,6 +60,10 @@ The GUI provides:
 - About
 
 The **Preferred DC** field is optional. It pins Active Directory LDAP lookup/deletion to that directory server. Windows still chooses the domain controller used by the native domain-join operation.
+
+The bottom status footer shows color-coded **Domain**, **Trust**, **DC**, and **AD** state plus the current application version/architecture. **Copy Diagnostics** places the current human-readable diagnostic report on the clipboard without including the entered domain username or password.
+
+The application uses the built-in Windows shield icon for the window and compiled EXE resource.
 
 The **Write application log to file** checkbox is OFF by default and is not saved anywhere.
 

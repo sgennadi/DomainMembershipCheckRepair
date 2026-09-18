@@ -9,6 +9,7 @@
     <AssemblyName>DomainMembershipCheckRepair</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>obj\generated\DomainMembershipCheckRepair.ico</ApplicationIcon>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
@@ -88,14 +89,19 @@
     <Compile Include="Core\AdDirectoryService.cs" />
     <Compile Include="CliRunner.cs" />
     <Compile Include="MainForm.cs" />
+    <Compile Include="MainForm.Polish.cs" />
     <Compile Include="NativeMethods.cs" />
     <Compile Include="Models.cs" />
     <Compile Include="Dialogs.cs" />
     <None Include="app.manifest" />
+    <None Include="Generate-AppIcon.ps1" />
     <None Include="README.md" />
     <None Include="CHANGELOG.md" />
     <None Include="LICENSE" />
     <None Include="SECURITY.md" />
   </ItemGroup>
+  <Target Name="GenerateApplicationIcon" BeforeTargets="CoreCompile">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\Generate-AppIcon.ps1&quot; -OutputPath &quot;$(MSBuildProjectDirectory)\obj\generated\DomainMembershipCheckRepair.ico&quot;" />
+  </Target>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

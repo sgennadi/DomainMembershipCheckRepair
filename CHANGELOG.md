@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.1
+
+- Added a compact color-coded GUI status footer for Domain, Trust, DC, and AD computer-account state.
+- Added a main-window **Copy Diagnostics** action for quick clipboard troubleshooting.
+- Added architecture/version/process information to the GUI footer and expanded the About dialog.
+- Added a Windows shield application/window icon generated from the built-in Windows system icon during compilation.
+- Preserved optional file logging as OFF by default and kept the read-only AD account check behavior unchanged.
+
 ## 1.2.0
 
 - Added shared Core services for validation, diagnostics, and Active Directory computer-account operations.
