@@ -8,6 +8,7 @@ This file contains the public project information needed for the SignPath Founda
 - Repository: https://github.com/sgennadi/DomainMembershipCheckRepair
 - Current release: https://github.com/sgennadi/DomainMembershipCheckRepair/releases/tag/v1.2.1
 - License: MIT
+- Privacy policy: https://github.com/sgennadi/DomainMembershipCheckRepair/blob/main/PRIVACY.md
 - Maintainer / repository owner: sgennadi
 - Platforms: Windows x86, x64, ARM64
 - Build system: GitHub Actions on GitHub-hosted Windows runners
