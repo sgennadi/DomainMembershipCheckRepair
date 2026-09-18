@@ -6,10 +6,14 @@ on:
       - 'v*'
 
 permissions:
+  actions: read
   contents: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  SIGNPATH_ENABLED: ${{ vars.SIGNPATH_ENABLED }}
+  SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+  SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
 
 jobs:
   release:
@@ -41,18 +45,126 @@ jobs:
         shell: cmd
         run: msbuild DomainMembershipCheckRepair.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=ARM64
 
-      - name: Prepare release files
+      - name: Prepare unsigned release files
+        id: prepare
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force artifacts | Out-Null
-          Copy-Item .\bin\Release\x86\DomainMembershipCheckRepair.exe .\artifacts\DomainMembershipCheckRepair-x86.exe
-          Copy-Item .\bin\Release\x64\DomainMembershipCheckRepair.exe .\artifacts\DomainMembershipCheckRepair-x64.exe
-          Copy-Item .\bin\Release\ARM64\DomainMembershipCheckRepair.exe .\artifacts\DomainMembershipCheckRepair-arm64.exe
-          $lines = Get-ChildItem .\artifacts\*.exe | Sort-Object Name | ForEach-Object {
+          New-Item -ItemType Directory -Force unsigned | Out-Null
+          Copy-Item .\bin\Release\x86\DomainMembershipCheckRepair.exe .\unsigned\DomainMembershipCheckRepair-x86.exe
+          Copy-Item .\bin\Release\x64\DomainMembershipCheckRepair.exe .\unsigned\DomainMembershipCheckRepair-x64.exe
+          Copy-Item .\bin\Release\ARM64\DomainMembershipCheckRepair.exe .\unsigned\DomainMembershipCheckRepair-arm64.exe
+
+          $version = (Get-Item .\bin\Release\x64\DomainMembershipCheckRepair.exe).VersionInfo.ProductVersion
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "Unable to read ProductVersion from the built executable."
+          }
+
+          Write-Host "ProductVersion: $version"
+          "product_version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Upload unsigned artifact for SignPath origin verification
+        id: upload-unsigned
+        uses: actions/upload-artifact@v7
+        with:
+          name: DomainMembershipCheckRepair-unsigned-${{ github.ref_name }}
+          path: unsigned/*.exe
+          if-no-files-found: error
+
+      - name: Validate SignPath configuration
+        if: ${{ env.SIGNPATH_ENABLED == 'true' }}
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SIGNPATH_ORGANIZATION_ID)) {
+            throw "SIGNPATH_ORGANIZATION_ID repository variable is required when SIGNPATH_ENABLED=true."
+          }
+          if ([string]::IsNullOrWhiteSpace($env:SIGNPATH_API_TOKEN)) {
+            throw "SIGNPATH_API_TOKEN repository secret is required when SIGNPATH_ENABLED=true."
+          }
+
+      - name: Submit SignPath signing request
+        if: ${{ env.SIGNPATH_ENABLED == 'true' }}
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: '${{ env.SIGNPATH_API_TOKEN }}'
+          organization-id: '${{ env.SIGNPATH_ORGANIZATION_ID }}'
+          project-slug: 'DomainMembershipCheckRepair'
+          signing-policy-slug: 'release-signing'
+          github-artifact-id: '${{ steps.upload-unsigned.outputs.artifact-id }}'
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: '3600'
+          output-artifact-directory: 'signed'
+          parameters: |
+            version: ${{ toJSON(steps.prepare.outputs.product_version) }}
+
+      - name: Validate SignPath-signed executables
+        if: ${{ env.SIGNPATH_ENABLED == 'true' }}
+        shell: pwsh
+        run: |
+          $names = @(
+            "DomainMembershipCheckRepair-x86.exe",
+            "DomainMembershipCheckRepair-x64.exe",
+            "DomainMembershipCheckRepair-arm64.exe"
+          )
+
+          foreach ($name in $names) {
+            $file = Get-ChildItem -Path .\signed -Recurse -File -Filter $name | Select-Object -First 1
+            if (-not $file) {
+              throw "Signed artifact is missing $name"
+            }
+
+            $sig = Get-AuthenticodeSignature -FilePath $file.FullName
+            Write-Host "$name : $($sig.Status) : $($sig.SignerCertificate.Subject)"
+            if ($sig.Status -ne "Valid") {
+              throw "Authenticode validation failed for $name. Status: $($sig.Status)"
+            }
+          }
+
+      - name: Finalize release files and checksums
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release-files | Out-Null
+          $names = @(
+            "DomainMembershipCheckRepair-x86.exe",
+            "DomainMembershipCheckRepair-x64.exe",
+            "DomainMembershipCheckRepair-arm64.exe"
+          )
+
+          if ($env:SIGNPATH_ENABLED -eq "true") {
+            foreach ($name in $names) {
+              $file = Get-ChildItem -Path .\signed -Recurse -File -Filter $name | Select-Object -First 1
+              if (-not $file) { throw "Signed file not found: $name" }
+              Copy-Item $file.FullName (Join-Path .\release-files $name)
+            }
+            $signingStatus = "These release executables are Authenticode-signed using SignPath.io with a certificate provided by SignPath Foundation."
+          }
+          else {
+            foreach ($name in $names) {
+              Copy-Item (Join-Path .\unsigned $name) (Join-Path .\release-files $name)
+            }
+            $signingStatus = "This release is unsigned because SignPath Foundation onboarding is not enabled for this repository yet."
+          }
+
+          $lines = Get-ChildItem .\release-files\*.exe | Sort-Object Name | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           }
-          $lines | Set-Content -Encoding ascii .\artifacts\SHA256SUMS.txt
+          $lines | Set-Content -Encoding ascii .\release-files\SHA256SUMS.txt
+
+          @"
+          ## Code signing policy
+
+          Free code signing provided by [SignPath.io](https://signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+
+          $signingStatus
+
+          See the repository [Code signing policy](https://github.com/sgennadi/DomainMembershipCheckRepair/blob/main/SIGNING.md) for build, approval, privacy, and verification details.
+
+          ## Source
+
+          Tag: `$env:GITHUB_REF_NAME`
+
+          Full changelog: https://github.com/sgennadi/DomainMembershipCheckRepair/commits/$env:GITHUB_REF_NAME
+          "@ | Set-Content -Encoding utf8 .\release-files\RELEASE_NOTES.md
 
       - name: Publish GitHub Release
         shell: pwsh
@@ -60,9 +172,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$env:GITHUB_REF_NAME" `
-            .\artifacts\DomainMembershipCheckRepair-x86.exe `
-            .\artifacts\DomainMembershipCheckRepair-x64.exe `
-            .\artifacts\DomainMembershipCheckRepair-arm64.exe `
-            .\artifacts\SHA256SUMS.txt `
-            --generate-notes `
+            .\release-files\DomainMembershipCheckRepair-x86.exe `
+            .\release-files\DomainMembershipCheckRepair-x64.exe `
+            .\release-files\DomainMembershipCheckRepair-arm64.exe `
+            .\release-files\SHA256SUMS.txt `
+            --notes-file .\release-files\RELEASE_NOTES.md `
             --title "$env:GITHUB_REF_NAME"

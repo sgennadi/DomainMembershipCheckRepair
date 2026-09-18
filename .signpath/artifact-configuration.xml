@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file-set
+      product-name="DomainMembershipCheckRepair"
+      product-version="${version}"
+      file-version="${version}"
+      company-name="sgennadi"
+      copyright="Copyright (c) 2026 sgennadi"
+      original-filename="DomainMembershipCheckRepair.exe">
+      <include path="DomainMembershipCheckRepair-x86.exe" />
+      <include path="DomainMembershipCheckRepair-x64.exe" />
+      <include path="DomainMembershipCheckRepair-arm64.exe" />
+      <for-each>
+        <authenticode-sign
+          hash-algorithm="sha256"
+          description="DomainMembershipCheckRepair"
+          description-url="https://github.com/sgennadi/DomainMembershipCheckRepair" />
+      </for-each>
+    </pe-file-set>
+  </zip-file>
+</artifact-configuration>

@@ -297,11 +297,30 @@ dist\ARM64\DomainMembershipCheckRepair-arm64.exe
 Build-All.bat
 ```
 
+## Code signing policy
+
+Free code signing is provided by [SignPath.io](https://signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+
+- Committer and reviewer: [@sgennadi](https://github.com/sgennadi)
+- Approver: [@sgennadi](https://github.com/sgennadi)
+- Release binaries are built only from this repository by GitHub Actions on GitHub-hosted runners.
+- Every SignPath release signing request requires manual approval.
+- The three release executables (x86, x64, ARM64) are signed together and SHA-256 checksums are generated only after signing.
+- Full policy and verification details: [SIGNING.md](SIGNING.md)
+
+Privacy statement: **This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.**
+
+Release `v1.1.0` predates SignPath Foundation onboarding and is unsigned. Once the SignPath Foundation application is approved and the repository variables/secrets are enabled, future tagged releases are configured to use the signing pipeline automatically.
+
+## License
+
+DomainMembershipCheckRepair is released under the [MIT License](LICENSE).
+
 ## GitHub Actions
 
 `.github/workflows/build.yml` automatically builds x86, x64, and ARM64 on push, pull request, or manual dispatch. It uploads all three executables plus `SHA256SUMS.txt` as one workflow artifact.
 
-`.github/workflows/release.yml` performs the same three builds for a `v*` tag and publishes all executables and checksums in the GitHub Release.
+`.github/workflows/release.yml` performs the same three builds for a `v*` tag. Before SignPath onboarding is enabled it publishes the unsigned executables as before. After `SIGNPATH_ENABLED=true` is configured, it submits the GitHub-hosted build artifact to SignPath, waits for manual approval, validates the returned Authenticode signatures, generates checksums from the signed files, and then publishes the GitHub Release.
 
 Example:
 
