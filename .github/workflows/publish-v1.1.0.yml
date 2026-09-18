@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   publish:
-    if: github.event.head_commit.message == 'Publish v1.1.0'
     runs-on: windows-latest
 
     steps:
@@ -52,32 +51,6 @@ jobs:
           }
           $lines | Set-Content -Encoding ascii .\artifacts\SHA256SUMS.txt
 
-          @'
-# DomainMembershipCheckRepair v1.1.0
-
-First public multi-architecture release.
-
-Highlights:
-- GUI and CLI modes.
-- Automatic target-domain detection with manual override.
-- Secure-channel check and native repair workflow.
-- Join/Rejoin with the current computer name.
-- Rename + Join recovery workflow.
-- Read-only Active Directory computer-account lookup.
-- Optional deletion of the exact conflicting AD computer object with safety checks and explicit confirmation.
-- Replication-aware Join/Rejoin retry after AD object deletion.
-- Diagnostics report including domain membership, secure channel, DC discovery, pending rename and NetSetup.log status.
-- File logging is disabled by default and is never remembered.
-- Domain usernames and passwords are not persisted.
-- Builds for x86, x64 and Windows ARM64.
-
-Requirements:
-- x86/x64: .NET Framework 4.8.
-- ARM64: Windows 11 on Arm with .NET Framework 4.8.1.
-
-See README.md for usage, CLI syntax, exit codes and safety notes.
-'@ | Set-Content -Encoding utf8 .\artifacts\RELEASE_NOTES.md
-
       - name: Create GitHub Release
         shell: pwsh
         env:
@@ -90,4 +63,4 @@ See README.md for usage, CLI syntax, exit codes and safety notes.
             .\artifacts\SHA256SUMS.txt `
             --target "$env:GITHUB_SHA" `
             --title "v1.1.0" `
-            --notes-file .\artifacts\RELEASE_NOTES.md
+            --generate-notes
