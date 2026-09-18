@@ -14,9 +14,7 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-  SIGNPATH_ENABLED: ${{ vars.SIGNPATH_ENABLED }}
   SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-  SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
 
 jobs:
   release:
@@ -102,22 +100,22 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Validate SignPath configuration
-        if: ${{ env.SIGNPATH_ENABLED == 'true' }}
+      - name: Validate mandatory SignPath configuration
         shell: pwsh
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:SIGNPATH_ORGANIZATION_ID)) {
-            throw "SIGNPATH_ORGANIZATION_ID repository variable is required when SIGNPATH_ENABLED=true."
+            throw "SIGNPATH_ORGANIZATION_ID repository variable is required. Future releases are signing-required and will not publish unsigned binaries."
           }
           if ([string]::IsNullOrWhiteSpace($env:SIGNPATH_API_TOKEN)) {
-            throw "SIGNPATH_API_TOKEN repository secret is required when SIGNPATH_ENABLED=true."
+            throw "SIGNPATH_API_TOKEN repository secret is required. Future releases are signing-required and will not publish unsigned binaries."
           }
 
-      - name: Submit SignPath signing request
-        if: ${{ env.SIGNPATH_ENABLED == 'true' }}
+      - name: Submit mandatory SignPath signing request
         uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3, Node.js 24
         with:
-          api-token: '${{ env.SIGNPATH_API_TOKEN }}'
+          api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
           organization-id: '${{ env.SIGNPATH_ORGANIZATION_ID }}'
           project-slug: 'DomainMembershipCheckRepair'
           signing-policy-slug: 'release-signing'
@@ -129,7 +127,6 @@ jobs:
             version: ${{ toJSON(steps.prepare.outputs.product_version) }}
 
       - name: Validate SignPath-signed executables
-        if: ${{ env.SIGNPATH_ENABLED == 'true' }}
         shell: pwsh
         run: |
           $names = @(
@@ -161,20 +158,13 @@ jobs:
             "DomainMembershipCheckRepair-arm64.exe"
           )
 
-          if ($env:SIGNPATH_ENABLED -eq "true") {
-            foreach ($name in $names) {
-              $file = Get-ChildItem -Path .\signed -Recurse -File -Filter $name | Select-Object -First 1
-              if (-not $file) { throw "Signed file not found: $name" }
-              Copy-Item $file.FullName (Join-Path .\release-files $name)
-            }
-            $signingStatus = "These release executables are Authenticode-signed using SignPath.io with a certificate provided by SignPath Foundation."
+          foreach ($name in $names) {
+            $file = Get-ChildItem -Path .\signed -Recurse -File -Filter $name | Select-Object -First 1
+            if (-not $file) { throw "Signed file not found: $name" }
+            Copy-Item $file.FullName (Join-Path .\release-files $name)
           }
-          else {
-            foreach ($name in $names) {
-              Copy-Item (Join-Path .\unsigned $name) (Join-Path .\release-files $name)
-            }
-            $signingStatus = "This release is unsigned because SignPath Foundation onboarding is not enabled for this repository yet."
-          }
+
+          $signingStatus = "These release executables are Authenticode-signed using SignPath.io with a certificate provided by SignPath Foundation. The workflow refuses to publish unsigned release binaries."
 
           $lines = Get-ChildItem .\release-files\*.exe | Sort-Object Name | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
