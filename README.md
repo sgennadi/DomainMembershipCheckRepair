@@ -310,6 +310,8 @@ The release workflow will reject a mismatched tag.
 
 Free code signing is provided by [SignPath.io](https://signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
 
+Future releases are configured as **signed-only**: the release workflow will not publish unsigned binaries. SignPath Foundation onboarding is the remaining external prerequisite. See [SIGNING.md](SIGNING.md) and the prepared [application worksheet](SIGNPATH_APPLICATION.md).
+
 - Committer and reviewer: [@sgennadi](https://github.com/sgennadi)
 - Approver: [@sgennadi](https://github.com/sgennadi)
 - Release binaries are built only from this repository by GitHub Actions on GitHub-hosted runners.
