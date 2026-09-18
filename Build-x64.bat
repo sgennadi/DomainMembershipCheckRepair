@@ -13,7 +13,7 @@ if not exist "%CSC%" (
 
 if not exist "%OUTDIR%" mkdir "%OUTDIR%"
 
-"%CSC%" /nologo /target:winexe /platform:x64 /define:ARCH_X64 /optimize+ /win32manifest:"%~dp0app.manifest" /out:"%OUT%" /reference:System.dll /reference:System.Core.dll /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.DirectoryServices.dll "%~dp0AssemblyInfo.cs" "%~dp0Program.cs" "%~dp0BuildInfo.cs" "%~dp0CliRunner.cs" "%~dp0MainForm.cs" "%~dp0NativeMethods.cs" "%~dp0Models.cs" "%~dp0Dialogs.cs"
+"%CSC%" /nologo /target:winexe /platform:x64 /define:ARCH_X64 /optimize+ /win32manifest:"%~dp0app.manifest" /out:"%OUT%" /reference:System.dll /reference:System.Core.dll /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.DirectoryServices.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll "%~dp0AssemblyInfo.cs" "%~dp0VersionInfo.cs" "%~dp0Program.cs" "%~dp0BuildInfo.cs" "%~dp0Core\DomainValidation.cs" "%~dp0Core\DiagnosticsService.cs" "%~dp0Core\AdDirectoryService.cs" "%~dp0CliRunner.cs" "%~dp0MainForm.cs" "%~dp0NativeMethods.cs" "%~dp0Models.cs" "%~dp0Dialogs.cs"
 
 if errorlevel 1 (
     echo.

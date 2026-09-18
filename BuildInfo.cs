@@ -4,7 +4,7 @@ namespace DomainMembershipCheckRepair
 {
     internal static class BuildInfo
     {
-        internal const string Version = "1.1.0";
+        internal const string Version = VersionInfo.ProductVersion;
 
         internal static string TargetArchitecture
         {

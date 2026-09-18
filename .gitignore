@@ -7,3 +7,5 @@ artifacts/
 *.suo
 *.pdb
 *.log
+TestResults/
+*.zip

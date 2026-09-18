@@ -1,36 +1,46 @@
-# Domain Membership Check & Repair
+# DomainMembershipCheckRepair
 
-A Windows WinForms + CLI utility for diagnosing and repairing a workstation's Active Directory domain membership.
+Windows GUI + CLI utility for diagnosing and repairing a workstation's Active Directory domain membership.
 
-The project is domain-neutral: there are no hard-coded organization, domain, DC, OU, or administrator names.
+The project is domain-neutral. It contains no hard-coded organization, domain, domain controller, OU, or administrator names.
+
+## Current version
+
+`1.2.0`
+
+The release version has one source of truth: `VersionInfo.cs`. Assembly metadata and the UI read that value, and the release workflow refuses to publish a tag that does not match it.
 
 ## Main features
 
-- Automatically detects the current/target domain when possible.
-- Editable target domain for unjoined systems or domain changes.
-- Checks the Netlogon secure channel.
-- Attempts native secure-channel repair without PowerShell.
+- Automatic target-domain detection with a manual override.
+- Secure-channel / trust verification.
+- Native secure-channel repair without PowerShell.
 - Join/Rejoin with the current computer name.
-- Rename + Join in one recovery workflow.
-- Detects existing AD computer-account conflicts instead of assuming every join failure is a name conflict.
-- Can delete the exact conflicting AD computer object and retry the same name after explicit destructive confirmation.
-- Uses replication-aware retry/backoff after AD object deletion.
-- Read-only **Check AD Account** lookup in both GUI and CLI.
-- **Diagnostics** report in both GUI and CLI.
-- Blocks Join/Rejoin when a computer rename is already pending and requires a reboot first.
-- Optional application file logging; disabled by default and never remembered.
-- Does not store entered domain usernames or passwords.
-- No PowerShell dependency at runtime.
+- Rename + Join recovery workflow.
+- Existing AD computer-account conflict detection.
+- Explicit, safety-checked deletion of the exact conflicting AD computer object.
+- Replication-aware Join/Rejoin retry after deletion.
+- Read-only AD computer-account lookup.
+- Optional preferred DC for LDAP lookup/deletion.
+- Pending-rename safety guard.
+- GUI and CLI diagnostics.
+- Diagnostic ZIP export with text + JSON diagnostics and optional logs.
+- CLI JSON output for automation.
+- CLI dry-run for mutating operations.
+- Optional application file logging, disabled by default and never remembered.
+- No password command-line argument and no credential persistence.
+- x86, x64 and ARM64 builds.
+- Unit tests, CodeQL, Dependabot, SHA-256 checksums and release build provenance.
 
 ## Architectures
 
-GitHub Actions builds three executables:
+GitHub Actions builds:
 
-- `DomainMembershipCheckRepair-x86.exe` - .NET Framework 4.8
-- `DomainMembershipCheckRepair-x64.exe` - .NET Framework 4.8
-- `DomainMembershipCheckRepair-arm64.exe` - native managed ARM64 target, .NET Framework 4.8.1
+- `DomainMembershipCheckRepair-x86.exe` — .NET Framework 4.8
+- `DomainMembershipCheckRepair-x64.exe` — .NET Framework 4.8
+- `DomainMembershipCheckRepair-arm64.exe` — .NET Framework 4.8.1
 
-ARM64 is intended for Windows 11 on Arm. The x86/x64 builds retain .NET Framework 4.8 compatibility.
+ARM64 is intended for Windows 11 on Arm.
 
 ## GUI
 
@@ -41,12 +51,22 @@ The GUI provides:
 - Detect Domain
 - Check Trust
 - Diagnostics
+- Export Diagnostics
 - Repair Trust
 - Join / Rejoin Domain
-- Check AD Account (read-only; lets you enter a computer name)
+- Check AD Account
 - Restart Windows
+- About
 
-The **Write application log to file** checkbox is off by default and is not saved anywhere.
+The **Preferred DC** field is optional. It pins Active Directory LDAP lookup/deletion to that directory server. Windows still chooses the domain controller used by the native domain-join operation.
+
+The **Write application log to file** checkbox is OFF by default and is not saved anywhere.
+
+Application log path when enabled:
+
+```text
+C:\Windows\Logs\DomainMembershipRepair.log
+```
 
 ## CLI
 
@@ -56,21 +76,7 @@ Interactive mode:
 DomainMembershipCheckRepair.exe --cli
 ```
 
-Menu:
-
-```text
-1. Show status / check trust
-2. Repair trust
-3. Join / rejoin domain with current computer name
-4. Rename computer + join domain
-5. Detect target domain
-6. Check AD computer account (read-only)
-7. Diagnostics
-8. Restart Windows
-0. Exit
-```
-
-### One-shot actions
+One-shot actions:
 
 ```text
 DomainMembershipCheckRepair.exe --cli --action status
@@ -81,6 +87,7 @@ DomainMembershipCheckRepair.exe --cli --action rename
 DomainMembershipCheckRepair.exe --cli --action detect
 DomainMembershipCheckRepair.exe --cli --action ad-check
 DomainMembershipCheckRepair.exe --cli --action diagnose
+DomainMembershipCheckRepair.exe --cli --action export-diagnostics
 ```
 
 Options:
@@ -91,97 +98,118 @@ Options:
 --user username@example.com
 --new-name PC-NEW-NAME
 --computer PC-NAME
+--dc dc01.example.com
+--json
+--dry-run
+--output C:\Temp\domain-diagnostics.zip
+--include-app-log
 --log
 --no-log
 --restart
 --no-restart
 ```
 
-`--computer` is used by `ad-check`; if omitted, the current computer name is checked.
+Passwords are never accepted as a command-line argument. When credentials are needed, the CLI asks for the password interactively without echoing it.
 
-The password is never accepted as a command-line argument. When needed, the CLI reads it interactively without echoing it.
+### Dry-run
 
-Examples:
+Dry-run is intended for operations that would modify Windows or domain state:
 
 ```text
-DomainMembershipCheckRepair.exe --cli --action check --no-log
-DomainMembershipCheckRepair.exe --cli --action diagnose --no-log
-DomainMembershipCheckRepair.exe --cli --action ad-check --domain example.com --user EXAMPLE\administrator --computer PC-042
-DomainMembershipCheckRepair.exe --cli --action join --domain example.com --user administrator@example.com --no-restart
-DomainMembershipCheckRepair.exe --cli --action rename --domain example.com --user EXAMPLE\administrator --new-name PC-043
+DomainMembershipCheckRepair.exe --cli --action repair --dry-run
+DomainMembershipCheckRepair.exe --cli --action join --domain example.com --dry-run
+DomainMembershipCheckRepair.exe --cli --action rename --domain example.com --new-name PC-042 --dry-run
 ```
+
+Dry-run does not repair trust, rename the computer, join the domain, delete an AD object, or restart Windows.
+
+### JSON output
+
+JSON is available for read-only/reporting actions:
+
+```text
+DomainMembershipCheckRepair.exe --cli --action diagnose --json
+DomainMembershipCheckRepair.exe --cli --action status --json
+DomainMembershipCheckRepair.exe --cli --action check --json
+DomainMembershipCheckRepair.exe --cli --action detect --json
+DomainMembershipCheckRepair.exe --cli --action ad-check --domain example.com --user EXAMPLE\admin --computer PC-042 --json
+```
+
+This makes the utility easier to consume from RMM, SCCM, PDQ, Intune scripts and other automation.
+
+### Preferred DC
+
+```text
+DomainMembershipCheckRepair.exe --cli --action ad-check --domain example.com --dc dc01.example.com --user EXAMPLE\admin --computer PC-042
+```
+
+`--dc` affects LDAP lookup/deletion. It does not force the native Windows domain-join API to use that DC.
+
+### Export diagnostics
+
+```text
+DomainMembershipCheckRepair.exe --cli --action export-diagnostics --output C:\Temp\domain-diagnostics.zip
+```
+
+The ZIP can contain:
+
+- `diagnostics.txt`
+- `diagnostics.json`
+- `NetSetup.log`, when present
+- `DomainMembershipRepair.log`, only when explicitly requested with `--include-app-log`
+- a small README explaining the package
+
+The diagnostic report intentionally does not contain the entered domain username or password. Windows and third-party logs can still contain environment-specific information, so review exported logs before sharing them.
 
 ## Read-only AD account check
 
-The AD check returns useful object information when available:
+When an account exists, the utility can display:
 
-- Distinguished name
+- distinguished name
 - DNS host name
-- Enabled/disabled state
-- Operating system
-- Description
-- Object GUID
-- Created/changed timestamps
+- enabled/disabled state
+- operating system
+- description
+- object GUID
+- created/changed timestamps
 
 The check itself never modifies AD.
 
-CLI exit codes specific to `ad-check`:
-
-```text
-0   Account found / query succeeded
-10  Account not found
-11  AD lookup failed
-```
-
-## Diagnostics
-
-Diagnostics reports:
-
-- Computer name
-- Build/process/OS architecture
-- CLR version
-- Physical DNS suffix
-- Pending computer rename
-- Domain membership
-- Secure-channel state
-- Trusted DC, when returned by Netlogon
-- Target-domain discovery
-- Domain controller and forest
-- Whether `C:\Windows\Debug\NetSetup.log` exists and when it was last modified
-
-No credentials are required for the basic diagnostics action.
-
 ## Existing AD computer object handling
 
-If Join/Rejoin fails with an error indicating account reuse/name conflict, or Access Denied plus an LDAP lookup confirms the same computer account exists, the tool offers:
+If Join/Rejoin fails with an account reuse/name conflict, or Access Denied plus an LDAP lookup confirms the same computer account exists, the tool can:
 
-1. Delete the exact existing AD computer object and retry the same name.
-2. Use a new computer name.
-3. Cancel.
+1. delete the exact existing AD computer object and retry the same name;
+2. use a new computer name;
+3. cancel.
 
-Deletion is intentionally not a silent operation. GUI mode requires a confirmation dialog. CLI mode requires typing `DELETE` exactly. Immediately before deletion, the tool re-reads the LDAP object and verifies its object class, `sAMAccountName`, and object GUID so a stale lookup cannot silently delete a different object.
+Deletion is never silent.
 
-After deletion the tool waits and retries Join/Rejoin with increasing delays to reduce failures caused by AD replication latency.
+GUI mode requires an explicit confirmation. CLI mode requires typing `DELETE` exactly.
 
-### Deletion warning
+Immediately before deletion, the shared AD service re-reads the LDAP object and verifies:
 
-Deleting a computer object is destructive. Data stored on or below that object may also be deleted, including environment-specific recovery data such as LAPS or BitLocker recovery child objects.
+- object class is `computer`
+- `sAMAccountName` still matches `COMPUTERNAME$`
+- object GUID still matches the object found earlier
+
+If any safety check fails, deletion is cancelled.
+
+Deleting an AD computer object is destructive. Environment-specific child/recovery data can also be deleted, including LAPS or BitLocker recovery information.
 
 ## Pending rename safety
 
-If Windows already has a pending computer rename, Join/Rejoin is blocked until the machine is restarted. This avoids joining AD with a name that does not match the name that will become active after reboot.
+If Windows already has a pending computer rename, Join/Rejoin is blocked until the machine is restarted.
 
 ## Domain detection
 
-Automatic detection uses, in order where applicable:
+Automatic detection uses, where applicable:
 
-1. Explicit `--domain` or GUI Target domain field.
-2. Current Windows domain membership.
-3. Physical DNS suffix, validated by DC discovery.
-4. `USERDNSDOMAIN`, validated by DC discovery.
-5. Domain portion of the entered credential when an operation requires credentials.
-
-The final target domain remains editable in GUI mode.
+1. explicit `--domain` or the GUI Target domain field;
+2. current Windows domain membership;
+3. physical DNS suffix validated by DC discovery;
+4. `USERDNSDOMAIN` validated by DC discovery;
+5. domain portion of entered credentials when credentials are required.
 
 ## Credentials and privacy
 
@@ -189,40 +217,12 @@ Accepted user formats:
 
 ```text
 DOMAIN\username
-```
-
-or:
-
-```text
 username@example.com
 ```
 
 A short username by itself is intentionally rejected.
 
-The program does **not** save usernames or passwords to Registry/config files. The optional application log does not record the entered username or password.
-
-## Logging
-
-Optional application log:
-
-```text
-C:\Windows\Logs\DomainMembershipRepair.log
-```
-
-File logging is disabled by default in both GUI and CLI.
-
-Enable only for the current run:
-
-```text
-DomainMembershipCheckRepair.exe --log
-DomainMembershipCheckRepair.exe --cli --log
-```
-
-Windows also maintains its own domain-join troubleshooting log:
-
-```text
-C:\Windows\Debug\NetSetup.log
-```
+The program does not save usernames or passwords to Registry/config files. The optional application log does not record the entered username or password.
 
 ## CLI exit codes
 
@@ -242,60 +242,64 @@ C:\Windows\Debug\NetSetup.log
 12  Restart required because a rename is pending
 ```
 
-## Requirements
-
-- Windows 10/11 workstation for x86/x64 builds.
-- .NET Framework 4.8 for x86/x64.
-- Windows 11 on Arm with .NET Framework 4.8.1 for ARM64.
-- Local administrator rights (requested by the application manifest).
-- Network/DNS connectivity to the target domain.
-- Appropriate AD permissions for Join/Rejoin, rename, or computer-object deletion.
-
 ## Local builds
 
-### x86
+Run validation tests:
+
+```text
+Test.bat
+```
+
+Build one architecture:
 
 ```text
 Build-x86.bat
-```
-
-Output:
-
-```text
-dist\x86\DomainMembershipCheckRepair-x86.exe
-```
-
-### x64
-
-```text
 Build-x64.bat
-```
-
-Output:
-
-```text
-dist\x64\DomainMembershipCheckRepair-x64.exe
-```
-
-### ARM64
-
-```text
 Build-arm64.bat
 ```
 
-ARM64 local compilation requires Visual Studio 2022/Build Tools, MSBuild, the .NET desktop tooling, and the .NET Framework 4.8.1 targeting pack.
-
-Output:
-
-```text
-dist\ARM64\DomainMembershipCheckRepair-arm64.exe
-```
-
-### All architectures
+Run tests and build all architectures:
 
 ```text
 Build-All.bat
 ```
+
+ARM64 local compilation requires Visual Studio 2022/Build Tools, MSBuild, .NET desktop tooling, and the .NET Framework 4.8.1 targeting pack.
+
+## GitHub Actions and supply-chain security
+
+The repository uses Node.js 24-compatible GitHub Actions. Actions are pinned to immutable commit SHAs.
+
+`build.yml`:
+
+- runs unit tests
+- builds x86, x64 and ARM64
+- creates SHA-256 checksums
+- uploads the build artifact
+
+`codeql.yml` performs scheduled and push/PR C# analysis.
+
+`release.yml`:
+
+- verifies that the Git tag matches `VersionInfo.cs`
+- runs tests
+- builds all architectures
+- generates `SHA256SUMS.txt`
+- creates GitHub build-provenance attestations
+- publishes the GitHub Release
+
+Dependabot checks GitHub Actions updates weekly.
+
+## Release process
+
+Update `VersionInfo.cs` and `CHANGELOG.md`, merge the change, then tag the same version:
+
+```text
+git tag v1.2.0
+git push origin v1.2.0
+```
+
+The release workflow will reject a mismatched tag.
 
 ## Code signing policy
 
@@ -305,26 +309,19 @@ Free code signing is provided by [SignPath.io](https://signpath.io/), certificat
 - Approver: [@sgennadi](https://github.com/sgennadi)
 - Release binaries are built only from this repository by GitHub Actions on GitHub-hosted runners.
 - Every SignPath release signing request requires manual approval.
-- The three release executables (x86, x64, ARM64) are signed together and SHA-256 checksums are generated only after signing.
+- x86, x64 and ARM64 release executables are signed together.
+- SHA-256 checksums are generated from the final release files after signing.
+- The SignPath GitHub Action is pinned to an immutable Node.js 24-compatible commit.
 - Full policy and verification details: [SIGNING.md](SIGNING.md)
 
 Privacy statement: **This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.**
 
-Release `v1.1.0` predates SignPath Foundation onboarding and is unsigned. Once the SignPath Foundation application is approved and the repository variables/secrets are enabled, future tagged releases are configured to use the signing pipeline automatically.
+Release `v1.1.0` predates SignPath Foundation onboarding and is unsigned. When `SIGNPATH_ENABLED=true` and the required repository variable/secret are configured, tagged releases use the SignPath pipeline automatically. If signing is not enabled, the release workflow clearly marks the binaries as unsigned.
 
 ## License
 
-DomainMembershipCheckRepair is released under the [MIT License](LICENSE).
+MIT. See `LICENSE`.
 
-## GitHub Actions
+## Security
 
-`.github/workflows/build.yml` automatically builds x86, x64, and ARM64 on push, pull request, or manual dispatch. It uploads all three executables plus `SHA256SUMS.txt` as one workflow artifact.
-
-`.github/workflows/release.yml` performs the same three builds for a `v*` tag. Before SignPath onboarding is enabled it publishes the unsigned executables as before. After `SIGNPATH_ENABLED=true` is configured, it submits the GitHub-hosted build artifact to SignPath, waits for manual approval, validates the returned Authenticode signatures, generates checksums from the signed files, and then publishes the GitHub Release.
-
-Example:
-
-```text
-git tag v1.1.0
-git push origin v1.1.0
-```
+See `SECURITY.md` for vulnerability reporting guidance.

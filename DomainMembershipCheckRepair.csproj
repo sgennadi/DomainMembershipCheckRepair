@@ -75,11 +75,17 @@
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.DirectoryServices" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.cs" />
+    <Compile Include="VersionInfo.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="BuildInfo.cs" />
+    <Compile Include="Core\DomainValidation.cs" />
+    <Compile Include="Core\DiagnosticsService.cs" />
+    <Compile Include="Core\AdDirectoryService.cs" />
     <Compile Include="CliRunner.cs" />
     <Compile Include="MainForm.cs" />
     <Compile Include="NativeMethods.cs" />
@@ -87,6 +93,9 @@
     <Compile Include="Dialogs.cs" />
     <None Include="app.manifest" />
     <None Include="README.md" />
+    <None Include="CHANGELOG.md" />
+    <None Include="LICENSE" />
+    <None Include="SECURITY.md" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
