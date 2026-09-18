@@ -1,0 +1,41 @@
+name: Publish v1.2.1 Tag
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  actions: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  TARGET_SHA: '6cd70c2cdd74201b55062f04ea86d945cbcfaafe'
+
+jobs:
+  tag-and-dispatch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, Node.js 24
+        with:
+          fetch-depth: 0
+
+      - name: Create v1.2.1 tag and dispatch standard release workflow
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin "$TARGET_SHA" --no-tags
+          if git ls-remote --exit-code --tags origin refs/tags/v1.2.1 >/dev/null 2>&1; then
+            echo 'Tag v1.2.1 already exists; leaving it unchanged.'
+          else
+            git tag -a v1.2.1 "$TARGET_SHA" -m 'DomainMembershipCheckRepair v1.2.1'
+            git push origin refs/tags/v1.2.1
+          fi
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref v1.2.1
