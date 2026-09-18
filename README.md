@@ -321,9 +321,13 @@ Future releases are configured as **signed-only**: the release workflow will not
 - The SignPath GitHub Action is pinned to an immutable Node.js 24-compatible commit.
 - Full policy and verification details: [SIGNING.md](SIGNING.md)
 
-Privacy statement: **This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.**
+Privacy statement: **This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.** See the full [Privacy Policy](PRIVACY.md).
 
 Release `v1.1.0` predates SignPath Foundation onboarding and is unsigned. When `SIGNPATH_ENABLED=true` and the required repository variable/secret are configured, tagged releases use the SignPath pipeline automatically. If signing is not enabled, the release workflow clearly marks the binaries as unsigned.
+
+## Privacy
+
+See [PRIVACY.md](PRIVACY.md) for the full project privacy policy.
 
 ## License
 
