@@ -35,11 +35,11 @@ The SignPath artifact configuration is stored in `.signpath/artifact-configurati
 
 ## Privacy policy
 
-This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+The full project privacy policy is published at:
 
-DomainMembershipCheckRepair communicates with Active Directory/domain infrastructure only as part of actions explicitly initiated by the operator, such as domain discovery, trust checks, account lookup, repair, join/rejoin, rename/join, or deletion of a confirmed conflicting computer object.
+https://github.com/sgennadi/DomainMembershipCheckRepair/blob/main/PRIVACY.md
 
-The application does not transmit telemetry or analytics to the project maintainer and does not store entered domain passwords.
+In summary, the application does not transmit telemetry or analytics to the project maintainer, does not persist entered domain passwords, and communicates with Active Directory/domain infrastructure only for operations explicitly initiated by the operator.
 
 ## System changes
 
