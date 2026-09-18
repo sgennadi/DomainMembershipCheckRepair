@@ -1,0 +1,57 @@
+name: Fix v1.2.0 Release Notes
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  update-notes:
+    if: github.event.head_commit.message == 'Fix v1.2.0 release notes'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Update v1.2.0 release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > release-notes.md <<'EOF'
+          ## DomainMembershipCheckRepair v1.2.0
+
+          ### Highlights
+
+          - Shared Core services for validation, diagnostics, and Active Directory computer-account operations.
+          - CLI `--dry-run` for repair, join, rename, and restart workflows.
+          - CLI `--json` for read-only/reporting actions.
+          - Optional preferred LDAP domain controller via `--dc`.
+          - GUI Preferred DC field.
+          - Diagnostic ZIP export with text and JSON reports.
+          - Centralized safety checks before destructive AD computer-object deletion.
+          - Pending-rename safety retained.
+          - File logging remains OFF by default and is never persisted.
+          - x86, x64, and ARM64 builds.
+          - Unit tests, CodeQL, Dependabot, and immutable Node.js 24 GitHub Actions.
+          - Single product-version source in `VersionInfo.cs`.
+          - SHA-256 checksums and GitHub build-provenance attestations.
+
+          ### Code signing
+
+          Free code signing is prepared through [SignPath.io](https://signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+
+          This v1.2.0 release is **unsigned** because SignPath Foundation onboarding is not enabled for this repository yet. The workflow will use SignPath automatically for future tagged releases when `SIGNPATH_ENABLED=true` and the required SignPath configuration is present.
+
+          See [SIGNING.md](https://github.com/sgennadi/DomainMembershipCheckRepair/blob/main/SIGNING.md).
+
+          ### Verification
+
+          Use the attached `SHA256SUMS.txt` to verify the three executables. GitHub build-provenance attestations were generated for the final release binaries.
+
+          Source tag: `v1.2.0`
+
+          Full changelog: https://github.com/sgennadi/DomainMembershipCheckRepair/commits/v1.2.0
+          EOF
+
+          gh release edit v1.2.0 --repo "${GITHUB_REPOSITORY}" --notes-file release-notes.md
