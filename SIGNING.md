@@ -45,6 +45,25 @@ The application does not transmit telemetry or analytics to the project maintain
 
 Operations that modify the workstation or Active Directory are initiated explicitly by the operator. Destructive AD computer-object deletion requires explicit confirmation. Actions that require a reboot report that requirement to the operator.
 
-## Historical releases
+## Signing status
 
-Release `v1.1.0` was published before SignPath Foundation onboarding and is unsigned. Future releases will use the SignPath pipeline after the Foundation application is approved and the required GitHub repository secret/variables are enabled.
+The repository is now **fail-closed for releases**: the release workflow requires SignPath configuration, requires a successful SignPath signing request, verifies every returned Authenticode signature, and only then publishes release binaries. There is no unsigned fallback in the release workflow.
+
+The external SignPath Foundation onboarding is still required before the first signed release can be produced. Until that approval and repository configuration are completed, the release workflow will fail before publishing assets.
+
+Historical releases `v1.1.0`, `v1.2.0`, and `v1.2.1` were published before SignPath Foundation onboarding and are unsigned.
+
+## One-time SignPath onboarding
+
+1. Apply for the free OSS subscription at https://signpath.org/apply.
+2. Enable multi-factor authentication for both GitHub and SignPath.
+3. After approval, install/authorize the SignPath GitHub App for this repository.
+4. In SignPath, create/link the project with slug `DomainMembershipCheckRepair`.
+5. Configure the repository's `.signpath/artifact-configuration.xml` as the artifact configuration (or reproduce it exactly in SignPath and make it the project default).
+6. Create a signing policy with slug `release-signing`, require origin verification, and require manual approval.
+7. Link the SignPath `GitHub.com` trusted build system to the project.
+8. Create a SignPath API token for a user allowed to submit signing requests.
+9. Add GitHub repository variable `SIGNPATH_ORGANIZATION_ID`.
+10. Add GitHub repository secret `SIGNPATH_API_TOKEN`.
+
+After those one-time steps, create the next version tag. The release workflow will submit the three EXEs to SignPath, wait for manual approval, verify `Get-AuthenticodeSignature` returns `Valid`, regenerate SHA-256 checksums from the signed binaries, create provenance attestations, and publish the release.
