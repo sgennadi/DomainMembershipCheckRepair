@@ -27,10 +27,11 @@ Changes proposed by contributors who do not have commit access must be reviewed 
 5. A release signing request is manually approved in SignPath.
 6. SignPath Authenticode-signs the three executables and returns the signed artifact.
 7. The workflow verifies each Authenticode signature with `Get-AuthenticodeSignature`.
-8. SHA-256 checksums are generated from the signed executables.
-9. Only then are the executables and `SHA256SUMS.txt` published to the GitHub Release.
+8. SHA-256 checksums are generated from the final executables.
+9. GitHub build-provenance attestations are generated for the final release executables.
+10. Only then are the executables and `SHA256SUMS.txt` published to the GitHub Release.
 
-The SignPath artifact configuration is stored in `.signpath/artifact-configuration.xml`. The repository also contains `.signpath/pipeline-policy.yml`, which requires GitHub-hosted runners.
+The SignPath artifact configuration is stored in `.signpath/artifact-configuration.xml`. The repository also contains `.signpath/pipeline-policy.yml`, which requires GitHub-hosted runners. GitHub Actions used by the release workflow are pinned to immutable commits and use Node.js 24-compatible runtimes.
 
 ## Privacy policy
 

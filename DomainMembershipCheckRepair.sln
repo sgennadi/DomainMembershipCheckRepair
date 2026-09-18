@@ -4,6 +4,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DomainMembershipCheckRepair", "DomainMembershipCheckRepair.csproj", "{4E8CA0E4-85C5-4B6B-AB9D-1129C6D65F59}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DomainMembershipCheckRepair.Tests", "Tests\DomainMembershipCheckRepair.Tests.csproj", "{54BD650A-3707-4C84-A0C6-E47BF8F7A3F8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM64 = Debug|ARM64
@@ -26,5 +28,17 @@ Global
 		{4E8CA0E4-85C5-4B6B-AB9D-1129C6D65F59}.Release|x64.Build.0 = Release|x64
 		{4E8CA0E4-85C5-4B6B-AB9D-1129C6D65F59}.Release|x86.ActiveCfg = Release|x86
 		{4E8CA0E4-85C5-4B6B-AB9D-1129C6D65F59}.Release|x86.Build.0 = Release|x86
+		{54BD650A-3707-4C84-A0C6-E47BF8F7A3F8}.Debug|ARM64.ActiveCfg = Debug|AnyCPU
+		{54BD650A-3707-4C84-A0C6-E47BF8F7A3F8}.Debug|ARM64.Build.0 = Debug|AnyCPU
+		{54BD650A-3707-4C84-A0C6-E47BF8F7A3F8}.Debug|x64.ActiveCfg = Debug|AnyCPU
+		{54BD650A-3707-4C84-A0C6-E47BF8F7A3F8}.Debug|x64.Build.0 = Debug|AnyCPU
+		{54BD650A-3707-4C84-A0C6-E47BF8F7A3F8}.Debug|x86.ActiveCfg = Debug|AnyCPU
+		{54BD650A-3707-4C84-A0C6-E47BF8F7A3F8}.Debug|x86.Build.0 = Debug|AnyCPU
+		{54BD650A-3707-4C84-A0C6-E47BF8F7A3F8}.Release|ARM64.ActiveCfg = Release|AnyCPU
+		{54BD650A-3707-4C84-A0C6-E47BF8F7A3F8}.Release|ARM64.Build.0 = Release|AnyCPU
+		{54BD650A-3707-4C84-A0C6-E47BF8F7A3F8}.Release|x64.ActiveCfg = Release|AnyCPU
+		{54BD650A-3707-4C84-A0C6-E47BF8F7A3F8}.Release|x64.Build.0 = Release|AnyCPU
+		{54BD650A-3707-4C84-A0C6-E47BF8F7A3F8}.Release|x86.ActiveCfg = Release|AnyCPU
+		{54BD650A-3707-4C84-A0C6-E47BF8F7A3F8}.Release|x86.Build.0 = Release|AnyCPU
 	EndGlobalSection
 EndGlobal

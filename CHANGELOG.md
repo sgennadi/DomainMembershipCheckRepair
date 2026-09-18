@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.2.0
+
+- Added shared Core services for validation, diagnostics, and Active Directory computer-account operations.
+- Added CLI `--dry-run` for mutating repair/join/rename/restart workflows.
+- Added CLI `--json` for read-only and reporting actions.
+- Added optional `--dc` preferred directory server for LDAP lookup/deletion.
+- Added CLI and GUI diagnostic ZIP export.
+- Added diagnostics JSON alongside the human-readable report.
+- Added unit tests for computer-name validation, domain-user formats, domain hints, LDAP escaping, suggested names, and DC normalization.
+- Added MIT license and security policy.
+- Added Dependabot for GitHub Actions.
+- Added CodeQL workflow.
+- Pinned GitHub Actions to immutable commit SHAs.
+- Standardized GitHub Actions on Node.js 24.
+- Added release build provenance attestations.
+- Integrated the existing SignPath release-signing pipeline, pinned its Node.js 24 action, and preserved unsigned fallback behavior until onboarding is enabled.
+- Centralized the application version in `VersionInfo.cs`; release tags are validated against it.
+- Added GUI Preferred DC field, Export Diagnostics button, and About dialog.
+- File logging remains disabled by default and is never persisted.
+
 ## 1.1.0
 
 - Added x64 build target.

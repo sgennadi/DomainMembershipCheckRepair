@@ -6,6 +6,10 @@ echo Building DomainMembershipCheckRepair for x86, x64 and ARM64
 echo ============================================================
 echo.
 
+call "%~dp0Test.bat"
+if errorlevel 1 exit /b 1
+
+echo.
 call "%~dp0Build-x86.bat"
 if errorlevel 1 exit /b 1
 

@@ -1,7 +1,6 @@
 using System;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.DirectoryServices;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -18,9 +17,14 @@ namespace DomainMembershipCheckRepair
         internal string User = String.Empty;
         internal string NewName = String.Empty;
         internal string ComputerName = String.Empty;
+        internal string PreferredDc = String.Empty;
+        internal string OutputPath = String.Empty;
         internal bool FileLogging;
         internal bool RestartAlways;
         internal bool RestartNever;
+        internal bool Json;
+        internal bool DryRun;
+        internal bool IncludeApplicationLog;
         internal bool Help;
     }
 
@@ -28,16 +32,19 @@ namespace DomainMembershipCheckRepair
     {
         internal const string LogFile = @"C:\Windows\Logs\DomainMembershipRepair.log";
         private readonly bool fileLogging;
+        private readonly bool quietConsole;
 
-        internal CliLogger(bool enabled)
+        internal CliLogger(bool enabled, bool quiet)
         {
             fileLogging = enabled;
+            quietConsole = quiet;
         }
 
         internal void Log(string level, string message)
         {
             string line = "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "] [" + level + "] " + message;
-            Console.WriteLine(line);
+            if (!quietConsole)
+                Console.WriteLine(line);
 
             if (!fileLogging)
                 return;
@@ -73,7 +80,7 @@ namespace DomainMembershipCheckRepair
 
             string parseError;
             options = ParseOptions(args, enableFileLogging, out parseError);
-            logger = new CliLogger(options.FileLogging);
+            logger = new CliLogger(options.FileLogging, options.Json);
 
             if (!String.IsNullOrWhiteSpace(parseError))
             {
@@ -89,7 +96,8 @@ namespace DomainMembershipCheckRepair
                 return 0;
             }
 
-            PrintHeader();
+            if (!options.Json)
+                PrintHeader();
 
             if (String.IsNullOrWhiteSpace(options.Action))
                 return InteractiveMenu();
@@ -173,6 +181,21 @@ namespace DomainMembershipCheckRepair
                     result.RestartAlways = false;
                     continue;
                 }
+                if (EqualsArg(arg, "--json"))
+                {
+                    result.Json = true;
+                    continue;
+                }
+                if (EqualsArg(arg, "--dry-run"))
+                {
+                    result.DryRun = true;
+                    continue;
+                }
+                if (EqualsArg(arg, "--include-app-log"))
+                {
+                    result.IncludeApplicationLog = true;
+                    continue;
+                }
 
                 if (EqualsArg(arg, "--action"))
                 {
@@ -219,6 +242,25 @@ namespace DomainMembershipCheckRepair
                     }
                     continue;
                 }
+                if (EqualsArg(arg, "--dc"))
+                {
+                    if (!TryReadValue(args, ref i, out result.PreferredDc))
+                    {
+                        error = "--dc requires a value.";
+                        return result;
+                    }
+                    result.PreferredDc = DomainValidation.NormalizeDirectoryServer(result.PreferredDc);
+                    continue;
+                }
+                if (EqualsArg(arg, "--output"))
+                {
+                    if (!TryReadValue(args, ref i, out result.OutputPath))
+                    {
+                        error = "--output requires a value.";
+                        return result;
+                    }
+                    continue;
+                }
 
                 error = "Unknown argument: " + arg;
                 return result;
@@ -227,12 +269,24 @@ namespace DomainMembershipCheckRepair
             if (!String.IsNullOrWhiteSpace(result.Action))
             {
                 string action = result.Action.Trim().ToLowerInvariant();
-                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "detect" && action != "ad-check" && action != "diagnose")
+                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "detect" && action != "ad-check" && action != "diagnose" && action != "export-diagnostics")
                 {
-                    error = "Unknown action '" + result.Action + "'. Use status, check, repair, join, rename, detect, ad-check, or diagnose.";
+                    error = "Unknown action '" + result.Action + "'. Use status, check, repair, join, rename, detect, ad-check, diagnose, or export-diagnostics.";
                     return result;
                 }
                 result.Action = action;
+            }
+
+            if (result.Json && String.IsNullOrWhiteSpace(result.Action))
+            {
+                error = "--json requires a one-shot --action.";
+                return result;
+            }
+
+            if (result.Json && (result.Action == "repair" || result.Action == "join" || result.Action == "rename"))
+            {
+                error = "--json is supported for read-only/reporting actions only.";
+                return result;
             }
 
             return result;
@@ -288,6 +342,7 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("  --cli --action detect");
             Console.WriteLine("  --cli --action ad-check");
             Console.WriteLine("  --cli --action diagnose");
+            Console.WriteLine("  --cli --action export-diagnostics");
             Console.WriteLine();
             Console.WriteLine("Optional arguments:");
             Console.WriteLine("  --domain example.com");
@@ -295,6 +350,11 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("  --user username@example.com");
             Console.WriteLine("  --new-name PC-NEW-NAME        (rename action)");
             Console.WriteLine("  --computer PC-NAME            (ad-check; default: current computer)");
+            Console.WriteLine("  --dc dc01.example.com         preferred DC for LDAP operations");
+            Console.WriteLine("  --json                        JSON output for read-only/reporting actions");
+            Console.WriteLine("  --dry-run                     show planned mutating action without changing Windows/AD");
+            Console.WriteLine("  --output PATH                 export-diagnostics ZIP destination");
+            Console.WriteLine("  --include-app-log             include optional application log in diagnostic ZIP");
             Console.WriteLine("  --log                         write application log file");
             Console.WriteLine("  --no-log                      disable application log file (default)");
             Console.WriteLine("  --restart                     restart automatically after success");
@@ -332,7 +392,8 @@ namespace DomainMembershipCheckRepair
                 Console.WriteLine("  5. Detect target domain");
                 Console.WriteLine("  6. Check AD computer account (read-only)");
                 Console.WriteLine("  7. Diagnostics");
-                Console.WriteLine("  8. Restart Windows");
+                Console.WriteLine("  8. Export diagnostics ZIP");
+                Console.WriteLine("  9. Restart Windows");
                 Console.WriteLine("  0. Exit");
                 Console.Write("Selection: ");
 
@@ -353,7 +414,8 @@ namespace DomainMembershipCheckRepair
                     case "5": result = DetectAndDisplayDomain(); break;
                     case "6": result = CheckAdAccount(); break;
                     case "7": result = Diagnostics(); break;
-                    case "8": result = RestartWindows(); break;
+                    case "8": result = ExportDiagnostics(); break;
+                    case "9": result = RestartWindows(); break;
                     case "0": return 0;
                     default:
                         Console.WriteLine("Invalid selection.");
@@ -376,12 +438,20 @@ namespace DomainMembershipCheckRepair
                 case "detect": return DetectAndDisplayDomain();
                 case "ad-check": return CheckAdAccount();
                 case "diagnose": return Diagnostics();
+                case "export-diagnostics": return ExportDiagnostics();
                 default: return 3;
             }
         }
 
         private static int ShowStatus(bool verbose)
         {
+            if (options.Json)
+            {
+                DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(options.Domain, options.PreferredDc);
+                Console.WriteLine(DiagnosticsService.ToJson(snapshot));
+                return snapshot.ResultCode;
+            }
+
             JoinInformation join = NativeMethods.GetJoinInformation();
             if (join.StatusCode != NativeMethods.NERR_Success)
             {
@@ -418,6 +488,13 @@ namespace DomainMembershipCheckRepair
 
         private static int CheckTrustOnly()
         {
+            if (options.Json)
+            {
+                DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(options.Domain, options.PreferredDc);
+                Console.WriteLine(DiagnosticsService.ToJson(snapshot));
+                return snapshot.ResultCode;
+            }
+
             JoinInformation join = NativeMethods.GetJoinInformation();
             if (join.StatusCode != 0)
             {
@@ -465,6 +542,14 @@ namespace DomainMembershipCheckRepair
                 return 0;
             }
 
+            if (options.DryRun)
+            {
+                Console.WriteLine("DRY RUN: secure channel is broken.");
+                Console.WriteLine("Would request DC rediscovery, refresh the machine-account password if necessary, then verify the secure channel again.");
+                Console.WriteLine("Domain: " + joinedDomain);
+                return 0;
+            }
+
             logger.Log("INFO", "Starting native secure-channel repair for the currently joined domain.");
 
             int rediscoverStatus = NativeMethods.NetlogonControl(NativeMethods.NETLOGON_CONTROL_REDISCOVER, 2, joinedDomain);
@@ -504,69 +589,44 @@ namespace DomainMembershipCheckRepair
                 return 1;
             }
 
-            Console.WriteLine("Target domain: " + domain);
+            if (options.Json)
+                Console.WriteLine("{\"targetDomain\":\"" + JsonEscape(domain) + "\"}");
+            else
+                Console.WriteLine("Target domain: " + domain);
             return 0;
         }
 
         private static int Diagnostics()
         {
-            Console.WriteLine("Diagnostics");
-            Console.WriteLine("-----------");
-            Console.WriteLine("Computer:          " + Environment.MachineName);
-            Console.WriteLine("Architecture:      " + BuildInfo.RuntimeSummary);
-            Console.WriteLine("Physical DNS:      " + FirstNonEmpty(NativeMethods.GetPhysicalDnsDomain(), "(none)"));
-
-            string pendingName;
-            Console.WriteLine("Pending rename:    " + (HasPendingRename(out pendingName) ? pendingName : "No"));
-
-            JoinInformation join = NativeMethods.GetJoinInformation();
-            int resultCode = 0;
-            if (join.StatusCode != NativeMethods.NERR_Success)
-            {
-                Console.WriteLine("Membership:        Unknown - " + NativeMethods.FormatError(join.StatusCode));
-                resultCode = 1;
-            }
-            else if (join.Status == NetJoinStatus.NetSetupDomainName && !String.IsNullOrWhiteSpace(join.Name))
-            {
-                Console.WriteLine("Membership:        Domain - " + join.Name);
-                TrustCheckResult trust = NativeMethods.VerifySecureChannel(join.Name);
-                Console.WriteLine("Secure channel:    " + (trust.Healthy ? "OK" : "BROKEN - " + NativeMethods.FormatError(trust.StatusCode)));
-                Console.WriteLine("Trusted DC:        " + FirstNonEmpty(trust.TrustedDc, "(not returned)"));
-                resultCode = trust.Healthy ? 0 : 2;
-            }
+            DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(options.Domain, options.PreferredDc);
+            if (options.Json)
+                Console.WriteLine(DiagnosticsService.ToJson(snapshot));
             else
-            {
-                Console.WriteLine("Membership:        Not joined (" + join.Status + ")");
-                Console.WriteLine("Secure channel:    Not applicable");
-                resultCode = 4;
-            }
+                Console.WriteLine(DiagnosticsService.ToText(snapshot));
 
-            string target = ResolveConfiguredOrDetectedDomain(String.Empty, false);
-            Console.WriteLine("Target domain:     " + (String.IsNullOrWhiteSpace(target) ? "(not detected)" : target));
-            if (!String.IsNullOrWhiteSpace(target))
-            {
-                DomainDiscoveryResult discovery = NativeMethods.DiscoverDomain(target, true);
-                Console.WriteLine("DC discovery:      " + (discovery.Success ? "OK" : NativeMethods.FormatError(discovery.StatusCode)));
-                if (discovery.Success)
-                {
-                    Console.WriteLine("DNS domain:        " + FirstNonEmpty(discovery.DnsDomainName, "(not returned)"));
-                    Console.WriteLine("Domain controller: " + FirstNonEmpty(discovery.DomainControllerName, "(not returned)"));
-                    Console.WriteLine("Forest:            " + FirstNonEmpty(discovery.ForestName, "(not returned)"));
-                }
-            }
+            return snapshot.ResultCode;
+        }
 
-            string netSetupLog = @"C:\Windows\Debug\NetSetup.log";
-            if (File.Exists(netSetupLog))
+        private static int ExportDiagnostics()
+        {
+            try
             {
-                FileInfo fi = new FileInfo(netSetupLog);
-                Console.WriteLine("NetSetup.log:       Present; modified " + fi.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss"));
+                DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(options.Domain, options.PreferredDc);
+                string archive = DiagnosticsService.ExportPackage(snapshot, options.OutputPath, options.IncludeApplicationLog);
+                if (options.Json)
+                    Console.WriteLine("{\"archive\":\"" + JsonEscape(archive) + "\",\"resultCode\":" + snapshot.ResultCode + "}");
+                else
+                    Console.WriteLine("Diagnostics archive: " + archive);
+                return 0;
             }
-            else
+            catch (Exception ex)
             {
-                Console.WriteLine("NetSetup.log:       Not present");
+                if (options.Json)
+                    Console.WriteLine("{\"error\":\"" + JsonEscape(ex.Message) + "\"}");
+                else
+                    logger.Log("ERROR", "Unable to export diagnostics: " + ex.Message);
+                return 1;
             }
-
-            return resultCode;
         }
 
         private static int CheckAdAccount()
@@ -595,20 +655,31 @@ namespace DomainMembershipCheckRepair
             AdComputerAccountInfo account = FindComputerAccount(computerName, user, password, targetDomain);
             if (!account.LookupSucceeded)
             {
-                logger.Log("ERROR", "AD computer account lookup could not be completed. No changes were made.");
+                if (options.Json)
+                    Console.WriteLine("{\"computer\":\"" + JsonEscape(computerName) + "\",\"domain\":\"" + JsonEscape(targetDomain) + "\",\"lookupSucceeded\":false,\"exists\":false,\"exitCode\":11}");
+                else
+                    logger.Log("ERROR", "AD computer account lookup could not be completed. No changes were made.");
                 return 11;
             }
 
             if (!account.Exists)
             {
-                Console.WriteLine("Computer account: NOT FOUND");
-                Console.WriteLine("Computer:         " + computerName);
-                Console.WriteLine("Domain:           " + targetDomain);
-                Console.WriteLine("Read-only check; no changes were made.");
+                if (options.Json)
+                    Console.WriteLine("{\"computer\":\"" + JsonEscape(computerName) + "\",\"domain\":\"" + JsonEscape(targetDomain) + "\",\"lookupSucceeded\":true,\"exists\":false,\"exitCode\":10}");
+                else
+                {
+                    Console.WriteLine("Computer account: NOT FOUND");
+                    Console.WriteLine("Computer:         " + computerName);
+                    Console.WriteLine("Domain:           " + targetDomain);
+                    Console.WriteLine("Read-only check; no changes were made.");
+                }
                 return 10;
             }
 
-            Console.WriteLine(FormatAdAccountReport(computerName, targetDomain, account));
+            if (options.Json)
+                Console.WriteLine(FormatAdAccountJson(computerName, targetDomain, account));
+            else
+                Console.WriteLine(FormatAdAccountReport(computerName, targetDomain, account));
             return 0;
         }
 
@@ -619,6 +690,17 @@ namespace DomainMembershipCheckRepair
             {
                 logger.Log("WARN", "Join/Rejoin blocked because a computer rename is pending: " + pendingName + ". Restart Windows first.");
                 return 12;
+            }
+
+            if (options.DryRun)
+            {
+                string dryRunDomain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
+                if (String.IsNullOrWhiteSpace(dryRunDomain))
+                    return 3;
+                Console.WriteLine("DRY RUN: no domain or Windows changes will be made.");
+                Console.WriteLine("Would Join/Rejoin computer '" + Environment.MachineName + "' to domain '" + dryRunDomain + "'.");
+                Console.WriteLine("Preferred LDAP DC: " + (String.IsNullOrWhiteSpace(options.PreferredDc) ? "Auto" : options.PreferredDc));
+                return 0;
             }
 
             string user;
@@ -716,6 +798,37 @@ namespace DomainMembershipCheckRepair
             {
                 logger.Log("WARN", "A computer rename is already pending: " + pendingName + ". Restart Windows before trying another rename.");
                 return 8;
+            }
+
+            if (options.DryRun)
+            {
+                string dryRunDomain = !String.IsNullOrWhiteSpace(existingTargetDomain)
+                    ? existingTargetDomain
+                    : ResolveConfiguredOrDetectedDomain(String.Empty, true);
+                if (String.IsNullOrWhiteSpace(dryRunDomain))
+                    return 3;
+
+                string dryRunName = (options.NewName ?? String.Empty).Trim();
+                if (String.IsNullOrWhiteSpace(dryRunName))
+                {
+                    string defaultName = DomainValidation.CreateSuggestedName(currentName);
+                    Console.Write("New computer name [" + defaultName + "]: ");
+                    dryRunName = (Console.ReadLine() ?? String.Empty).Trim();
+                    if (dryRunName.Length == 0)
+                        dryRunName = defaultName;
+                }
+
+                string dryRunValidation = DomainValidation.ValidateComputerName(dryRunName);
+                if (dryRunValidation != null)
+                {
+                    Console.WriteLine("Invalid computer name: " + dryRunValidation);
+                    return 3;
+                }
+
+                Console.WriteLine("DRY RUN: no computer name or domain changes will be made.");
+                Console.WriteLine("Would set pending computer name to '" + dryRunName + "' and join domain '" + dryRunDomain + "'.");
+                Console.WriteLine("Current computer name: " + currentName);
+                return 0;
             }
 
             string user = existingUser;
@@ -970,66 +1083,12 @@ namespace DomainMembershipCheckRepair
 
         private static string ExtractDomainHintFromUser(string user)
         {
-            if (String.IsNullOrWhiteSpace(user))
-                return String.Empty;
-
-            string value = user.Trim();
-            int slash = value.IndexOf('\\');
-            int at = value.LastIndexOf('@');
-
-            if (slash > 0)
-                return value.Substring(0, slash).Trim();
-            if (at > 0 && at < value.Length - 1)
-                return value.Substring(at + 1).Trim();
-
-            return String.Empty;
+            return DomainValidation.ExtractDomainHintFromUser(user);
         }
 
         private static bool TryValidateUserName(string input, out string normalized, out string error)
         {
-            normalized = String.Empty;
-            error = null;
-
-            if (String.IsNullOrWhiteSpace(input))
-            {
-                error = "Enter a domain user.";
-                return false;
-            }
-
-            string value = input.Trim();
-            int slash = value.IndexOf('\\');
-            int at = value.IndexOf('@');
-
-            if (slash > 0 && slash < value.Length - 1 && at < 0)
-            {
-                string domainPart = value.Substring(0, slash).Trim();
-                string userPart = value.Substring(slash + 1).Trim();
-                if (domainPart.Length == 0 || userPart.Length == 0 || userPart.IndexOf('\\') >= 0)
-                {
-                    error = @"The DOMAIN\username value is not valid.";
-                    return false;
-                }
-
-                normalized = domainPart + "\\" + userPart;
-                return true;
-            }
-
-            if (at > 0 && at < value.Length - 1 && slash < 0 && value.IndexOf('@', at + 1) < 0)
-            {
-                string userPart = value.Substring(0, at).Trim();
-                string domainPart = value.Substring(at + 1).Trim();
-                if (userPart.Length == 0 || domainPart.Length == 0)
-                {
-                    error = "The username@domain value is not valid.";
-                    return false;
-                }
-
-                normalized = userPart + "@" + domainPart;
-                return true;
-            }
-
-            error = "Do not enter only a short username.";
-            return false;
+            return DomainValidation.TryValidateUserName(input, out normalized, out error);
         }
 
         private static bool? ComputerAccountExists(string computerName, string user, string password, string targetDomain)
@@ -1042,96 +1101,13 @@ namespace DomainMembershipCheckRepair
 
         private static AdComputerAccountInfo FindComputerAccount(string computerName, string user, string password, string targetDomain)
         {
-            AdComputerAccountInfo info = new AdComputerAccountInfo();
-
-            try
-            {
-                string ldapDomain = targetDomain;
-                DomainDiscoveryResult resolved = NativeMethods.DiscoverDomain(targetDomain, false);
-                if (resolved.Success && !String.IsNullOrWhiteSpace(resolved.DnsDomainName))
-                    ldapDomain = resolved.DnsDomainName;
-
-                using (DirectoryEntry rootDse = new DirectoryEntry("LDAP://" + ldapDomain + "/RootDSE", user, password, AuthenticationTypes.Secure))
-                {
-                    object namingContextValue = rootDse.Properties["defaultNamingContext"].Value;
-                    if (namingContextValue == null)
-                    {
-                        logger.Log("WARN", "Active Directory did not return defaultNamingContext.");
-                        return info;
-                    }
-
-                    string namingContext = namingContextValue.ToString();
-                    using (DirectoryEntry root = new DirectoryEntry("LDAP://" + ldapDomain + "/" + namingContext, user, password, AuthenticationTypes.Secure))
-                    using (DirectorySearcher searcher = new DirectorySearcher(root))
-                    {
-                        string samAccountName = EscapeLdapFilterValue(computerName + "$");
-                        searcher.Filter = "(&(objectCategory=computer)(sAMAccountName=" + samAccountName + "))";
-                        searcher.SearchScope = SearchScope.Subtree;
-                        searcher.SizeLimit = 1;
-                        searcher.PropertiesToLoad.Add("distinguishedName");
-                        searcher.PropertiesToLoad.Add("dNSHostName");
-                        searcher.PropertiesToLoad.Add("operatingSystem");
-                        searcher.PropertiesToLoad.Add("description");
-                        searcher.PropertiesToLoad.Add("objectGUID");
-                        searcher.PropertiesToLoad.Add("whenCreated");
-                        searcher.PropertiesToLoad.Add("whenChanged");
-                        searcher.PropertiesToLoad.Add("userAccountControl");
-
-                        SearchResult result = searcher.FindOne();
-                        info.LookupSucceeded = true;
-
-                        if (result == null)
-                        {
-                            info.Exists = false;
-                            logger.Log("INFO", "No AD computer account found for the requested name.");
-                            return info;
-                        }
-
-                        info.Exists = true;
-                        info.LdapPath = result.Path;
-                        info.DistinguishedName = GetSearchPropertyString(result, "distinguishedName", computerName + "$");
-                        info.DnsHostName = GetSearchPropertyString(result, "dNSHostName", String.Empty);
-                        info.OperatingSystem = GetSearchPropertyString(result, "operatingSystem", String.Empty);
-                        info.Description = GetSearchPropertyString(result, "description", String.Empty);
-                        info.WhenCreated = GetSearchPropertyString(result, "whenCreated", String.Empty);
-                        info.WhenChanged = GetSearchPropertyString(result, "whenChanged", String.Empty);
-
-                        if (result.Properties.Contains("objectGUID") && result.Properties["objectGUID"].Count > 0)
-                        {
-                            byte[] guidBytes = result.Properties["objectGUID"][0] as byte[];
-                            if (guidBytes != null && guidBytes.Length == 16)
-                                info.ObjectGuid = new Guid(guidBytes).ToString();
-                        }
-
-                        if (result.Properties.Contains("userAccountControl") && result.Properties["userAccountControl"].Count > 0)
-                        {
-                            int uac;
-                            if (Int32.TryParse(Convert.ToString(result.Properties["userAccountControl"][0]), out uac))
-                                info.Enabled = (uac & 0x0002) == 0;
-                        }
-
-                        logger.Log("INFO", "An AD computer account with the requested name exists.");
-                        return info;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.Log("WARN", "Unable to query Active Directory for computer account existence: " + ex.Message);
-                return info;
-            }
-        }
-
-        private static string GetSearchPropertyString(SearchResult result, string propertyName, string fallback)
-        {
-            if (result != null && result.Properties.Contains(propertyName) && result.Properties[propertyName].Count > 0)
-            {
-                object value = result.Properties[propertyName][0];
-                if (value is DateTime)
-                    return ((DateTime)value).ToString("yyyy-MM-dd HH:mm:ss");
-                return Convert.ToString(value) ?? fallback;
-            }
-            return fallback;
+            return AdDirectoryService.FindComputerAccount(
+                computerName,
+                user,
+                password,
+                targetDomain,
+                options.PreferredDc,
+                logger.Log);
         }
 
         private static string FormatAdAccountReport(string computerName, string targetDomain, AdComputerAccountInfo account)
@@ -1175,38 +1151,10 @@ namespace DomainMembershipCheckRepair
                 return 7;
             }
 
-            try
+            string deleteError;
+            if (!AdDirectoryService.DeleteComputerAccount(account, computerName, user, password, logger.Log, out deleteError))
             {
-                using (DirectoryEntry target = new DirectoryEntry(account.LdapPath, user, password, AuthenticationTypes.Secure))
-                {
-                    target.RefreshCache(new string[] { "sAMAccountName", "objectClass", "objectGUID" });
-                    string actualSam = Convert.ToString(target.Properties["sAMAccountName"].Value);
-                    bool isComputerObject = false;
-                    foreach (object value in target.Properties["objectClass"])
-                    {
-                        if (String.Equals(Convert.ToString(value), "computer", StringComparison.OrdinalIgnoreCase))
-                        {
-                            isComputerObject = true;
-                            break;
-                        }
-                    }
-                    if (!isComputerObject || !String.Equals(actualSam, computerName + "$", StringComparison.OrdinalIgnoreCase))
-                        throw new InvalidOperationException("Safety check failed: the LDAP object no longer matches the requested computer account.");
-
-                    if (!String.IsNullOrWhiteSpace(account.ObjectGuid) && target.Properties["objectGUID"].Value is byte[])
-                    {
-                        string actualGuid = new Guid((byte[])target.Properties["objectGUID"].Value).ToString();
-                        if (!String.Equals(actualGuid, account.ObjectGuid, StringComparison.OrdinalIgnoreCase))
-                            throw new InvalidOperationException("Safety check failed: the AD object changed after it was looked up. Run the lookup again.");
-                    }
-                    logger.Log("WARN", "Deleting the confirmed AD computer account: " + dn);
-                    target.DeleteTree();
-                }
-                logger.Log("SUCCESS", "AD computer account deleted.");
-            }
-            catch (Exception ex)
-            {
-                logger.Log("ERROR", "Unable to delete the AD computer account: " + ex.Message);
+                logger.Log("ERROR", "Unable to delete the AD computer account safely: " + deleteError);
                 return 9;
             }
 
@@ -1252,79 +1200,53 @@ namespace DomainMembershipCheckRepair
 
         private static string EscapeLdapFilterValue(string value)
         {
-            if (value == null)
-                return String.Empty;
-
-            StringBuilder sb = new StringBuilder(value.Length);
-            foreach (char c in value)
-            {
-                switch (c)
-                {
-                    case '\\': sb.Append("\\5c"); break;
-                    case '*': sb.Append("\\2a"); break;
-                    case '(': sb.Append("\\28"); break;
-                    case ')': sb.Append("\\29"); break;
-                    case '\0': sb.Append("\\00"); break;
-                    default: sb.Append(c); break;
-                }
-            }
-            return sb.ToString();
+            return DomainValidation.EscapeLdapFilterValue(value);
         }
 
         private static string ValidateComputerName(string name)
         {
-            if (String.IsNullOrWhiteSpace(name))
-                return "Computer name cannot be empty.";
-
-            name = name.Trim();
-            if (name.Length > 15)
-                return "Use 15 characters or fewer for maximum NetBIOS/Active Directory compatibility.";
-
-            if (!Regex.IsMatch(name, "^[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9]$|^[A-Za-z0-9]$"))
-                return "Use only letters, numbers and hyphens. The name cannot start or end with a hyphen.";
-
-            if (Regex.IsMatch(name, "^[0-9]+$"))
-                return "The computer name cannot contain only numbers.";
-
-            return null;
+            return DomainValidation.ValidateComputerName(name);
         }
 
         private static string CreateSuggestedName(string currentName)
         {
-            string suffix = "-2";
-            string baseName = currentName == null ? "PC" : currentName.Trim();
-            int maxBase = 15 - suffix.Length;
-            if (baseName.Length > maxBase)
-                baseName = baseName.Substring(0, maxBase);
-            baseName = baseName.TrimEnd('-');
-            return baseName + suffix;
+            return DomainValidation.CreateSuggestedName(currentName);
         }
 
         private static bool HasPendingRename(out string pendingName)
         {
-            pendingName = null;
-            try
-            {
-                string active;
-                string pending;
-                using (RegistryKey activeKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\ComputerName\ActiveComputerName"))
-                using (RegistryKey pendingKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName"))
-                {
-                    active = activeKey == null ? null : Convert.ToString(activeKey.GetValue("ComputerName"));
-                    pending = pendingKey == null ? null : Convert.ToString(pendingKey.GetValue("ComputerName"));
-                }
+            return DiagnosticsService.HasPendingRename(out pendingName);
+        }
 
-                if (!String.IsNullOrWhiteSpace(active) && !String.IsNullOrWhiteSpace(pending) &&
-                    !String.Equals(active, pending, StringComparison.OrdinalIgnoreCase))
-                {
-                    pendingName = pending;
-                    return true;
-                }
-            }
-            catch
-            {
-            }
-            return false;
+        private static string FormatAdAccountJson(string computerName, string targetDomain, AdComputerAccountInfo account)
+        {
+            StringBuilder json = new StringBuilder();
+            json.Append("{");
+            json.Append("\"computer\":\"").Append(JsonEscape(computerName)).Append("\",");
+            json.Append("\"domain\":\"").Append(JsonEscape(targetDomain)).Append("\",");
+            json.Append("\"lookupSucceeded\":true,");
+            json.Append("\"exists\":true,");
+            json.Append("\"distinguishedName\":\"").Append(JsonEscape(account.DistinguishedName)).Append("\",");
+            json.Append("\"dnsHostName\":\"").Append(JsonEscape(account.DnsHostName)).Append("\",");
+            json.Append("\"enabled\":");
+            if (account.Enabled.HasValue)
+                json.Append(account.Enabled.Value ? "true" : "false");
+            else
+                json.Append("null");
+            json.Append(",");
+            json.Append("\"operatingSystem\":\"").Append(JsonEscape(account.OperatingSystem)).Append("\",");
+            json.Append("\"description\":\"").Append(JsonEscape(account.Description)).Append("\",");
+            json.Append("\"objectGuid\":\"").Append(JsonEscape(account.ObjectGuid)).Append("\",");
+            json.Append("\"whenCreated\":\"").Append(JsonEscape(account.WhenCreated)).Append("\",");
+            json.Append("\"whenChanged\":\"").Append(JsonEscape(account.WhenChanged)).Append("\",");
+            json.Append("\"exitCode\":0");
+            json.Append("}");
+            return json.ToString();
+        }
+
+        private static string JsonEscape(string value)
+        {
+            return DiagnosticsService.JsonEscape(value);
         }
 
         private static void HandleRestartAfterSuccess(string message)
@@ -1351,6 +1273,12 @@ namespace DomainMembershipCheckRepair
 
         private static int RestartWindows()
         {
+            if (options.DryRun)
+            {
+                Console.WriteLine("DRY RUN: would schedule a Windows restart in 15 seconds.");
+                return 0;
+            }
+
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
