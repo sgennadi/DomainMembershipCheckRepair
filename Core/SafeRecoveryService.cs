@@ -1,0 +1,137 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.ServiceProcess;
+using System.Text;
+using System.Threading;
+
+namespace DomainMembershipCheckRepair
+{
+    internal sealed class SafeRecoveryResult
+    {
+        internal readonly List<string> Steps = new List<string>();
+        internal bool Success = true;
+    }
+
+    internal static class SafeRecoveryService
+    {
+        internal static SafeRecoveryResult Run(string domain)
+        {
+            SafeRecoveryResult result = new SafeRecoveryResult();
+
+            RunCommand(result, "Flush DNS resolver cache", "ipconfig.exe", "/flushdns", 10000);
+            RunCommand(result, "Request Windows Time resync", "w32tm.exe", "/resync /force", 15000);
+            RestartService(result, "Netlogon", 15000);
+
+            if (!String.IsNullOrWhiteSpace(domain))
+                RunCommand(result, "Force DC locator rediscovery", "nltest.exe", "/dsgetdc:" + domain + " /force", 15000);
+
+            return result;
+        }
+
+        internal static string ToText(SafeRecoveryResult result)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("Safe Recovery Actions");
+            sb.AppendLine("=====================");
+            sb.AppendLine("Overall: " + (result.Success ? "Completed" : "Completed with one or more failures"));
+            sb.AppendLine();
+            foreach (string step in result.Steps)
+                sb.AppendLine(step);
+            sb.AppendLine();
+            sb.AppendLine("No AD computer object was deleted, no computer rename was performed, and no domain join/rejoin was attempted.");
+            return sb.ToString();
+        }
+
+        private static void RestartService(SafeRecoveryResult result, string serviceName, int timeoutMs)
+        {
+            try
+            {
+                using (ServiceController service = new ServiceController(serviceName))
+                {
+                    TimeSpan timeout = TimeSpan.FromMilliseconds(timeoutMs);
+                    if (service.Status != ServiceControllerStatus.Stopped &&
+                        service.Status != ServiceControllerStatus.StopPending)
+                    {
+                        service.Stop();
+                        service.WaitForStatus(ServiceControllerStatus.Stopped, timeout);
+                    }
+
+                    service.Start();
+                    service.WaitForStatus(ServiceControllerStatus.Running, timeout);
+                    result.Steps.Add("OK: Restart " + serviceName + " service.");
+                }
+            }
+            catch (Exception ex)
+            {
+                result.Success = false;
+                result.Steps.Add("FAIL: Restart " + serviceName + " service: " + ex.Message);
+            }
+        }
+
+        private static void RunCommand(
+            SafeRecoveryResult result,
+            string title,
+            string fileName,
+            string arguments,
+            int timeoutMs)
+        {
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo();
+                psi.FileName = fileName;
+                psi.Arguments = arguments;
+                psi.UseShellExecute = false;
+                psi.RedirectStandardOutput = true;
+                psi.RedirectStandardError = true;
+                psi.CreateNoWindow = true;
+
+                using (Process p = Process.Start(psi))
+                {
+                    if (p == null)
+                    {
+                        result.Success = false;
+                        result.Steps.Add("FAIL: " + title + ": process did not start.");
+                        return;
+                    }
+
+                    string output = p.StandardOutput.ReadToEnd();
+                    string error = p.StandardError.ReadToEnd();
+
+                    if (!p.WaitForExit(timeoutMs))
+                    {
+                        try { p.Kill(); } catch { }
+                        result.Success = false;
+                        result.Steps.Add("FAIL: " + title + ": timed out.");
+                        return;
+                    }
+
+                    string detail = Collapse(output + " " + error, 240);
+                    if (p.ExitCode == 0)
+                        result.Steps.Add("OK: " + title + (detail.Length > 0 ? " - " + detail : String.Empty));
+                    else
+                    {
+                        result.Success = false;
+                        result.Steps.Add("FAIL: " + title + " (exit " + p.ExitCode + ")" +
+                            (detail.Length > 0 ? " - " + detail : String.Empty));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                result.Success = false;
+                result.Steps.Add("FAIL: " + title + ": " + ex.Message);
+            }
+        }
+
+        private static string Collapse(string value, int max)
+        {
+            string text = (value ?? String.Empty).Replace("\r", " ").Replace("\n", " ").Trim();
+            while (text.Contains("  "))
+                text = text.Replace("  ", " ");
+            if (text.Length > max)
+                text = text.Substring(0, max) + "...";
+            return text;
+        }
+    }
+}
