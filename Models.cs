@@ -65,6 +65,16 @@ namespace DomainMembershipCheckRepair
         public string WhenCreated { get; set; }
         public string WhenChanged { get; set; }
         public bool? Enabled { get; set; }
+        public string SamAccountName { get; set; }
+        public int? UserAccountControl { get; set; }
+        public string Owner { get; set; }
+        public string PwdLastSet { get; set; }
+        public string LastLogonTimestamp { get; set; }
+        public string CanonicalName { get; set; }
+        public string ServicePrincipalNames { get; set; }
+        public int ServicePrincipalNameCount { get; set; }
+        public int ChildObjectCount { get; set; }
+        public int? SupportedEncryptionTypes { get; set; }
     }
 
     internal enum AccountConflictChoice
