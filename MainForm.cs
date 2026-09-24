@@ -30,6 +30,12 @@ namespace DomainMembershipCheckRepair
         private Button adCheckButton;
         private Button diagnosticsButton;
         private Button exportButton;
+        private Button advancedButton;
+        private Button recoveryPlanButton;
+        private Button dcMatrixButton;
+        private Button supportBundleButton;
+        private Button cyberArkButton;
+        private Button offlineJoinButton;
         private Button restartButton;
         private Button aboutButton;
         private TextBox logBox;
@@ -47,7 +53,7 @@ namespace DomainMembershipCheckRepair
             startupOptions = ElevationHelper.ParseGuiResumeOptions(args);
             Text = "Domain Membership Check & Repair v" + BuildInfo.Version;
             Width = 900;
-            Height = 760;
+            Height = 860;
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -218,6 +224,12 @@ namespace DomainMembershipCheckRepair
             diagnosticsButton = CreateButton("Diagnostics", 120);
             copyDiagnosticsButton = CreateButton("Copy Diagnostics", 135);
             exportButton = CreateButton("Export Diagnostics", 145);
+            advancedButton = CreateButton("Advanced Diagnostics", 155);
+            recoveryPlanButton = CreateButton("Recovery Plan", 125);
+            dcMatrixButton = CreateButton("DC Matrix", 105);
+            supportBundleButton = CreateButton("Support Bundle", 125);
+            cyberArkButton = CreateButton("CyberArk Health", 125);
+            offlineJoinButton = CreateButton("Offline Join", 110);
             repairButton = CreateButton("Repair Trust", 120);
             joinButton = CreateButton("Join / Rejoin Domain", 170);
             adCheckButton = CreateButton("Check AD Account", 150);
@@ -228,11 +240,18 @@ namespace DomainMembershipCheckRepair
             ElevationHelper.SetElevationShield(repairButton, needsElevation);
             ElevationHelper.SetElevationShield(joinButton, needsElevation);
             ElevationHelper.SetElevationShield(restartButton, needsElevation);
+            ElevationHelper.SetElevationShield(offlineJoinButton, needsElevation);
 
             checkButton.Click += delegate { RefreshStatus(false); };
             diagnosticsButton.Click += delegate { DiagnosticsWorkflow(); };
             copyDiagnosticsButton.Click += delegate { CopyDiagnosticsToClipboard(); };
             exportButton.Click += delegate { ExportDiagnosticsWorkflow(); };
+            advancedButton.Click += delegate { AdvancedDiagnosticsWorkflow(); };
+            recoveryPlanButton.Click += delegate { RecoveryPlanWorkflow(); };
+            dcMatrixButton.Click += delegate { DcMatrixWorkflow(); };
+            supportBundleButton.Click += delegate { SupportBundleWorkflow(); };
+            cyberArkButton.Click += delegate { CyberArkHealthWorkflow(); };
+            offlineJoinButton.Click += delegate { OfflineDomainJoinWorkflow(); };
             repairButton.Click += delegate { RepairTrustWorkflow(); };
             joinButton.Click += delegate { JoinCurrentNameWorkflow(); };
             adCheckButton.Click += delegate { CheckAdAccountWorkflow(); };
@@ -243,6 +262,12 @@ namespace DomainMembershipCheckRepair
             actions.Controls.Add(diagnosticsButton);
             actions.Controls.Add(copyDiagnosticsButton);
             actions.Controls.Add(exportButton);
+            actions.Controls.Add(advancedButton);
+            actions.Controls.Add(recoveryPlanButton);
+            actions.Controls.Add(dcMatrixButton);
+            actions.Controls.Add(supportBundleButton);
+            actions.Controls.Add(cyberArkButton);
+            actions.Controls.Add(offlineJoinButton);
             actions.Controls.Add(repairButton);
             actions.Controls.Add(joinButton);
             actions.Controls.Add(adCheckButton);
@@ -301,7 +326,7 @@ namespace DomainMembershipCheckRepair
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82F));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 38F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 118F));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 190F));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
@@ -361,6 +386,30 @@ namespace DomainMembershipCheckRepair
             if (startupOptions == null || String.IsNullOrWhiteSpace(startupOptions.Action))
                 return;
 
+            if (startupOptions.Action == "post-reboot-check")
+            {
+                ResumeService.Clear();
+                Log("INFO", "Post-reboot recovery check started.");
+                AdvancedDiagnosticsWorkflow();
+
+                DiagnosticsSnapshot post = DiagnosticsService.Capture(
+                    domainBox == null ? String.Empty : domainBox.Text,
+                    dcBox == null ? String.Empty : dcBox.Text);
+
+                if (post.SecureChannelApplicable && !post.SecureChannelHealthy)
+                {
+                    DialogResult repair = MessageBox.Show(
+                        this,
+                        "The secure channel is still broken after restart. Request elevation and attempt Repair Trust now?",
+                        "Post-reboot recovery",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning);
+                    if (repair == DialogResult.Yes)
+                        RepairTrustWorkflow();
+                }
+                return;
+            }
+
             if (!ElevationHelper.IsAdministrator())
             {
                 MessageBox.Show(
@@ -384,6 +433,10 @@ namespace DomainMembershipCheckRepair
 
                 case "restart":
                     RestartWindows();
+                    break;
+
+                case "odj-apply":
+                    OfflineDomainJoinWorkflow();
                     break;
 
                 case "join":
@@ -666,6 +719,216 @@ namespace DomainMembershipCheckRepair
             finally
             {
                 SetBusy(false);
+            }
+        }
+
+
+        private void AdvancedDiagnosticsWorkflow()
+        {
+            SetBusy(true);
+            try
+            {
+                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
+                string password = passwordBox == null ? null : passwordBox.Text;
+                if (String.IsNullOrWhiteSpace(user) || String.IsNullOrEmpty(password))
+                {
+                    user = String.Empty;
+                    password = null;
+                }
+
+                AdvancedDiagnosticsResult result = AdvancedDiagnosticsService.Analyze(
+                    domainBox == null ? String.Empty : domainBox.Text,
+                    dcBox == null ? String.Empty : dcBox.Text,
+                    Environment.MachineName,
+                    user,
+                    password);
+
+                lastDiagnosticsSnapshot = result.Snapshot;
+                ReportDialog.ShowReport(this, "Advanced Diagnostics", AdvancedDiagnosticsService.ToText(result));
+            }
+            catch (Exception ex)
+            {
+                Log("ERROR", "Advanced diagnostics failed: " + ex.Message);
+                MessageBox.Show(this, ex.Message, "Advanced diagnostics failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private void RecoveryPlanWorkflow()
+        {
+            SetBusy(true);
+            try
+            {
+                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
+                string password = passwordBox == null ? null : passwordBox.Text;
+                if (String.IsNullOrWhiteSpace(user) || String.IsNullOrEmpty(password))
+                {
+                    user = String.Empty;
+                    password = null;
+                }
+
+                AdvancedDiagnosticsResult result = AdvancedDiagnosticsService.Analyze(
+                    domainBox == null ? String.Empty : domainBox.Text,
+                    dcBox == null ? String.Empty : dcBox.Text,
+                    Environment.MachineName,
+                    user,
+                    password);
+
+                ReportDialog.ShowReport(this, "Recovery Plan", RecoveryPlanService.ToText(result.RecoveryPlan));
+            }
+            catch (Exception ex)
+            {
+                Log("ERROR", "Recovery plan failed: " + ex.Message);
+                MessageBox.Show(this, ex.Message, "Recovery plan failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private void DcMatrixWorkflow()
+        {
+            SetBusy(true);
+            try
+            {
+                string targetDomain;
+                if (!TryGetTargetDomain(out targetDomain))
+                    return;
+
+                DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(targetDomain, dcBox == null ? String.Empty : dcBox.Text);
+                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
+                string password = passwordBox == null ? null : passwordBox.Text;
+                if (String.IsNullOrWhiteSpace(user) || String.IsNullOrEmpty(password))
+                {
+                    user = String.Empty;
+                    password = null;
+                }
+
+                DcMatrixResult matrix = DcMatrixService.Analyze(
+                    snapshot.TargetDomain,
+                    snapshot.DiscoveredDc,
+                    Environment.MachineName,
+                    user,
+                    password);
+                ReportDialog.ShowReport(this, "Domain Controller Matrix", DcMatrixService.ToText(matrix));
+            }
+            catch (Exception ex)
+            {
+                Log("ERROR", "DC Matrix failed: " + ex.Message);
+                MessageBox.Show(this, ex.Message, "DC Matrix failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private void SupportBundleWorkflow()
+        {
+            SetBusy(true);
+            try
+            {
+                using (SaveFileDialog save = new SaveFileDialog())
+                {
+                    save.Title = "Export advanced support bundle";
+                    save.Filter = "ZIP archive (*.zip)|*.zip|All files (*.*)|*.*";
+                    save.FileName = "DomainMembershipSupport-" + Environment.MachineName + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".zip";
+                    save.AddExtension = true;
+                    save.DefaultExt = "zip";
+                    if (save.ShowDialog(this) != DialogResult.OK)
+                        return;
+
+                    string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
+                    string password = passwordBox == null ? null : passwordBox.Text;
+                    if (String.IsNullOrWhiteSpace(user) || String.IsNullOrEmpty(password))
+                    {
+                        user = String.Empty;
+                        password = null;
+                    }
+
+                    AdvancedDiagnosticsResult result = AdvancedDiagnosticsService.Analyze(
+                        domainBox == null ? String.Empty : domainBox.Text,
+                        dcBox == null ? String.Empty : dcBox.Text,
+                        Environment.MachineName,
+                        user,
+                        password);
+
+                    string archive = AdvancedSupportBundleService.Export(
+                        result,
+                        save.FileName,
+                        fileLogBox != null && fileLogBox.Checked);
+
+                    Log("SUCCESS", "Advanced support bundle exported: " + archive);
+                    MessageBox.Show(
+                        this,
+                        "Support bundle created:\r\n\r\n" + archive + "\r\n\r\nReview Windows logs and command output before sharing.",
+                        "Support bundle",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("ERROR", "Support bundle failed: " + ex.Message);
+                MessageBox.Show(this, ex.Message, "Support bundle failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private void CyberArkHealthWorkflow()
+        {
+            CyberArkDiagnosticsResult result = CyberArkDiagnosticsService.Analyze();
+            ReportDialog.ShowReport(this, "CyberArk / EPM Health", CyberArkDiagnosticsService.ToText(result));
+        }
+
+        private void OfflineDomainJoinWorkflow()
+        {
+            if (!EnsureElevatedForGui("odj-apply"))
+                return;
+
+            using (OpenFileDialog open = new OpenFileDialog())
+            {
+                open.Title = "Select Offline Domain Join provisioning blob";
+                open.Filter = "ODJ provisioning files (*.*)|*.*";
+                if (open.ShowDialog(this) != DialogResult.OK)
+                    return;
+
+                DialogResult confirm = MessageBox.Show(
+                    this,
+                    "Apply this Offline Domain Join provisioning package to the local Windows installation?\r\n\r\n" +
+                    open.FileName + "\r\n\r\nA restart will be required.",
+                    "Offline Domain Join",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning);
+
+                if (confirm != DialogResult.Yes)
+                    return;
+
+                string output;
+                int code = OfflineDomainJoinService.ApplyBlob(open.FileName, out output);
+                Log(code == 0 ? "SUCCESS" : "ERROR", "Offline Domain Join returned " + code + ". " + output);
+
+                if (code != 0)
+                {
+                    ReportDialog.ShowReport(this, "Offline Domain Join failed", output);
+                    return;
+                }
+
+                string resumeError;
+                ResumeService.RegisterPostRebootCheck(
+                    domainBox == null ? String.Empty : domainBox.Text,
+                    out resumeError);
+                if (!String.IsNullOrWhiteSpace(resumeError))
+                    Log("WARN", "Unable to register post-reboot check: " + resumeError);
+
+                AskRestart("Offline Domain Join was applied successfully.");
             }
         }
 
@@ -1354,6 +1617,12 @@ namespace DomainMembershipCheckRepair
             if (diagnosticsButton != null) diagnosticsButton.Enabled = !busy;
             if (copyDiagnosticsButton != null) copyDiagnosticsButton.Enabled = !busy;
             if (exportButton != null) exportButton.Enabled = !busy;
+            if (advancedButton != null) advancedButton.Enabled = !busy;
+            if (recoveryPlanButton != null) recoveryPlanButton.Enabled = !busy;
+            if (dcMatrixButton != null) dcMatrixButton.Enabled = !busy;
+            if (supportBundleButton != null) supportBundleButton.Enabled = !busy;
+            if (cyberArkButton != null) cyberArkButton.Enabled = !busy;
+            if (offlineJoinButton != null) offlineJoinButton.Enabled = !busy;
             if (restartButton != null) restartButton.Enabled = !busy;
             if (aboutButton != null) aboutButton.Enabled = !busy;
             Application.DoEvents();
