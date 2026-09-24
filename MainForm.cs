@@ -36,6 +36,7 @@ namespace DomainMembershipCheckRepair
         private Button supportBundleButton;
         private Button cyberArkButton;
         private Button offlineJoinButton;
+        private Button safeFixesButton;
         private Button restartButton;
         private Button aboutButton;
         private TextBox logBox;
@@ -230,6 +231,7 @@ namespace DomainMembershipCheckRepair
             supportBundleButton = CreateButton("Support Bundle", 125);
             cyberArkButton = CreateButton("CyberArk Health", 125);
             offlineJoinButton = CreateButton("Offline Join", 110);
+            safeFixesButton = CreateButton("Safe Fixes", 105);
             repairButton = CreateButton("Repair Trust", 120);
             joinButton = CreateButton("Join / Rejoin Domain", 170);
             adCheckButton = CreateButton("Check AD Account", 150);
@@ -241,6 +243,7 @@ namespace DomainMembershipCheckRepair
             ElevationHelper.SetElevationShield(joinButton, needsElevation);
             ElevationHelper.SetElevationShield(restartButton, needsElevation);
             ElevationHelper.SetElevationShield(offlineJoinButton, needsElevation);
+            ElevationHelper.SetElevationShield(safeFixesButton, needsElevation);
 
             checkButton.Click += delegate { RefreshStatus(false); };
             diagnosticsButton.Click += delegate { DiagnosticsWorkflow(); };
@@ -252,6 +255,7 @@ namespace DomainMembershipCheckRepair
             supportBundleButton.Click += delegate { SupportBundleWorkflow(); };
             cyberArkButton.Click += delegate { CyberArkHealthWorkflow(); };
             offlineJoinButton.Click += delegate { OfflineDomainJoinWorkflow(); };
+            safeFixesButton.Click += delegate { SafeFixesWorkflow(); };
             repairButton.Click += delegate { RepairTrustWorkflow(); };
             joinButton.Click += delegate { JoinCurrentNameWorkflow(); };
             adCheckButton.Click += delegate { CheckAdAccountWorkflow(); };
@@ -268,6 +272,7 @@ namespace DomainMembershipCheckRepair
             actions.Controls.Add(supportBundleButton);
             actions.Controls.Add(cyberArkButton);
             actions.Controls.Add(offlineJoinButton);
+            actions.Controls.Add(safeFixesButton);
             actions.Controls.Add(repairButton);
             actions.Controls.Add(joinButton);
             actions.Controls.Add(adCheckButton);
@@ -437,6 +442,10 @@ namespace DomainMembershipCheckRepair
 
                 case "odj-apply":
                     OfflineDomainJoinWorkflow();
+                    break;
+
+                case "safe-fixes":
+                    SafeFixesWorkflow();
                     break;
 
                 case "join":
@@ -929,6 +938,49 @@ namespace DomainMembershipCheckRepair
                     Log("WARN", "Unable to register post-reboot check: " + resumeError);
 
                 AskRestart("Offline Domain Join was applied successfully.");
+            }
+        }
+
+
+        private void SafeFixesWorkflow()
+        {
+            if (!EnsureElevatedForGui("safe-fixes"))
+                return;
+
+            DialogResult confirm = MessageBox.Show(
+                this,
+                "Run safe recovery actions now?\r\n\r\n" +
+                "- Flush DNS resolver cache\r\n" +
+                "- Force Windows Time resynchronization\r\n" +
+                "- Restart Netlogon service\r\n" +
+                "- Force domain-controller rediscovery\r\n\r\n" +
+                "This does NOT delete an AD object, rename the computer, or join/rejoin the domain.",
+                "Safe Fixes",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Information,
+                MessageBoxDefaultButton.Button2);
+
+            if (confirm != DialogResult.Yes)
+                return;
+
+            SetBusy(true);
+            try
+            {
+                string domain = domainBox == null ? String.Empty : (domainBox.Text ?? String.Empty).Trim();
+                SafeRecoveryResult result = SafeRecoveryService.Run(domain);
+                Log(result.Success ? "SUCCESS" : "WARN",
+                    result.Success ? "Safe recovery actions completed." : "Safe recovery actions completed with one or more failures.");
+                ReportDialog.ShowReport(this, "Safe Fixes", SafeRecoveryService.ToText(result));
+                RefreshStatus(false);
+            }
+            catch (Exception ex)
+            {
+                Log("ERROR", "Safe Fixes failed: " + ex.Message);
+                MessageBox.Show(this, ex.Message, "Safe Fixes failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetBusy(false);
             }
         }
 
@@ -1641,6 +1693,7 @@ namespace DomainMembershipCheckRepair
             if (supportBundleButton != null) supportBundleButton.Enabled = !busy;
             if (cyberArkButton != null) cyberArkButton.Enabled = !busy;
             if (offlineJoinButton != null) offlineJoinButton.Enabled = !busy;
+            if (safeFixesButton != null) safeFixesButton.Enabled = !busy;
             if (restartButton != null) restartButton.Enabled = !busy;
             if (aboutButton != null) aboutButton.Enabled = !busy;
             Application.DoEvents();
