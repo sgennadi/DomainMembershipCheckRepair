@@ -40,6 +40,7 @@ namespace DomainMembershipCheckRepair
                 Write(Path.Combine(temp, "dc-matrix.txt"), DcMatrixService.ToText(advanced.DcMatrix));
                 Write(Path.Combine(temp, "event-timeline.txt"), EventTimelineService.ToText(advanced.Events));
                 Write(Path.Combine(temp, "cyberark-epm.txt"), CyberArkDiagnosticsService.ToText(advanced.CyberArk));
+                Write(Path.Combine(temp, "machine-password.txt"), MachinePasswordAnalyzer.ToText(advanced.MachinePassword));
                 Write(Path.Combine(temp, "recovery-plan.txt"), RecoveryPlanService.ToText(advanced.RecoveryPlan));
 
                 CollectCommand(temp, "ipconfig-all.txt", "ipconfig.exe", "/all");
