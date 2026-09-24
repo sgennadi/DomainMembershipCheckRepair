@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -34,14 +35,16 @@ namespace DomainMembershipCheckRepair
         private TextBox logBox;
         private CheckBox fileLogBox;
         private readonly bool initialFileLogging;
+        private readonly GuiResumeOptions startupOptions;
 
         private string joinedDomain = String.Empty;
         private bool settingDomainBox;
         private bool domainManuallyEdited;
 
-        internal MainForm(bool enableFileLogging)
+        internal MainForm(bool enableFileLogging, string[] args)
         {
             initialFileLogging = enableFileLogging;
+            startupOptions = ElevationHelper.ParseGuiResumeOptions(args);
             Text = "Domain Membership Check & Repair v" + BuildInfo.Version;
             Width = 900;
             Height = 760;
@@ -53,7 +56,16 @@ namespace DomainMembershipCheckRepair
             ApplyWindowPolish();
 
             BuildUi();
+            ApplyStartupOptions();
             RefreshStatus(true);
+
+            if (startupOptions != null && !String.IsNullOrWhiteSpace(startupOptions.Action))
+            {
+                Shown += delegate
+                {
+                    BeginInvoke(new MethodInvoker(ResumeElevatedAction));
+                };
+            }
         }
 
         private void BuildUi()
@@ -212,6 +224,11 @@ namespace DomainMembershipCheckRepair
             restartButton = CreateButton("Restart Windows", 140);
             aboutButton = CreateButton("About", 85);
 
+            bool needsElevation = !ElevationHelper.IsAdministrator();
+            ElevationHelper.SetElevationShield(repairButton, needsElevation);
+            ElevationHelper.SetElevationShield(joinButton, needsElevation);
+            ElevationHelper.SetElevationShield(restartButton, needsElevation);
+
             checkButton.Click += delegate { RefreshStatus(false); };
             diagnosticsButton.Click += delegate { DiagnosticsWorkflow(); };
             copyDiagnosticsButton.Click += delegate { CopyDiagnosticsToClipboard(); };
@@ -318,6 +335,138 @@ namespace DomainMembershipCheckRepair
             button.Width = width;
             button.Height = 32;
             return button;
+        }
+
+
+        private void ApplyStartupOptions()
+        {
+            if (startupOptions == null)
+                return;
+
+            if (!String.IsNullOrWhiteSpace(startupOptions.Domain))
+                SetDomainBox(startupOptions.Domain, "Preserved across elevation", false);
+
+            if (!String.IsNullOrWhiteSpace(startupOptions.User) && userBox != null)
+                userBox.Text = startupOptions.User;
+
+            if (!String.IsNullOrWhiteSpace(startupOptions.PreferredDc) && dcBox != null)
+                dcBox.Text = startupOptions.PreferredDc;
+
+            if (passwordBox != null)
+                passwordBox.Clear();
+        }
+
+        private void ResumeElevatedAction()
+        {
+            if (startupOptions == null || String.IsNullOrWhiteSpace(startupOptions.Action))
+                return;
+
+            if (!ElevationHelper.IsAdministrator())
+            {
+                MessageBox.Show(
+                    this,
+                    "Windows/CyberArk returned control without an administrator token.\r\n\r\n" +
+                    "Read-only diagnostics are still available. Check the CyberArk EPM elevation policy for this application.",
+                    "Elevation not granted",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                Log("WARN", "Elevation was requested, but the resumed process is not running with administrator privileges.");
+                return;
+            }
+
+            Log("SUCCESS", "Administrator privileges acquired. Resumed after Windows/CyberArk elevation.");
+
+            switch (startupOptions.Action)
+            {
+                case "repair":
+                    RepairTrustWorkflow();
+                    break;
+
+                case "restart":
+                    RestartWindows();
+                    break;
+
+                case "join":
+                    MessageBox.Show(
+                        this,
+                        "Administrator privileges are active.\r\n\r\n" +
+                        "For security, the domain password is never transferred between the standard and elevated processes. " +
+                        "Enter the domain credentials, then click Join / Rejoin Domain again.",
+                        "Elevation successful",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+
+                    if (String.IsNullOrWhiteSpace(userBox.Text))
+                        userBox.Focus();
+                    else
+                        passwordBox.Focus();
+                    break;
+            }
+        }
+
+        private bool EnsureElevatedForGui(string action)
+        {
+            if (ElevationHelper.IsAdministrator())
+                return true;
+
+            if (startupOptions != null && startupOptions.ElevationAttempted)
+            {
+                MessageBox.Show(
+                    this,
+                    "This operation requires administrator privileges, but the current process is still not elevated.\r\n\r\n" +
+                    "Check the CyberArk EPM policy for DomainMembershipCheckRepair.",
+                    "Administrator privileges required",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return false;
+            }
+
+            List<string> args = new List<string>();
+            args.Add("--resume-action");
+            args.Add(action);
+            args.Add("--elevation-attempted");
+
+            string domain = domainBox == null ? String.Empty : (domainBox.Text ?? String.Empty).Trim();
+            string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
+            string dc = dcBox == null ? String.Empty : (dcBox.Text ?? String.Empty).Trim();
+
+            if (!String.IsNullOrWhiteSpace(domain))
+            {
+                args.Add("--domain");
+                args.Add(domain);
+            }
+            if (!String.IsNullOrWhiteSpace(user))
+            {
+                args.Add("--user");
+                args.Add(user);
+            }
+            if (!String.IsNullOrWhiteSpace(dc))
+            {
+                args.Add("--dc");
+                args.Add(dc);
+            }
+
+            args.Add(fileLogBox != null && fileLogBox.Checked ? "--log" : "--no-log");
+
+            int ignoredExitCode;
+            string elevationError;
+            if (ElevationHelper.TryStartElevated(args.ToArray(), false, out ignoredExitCode, out elevationError))
+            {
+                Log("INFO", "Administrator privileges requested through the Windows elevation broker (compatible with CyberArk EPM).");
+                BeginInvoke(new MethodInvoker(Close));
+                return false;
+            }
+
+            Log("WARN", "Elevation request failed or was cancelled: " + elevationError);
+            MessageBox.Show(
+                this,
+                "Administrator privileges were not granted.\r\n\r\n" +
+                elevationError + "\r\n\r\n" +
+                "Read-only diagnostics remain available.",
+                "Elevation cancelled or blocked",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return false;
         }
 
         private void RefreshStatus(bool initialLoad)
@@ -528,6 +677,7 @@ namespace DomainMembershipCheckRepair
                 "Architecture: " + BuildInfo.TargetArchitecture + "\r\n\r\n" +
                 BuildInfo.RuntimeSummary + "\r\n\r\n" +
                 "GUI + CLI utility for Windows domain membership, secure-channel diagnostics, Join/Rejoin and AD computer-account recovery.\r\n\r\n" +
+                "Privilege: " + (ElevationHelper.IsAdministrator() ? "Administrator (elevated)" : "Standard user") + "\r\n" +
                 "Application file logging is disabled by default.\r\n" +
                 "License: MIT\r\n" +
                 "GitHub: github.com/sgennadi/DomainMembershipCheckRepair",
@@ -603,6 +753,9 @@ namespace DomainMembershipCheckRepair
 
         private void RepairTrustWorkflow()
         {
+            if (!EnsureElevatedForGui("repair"))
+                return;
+
             SetBusy(true);
             try
             {
@@ -667,6 +820,9 @@ namespace DomainMembershipCheckRepair
 
         private void JoinCurrentNameWorkflow()
         {
+            if (!EnsureElevatedForGui("join"))
+                return;
+
             SetBusy(true);
             try
             {
@@ -1121,6 +1277,9 @@ namespace DomainMembershipCheckRepair
 
         private void RestartWindows()
         {
+            if (!EnsureElevatedForGui("restart"))
+                return;
+
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
