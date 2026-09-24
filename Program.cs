@@ -46,7 +46,7 @@ namespace DomainMembershipCheckRepair
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainForm(enableFileLogging));
+            Application.Run(new MainForm(enableFileLogging, args));
             return 0;
         }
     }
