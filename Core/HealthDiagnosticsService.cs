@@ -149,6 +149,18 @@ namespace DomainMembershipCheckRepair
             if (!String.IsNullOrWhiteSpace(targetDomain) && String.IsNullOrWhiteSpace(dc))
                 h.RootCauseHints.Add("CHECK: A target domain is known but no DC was selected for deeper health checks.");
 
+            h.RootCauseHints.Add(
+                "CHECK: If join/rejoin still fails, verify that the selected DC is writable (not RODC-only for the operation), " +
+                "the operator has rights to create/reuse the computer account in the target OU, and machine-account quota/delegation is not blocking creation.");
+            h.RootCauseHints.Add(
+                "CHECK: Verify AD replication between DCs. A delete/recreate, password reset, rename, or account reuse can appear successful on one DC while another DC still has stale state.");
+            h.RootCauseHints.Add(
+                "CHECK: Review account-reuse hardening (KB5020276-era behavior), computer-object ownership, and explicit permissions when an existing computer account cannot be reused.");
+            h.RootCauseHints.Add(
+                "CHECK: On VPN or multi-NIC systems, verify split DNS, interface metrics, DNS suffixes, and that AD SRV records resolve to reachable internal DCs.");
+            h.RootCauseHints.Add(
+                "CHECK: Review Netlogon/Kerberos/NTLM hardening policies and security products if basic connectivity is healthy but authentication still fails.");
+
             return h;
         }
 
