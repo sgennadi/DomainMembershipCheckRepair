@@ -63,6 +63,15 @@ namespace DomainMembershipCheckRepair
             {
                 DcMatrixEntry entry = new DcMatrixEntry();
                 entry.Host = host.TrimEnd('.');
+                try
+                {
+                    System.Net.Dns.GetHostAddresses(entry.Host);
+                    entry.DnsResolved = true;
+                }
+                catch
+                {
+                    entry.DnsResolved = false;
+                }
                 entry.Ports = ProbePorts(entry.Host);
                 entry.TimeSkew = QueryTimeSkew(entry.Host);
                 ReadRootDse(entry);
@@ -107,6 +116,7 @@ namespace DomainMembershipCheckRepair
             foreach (DcMatrixEntry e in result.Entries)
             {
                 sb.AppendLine("DC: " + e.Host);
+                sb.AppendLine("  DNS resolve: " + (e.DnsResolved ? "OK" : "FAILED"));
                 sb.AppendLine("  Ports:       " + e.Ports);
                 sb.AppendLine("  Time skew:   " + e.TimeSkew);
                 sb.AppendLine("  RootDSE:     " + (e.RootDseOk ? "OK" : "FAILED"));
