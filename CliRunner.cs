@@ -278,9 +278,9 @@ namespace DomainMembershipCheckRepair
             if (!String.IsNullOrWhiteSpace(result.Action))
             {
                 string action = result.Action.Trim().ToLowerInvariant();
-                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "detect" && action != "ad-check" && action != "diagnose" && action != "export-diagnostics")
+                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "mii-disable" && action != "detect" && action != "ad-check" && action != "diagnose" && action != "export-diagnostics")
                 {
-                    error = "Unknown action '" + result.Action + "'. Use status, check, repair, join, rename, restart, detect, ad-check, diagnose, or export-diagnostics.";
+                    error = "Unknown action '" + result.Action + "'. Use status, check, repair, join, rename, restart, mii-disable, detect, ad-check, diagnose, or export-diagnostics.";
                     return result;
                 }
                 result.Action = action;
@@ -350,6 +350,7 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("  --cli --action join");
             Console.WriteLine("  --cli --action rename");
             Console.WriteLine("  --cli --action restart");
+            Console.WriteLine("  --cli --action mii-disable");
             Console.WriteLine("  --cli --action detect");
             Console.WriteLine("  --cli --action ad-check");
             Console.WriteLine("  --cli --action diagnose");
@@ -506,6 +507,7 @@ namespace DomainMembershipCheckRepair
                 case "join": return JoinCurrentName();
                 case "rename": return RenameAndJoin(null, null, null, null);
                 case "restart": return RestartWindows();
+                case "mii-disable": return DisableMachineIdentityIsolation();
                 case "detect": return DetectAndDisplayDomain();
                 case "ad-check": return CheckAdAccount();
                 case "diagnose": return Diagnostics();
@@ -649,6 +651,41 @@ namespace DomainMembershipCheckRepair
 
             logger.Log("ERROR", "Native trust repair did not restore the secure channel: " + NativeMethods.FormatError(final.StatusCode));
             return 5;
+        }
+
+
+        private static int DisableMachineIdentityIsolation()
+        {
+            int configuredValue;
+            if (!HealthDiagnosticsService.HasMachineIdentityIsolationEnabled(out configuredValue))
+            {
+                Console.WriteLine("Machine Identity Isolation is not enabled.");
+                return 0;
+            }
+
+            Console.WriteLine("Machine Identity Isolation: " + HealthDiagnosticsService.FormatMiiMode(configuredValue));
+            Console.WriteLine("This changes local policy/LSA registry state and requires a restart.");
+            Console.WriteLine("If Group Policy or Intune manages this setting, change the central policy too or it may be re-applied.");
+
+            if (options.DryRun)
+            {
+                Console.WriteLine("DRY RUN: would set MachineIdentityIsolation=0 where the value is currently configured.");
+                return 0;
+            }
+
+            if (!AskYesNo("Disable Machine Identity Isolation locally now?", false))
+                return 7;
+
+            string details;
+            if (!HealthDiagnosticsService.DisableMachineIdentityIsolationLocally(out details))
+            {
+                logger.Log("ERROR", details);
+                return 1;
+            }
+
+            logger.Log("SUCCESS", details);
+            HandleRestartAfterSuccess("Machine Identity Isolation was disabled locally. A restart is required before trust repair/rejoin.");
+            return 0;
         }
 
         private static int DetectAndDisplayDomain()
