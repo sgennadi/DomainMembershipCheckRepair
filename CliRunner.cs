@@ -1452,6 +1452,15 @@ namespace DomainMembershipCheckRepair
             report.AppendLine("Object GUID:        " + FirstNonEmpty(account.ObjectGuid, "(not returned)"));
             report.AppendLine("Created:            " + FirstNonEmpty(account.WhenCreated, "(not returned)"));
             report.AppendLine("Changed:            " + FirstNonEmpty(account.WhenChanged, "(not returned)"));
+            report.AppendLine("Owner:              " + FirstNonEmpty(account.Owner, "(not returned)"));
+            report.AppendLine("pwdLastSet:         " + FirstNonEmpty(account.PwdLastSet, "(not returned)"));
+            report.AppendLine("Last logon:         " + FirstNonEmpty(account.LastLogonTimestamp, "(not returned)"));
+            report.AppendLine("Canonical name:     " + FirstNonEmpty(account.CanonicalName, "(not returned)"));
+            report.AppendLine("SPN count:          " + account.ServicePrincipalNameCount);
+            report.AppendLine("Child objects:      " + account.ChildObjectCount);
+            report.AppendLine("Encryption types:   " + (account.SupportedEncryptionTypes.HasValue ? account.SupportedEncryptionTypes.Value.ToString() : "(unknown)"));
+            if (!String.IsNullOrWhiteSpace(account.ServicePrincipalNames))
+                report.AppendLine("SPNs:               " + account.ServicePrincipalNames);
             report.AppendLine("Read-only check; no changes were made.");
             return report.ToString();
         }
@@ -1468,6 +1477,10 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine();
             Console.WriteLine("WARNING: DESTRUCTIVE ACTIVE DIRECTORY OPERATION");
             Console.WriteLine("Object: " + dn);
+            Console.WriteLine("Owner: " + FirstNonEmpty(account.Owner, "(unknown)"));
+            Console.WriteLine("pwdLastSet: " + FirstNonEmpty(account.PwdLastSet, "(unknown)"));
+            Console.WriteLine("SPN count: " + account.ServicePrincipalNameCount);
+            Console.WriteLine("Child objects: " + account.ChildObjectCount);
             Console.WriteLine("Deleting the computer object can also delete child data stored below it, including recovery information such as LAPS or BitLocker recovery child objects.");
             Console.WriteLine("After deletion, the tool will retry Join/Rejoin using the SAME computer name.");
             Console.WriteLine();
@@ -1567,6 +1580,18 @@ namespace DomainMembershipCheckRepair
             json.Append("\"objectGuid\":\"").Append(JsonEscape(account.ObjectGuid)).Append("\",");
             json.Append("\"whenCreated\":\"").Append(JsonEscape(account.WhenCreated)).Append("\",");
             json.Append("\"whenChanged\":\"").Append(JsonEscape(account.WhenChanged)).Append("\",");
+            json.Append("\"owner\":\"").Append(JsonEscape(account.Owner)).Append("\",");
+            json.Append("\"pwdLastSet\":\"").Append(JsonEscape(account.PwdLastSet)).Append("\",");
+            json.Append("\"lastLogonTimestamp\":\"").Append(JsonEscape(account.LastLogonTimestamp)).Append("\",");
+            json.Append("\"canonicalName\":\"").Append(JsonEscape(account.CanonicalName)).Append("\",");
+            json.Append("\"servicePrincipalNameCount\":").Append(account.ServicePrincipalNameCount).Append(",");
+            json.Append("\"childObjectCount\":").Append(account.ChildObjectCount).Append(",");
+            json.Append("\"supportedEncryptionTypes\":");
+            if (account.SupportedEncryptionTypes.HasValue)
+                json.Append(account.SupportedEncryptionTypes.Value);
+            else
+                json.Append("null");
+            json.Append(",");
             json.Append("\"exitCode\":0");
             json.Append("}");
             return json.ToString();
