@@ -294,9 +294,9 @@ namespace DomainMembershipCheckRepair
             if (!String.IsNullOrWhiteSpace(result.Action))
             {
                 string action = result.Action.Trim().ToLowerInvariant();
-                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "mii-disable" && action != "detect" && action != "ad-check" && action != "diagnose" && action != "export-diagnostics" && action != "advanced" && action != "netsetup" && action != "dc-matrix" && action != "recovery-plan" && action != "support-bundle" && action != "cyberark" && action != "odj-apply" && action != "odj-provision")
+                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "mii-disable" && action != "detect" && action != "ad-check" && action != "diagnose" && action != "export-diagnostics" && action != "advanced" && action != "netsetup" && action != "dc-matrix" && action != "recovery-plan" && action != "support-bundle" && action != "cyberark" && action != "safe-fixes" && action != "odj-apply" && action != "odj-provision")
                 {
-                    error = "Unknown action '" + result.Action + "'. Use status, check, repair, join, rename, restart, mii-disable, detect, ad-check, diagnose, export-diagnostics, advanced, netsetup, dc-matrix, recovery-plan, support-bundle, cyberark, odj-apply, or odj-provision.";
+                    error = "Unknown action '" + result.Action + "'. Use status, check, repair, join, rename, restart, mii-disable, detect, ad-check, diagnose, export-diagnostics, advanced, netsetup, dc-matrix, recovery-plan, support-bundle, cyberark, safe-fixes, odj-apply, or odj-provision.";
                     return result;
                 }
                 result.Action = action;
@@ -379,6 +379,7 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("  --cli --action recovery-plan");
             Console.WriteLine("  --cli --action support-bundle");
             Console.WriteLine("  --cli --action cyberark");
+            Console.WriteLine("  --cli --action safe-fixes");
             Console.WriteLine("  --cli --action odj-apply --blob PATH");
             Console.WriteLine("  --cli --action odj-provision --domain DOMAIN --computer NAME --output PATH [--reuse]");
             Console.WriteLine();
@@ -542,6 +543,7 @@ namespace DomainMembershipCheckRepair
                 case "recovery-plan": return RecoveryPlan();
                 case "support-bundle": return SupportBundle();
                 case "cyberark": return CyberArkHealth();
+                case "safe-fixes": return SafeFixes();
                 case "odj-apply": return ApplyOfflineDomainJoin();
                 case "odj-provision": return ProvisionOfflineDomainJoin();
                 case "detect": return DetectAndDisplayDomain();
@@ -849,6 +851,30 @@ namespace DomainMembershipCheckRepair
         {
             Console.WriteLine(CyberArkDiagnosticsService.ToText(CyberArkDiagnosticsService.Analyze()));
             return 0;
+        }
+
+
+        private static int SafeFixes()
+        {
+            string domain = (options.Domain ?? String.Empty).Trim();
+            if (String.IsNullOrWhiteSpace(domain))
+                domain = DetectTargetDomain(false, String.Empty);
+
+            if (options.DryRun)
+            {
+                Console.WriteLine("DRY RUN: would flush DNS, resync Windows Time, restart Netlogon, and force DC rediscovery.");
+                Console.WriteLine("No AD object would be deleted, no rename would be performed, and no domain join/rejoin would be attempted.");
+                return 0;
+            }
+
+            if (!AskYesNo(
+                "Run safe recovery actions (flush DNS, resync time, restart Netlogon, rediscover DC) now?",
+                false))
+                return 7;
+
+            SafeRecoveryResult result = SafeRecoveryService.Run(domain);
+            Console.WriteLine(SafeRecoveryService.ToText(result));
+            return result.Success ? 0 : 1;
         }
 
         private static int ApplyOfflineDomainJoin()
