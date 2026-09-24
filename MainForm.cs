@@ -1063,6 +1063,11 @@ namespace DomainMembershipCheckRepair
                         }
 
                         Log("SUCCESS", miiDetails);
+                        string resumeError;
+                        ResumeService.RegisterPostRebootCheck(joinedDomain, out resumeError);
+                        if (!String.IsNullOrWhiteSpace(resumeError))
+                            Log("WARN", "Unable to register post-reboot recovery check: " + resumeError);
+
                         MessageBox.Show(
                             this,
                             miiDetails + "\r\n\r\n" +
@@ -1447,6 +1452,15 @@ namespace DomainMembershipCheckRepair
             report.AppendLine("Object GUID:        " + FirstNonEmpty(account.ObjectGuid, "(not returned)"));
             report.AppendLine("Created:            " + FirstNonEmpty(account.WhenCreated, "(not returned)"));
             report.AppendLine("Changed:            " + FirstNonEmpty(account.WhenChanged, "(not returned)"));
+            report.AppendLine("Owner:              " + FirstNonEmpty(account.Owner, "(not returned)"));
+            report.AppendLine("pwdLastSet:         " + FirstNonEmpty(account.PwdLastSet, "(not returned)"));
+            report.AppendLine("Last logon:         " + FirstNonEmpty(account.LastLogonTimestamp, "(not returned)"));
+            report.AppendLine("Canonical name:     " + FirstNonEmpty(account.CanonicalName, "(not returned)"));
+            report.AppendLine("SPN count:          " + account.ServicePrincipalNameCount);
+            report.AppendLine("Child objects:      " + account.ChildObjectCount);
+            report.AppendLine("Encryption types:   " + (account.SupportedEncryptionTypes.HasValue ? account.SupportedEncryptionTypes.Value.ToString() : "(unknown)"));
+            if (!String.IsNullOrWhiteSpace(account.ServicePrincipalNames))
+                report.AppendLine("SPNs:               " + account.ServicePrincipalNames);
             report.AppendLine();
             report.AppendLine("This was a read-only check. No changes were made.");
             return report.ToString();
@@ -1469,6 +1483,10 @@ namespace DomainMembershipCheckRepair
             DialogResult confirm = MessageBox.Show(this,
                 "Delete this computer account from Active Directory?\r\n\r\n" +
                 dn + "\r\n\r\n" +
+                "Owner: " + FirstNonEmpty(account.Owner, "(unknown)") + "\r\n" +
+                "pwdLastSet: " + FirstNonEmpty(account.PwdLastSet, "(unknown)") + "\r\n" +
+                "SPNs: " + account.ServicePrincipalNameCount + "\r\n" +
+                "Child objects: " + account.ChildObjectCount + "\r\n\r\n" +
                 "WARNING: This permanently deletes the AD computer object and data stored on or below that object. Depending on the environment, this may include recovery information such as LAPS data or BitLocker recovery child objects.\r\n\r\n" +
                 "After deletion, the tool will retry Join/Rejoin using the SAME computer name.\r\n\r\nContinue?",
                 "Confirm AD computer deletion",
