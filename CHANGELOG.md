@@ -15,7 +15,9 @@
 - MII disable and Offline Domain Join now register a post-reboot validation flow.
 - Added GUI actions for Advanced Diagnostics, Recovery Plan, DC Matrix, Support Bundle, CyberArk Health, and Offline Join.
 - Added CLI actions: advanced, netsetup, dc-matrix, recovery-plan, support-bundle, cyberark, odj-apply, and odj-provision.
-- Added regression tests for ODJ elevation, post-reboot resume parsing, and NetSetup error mapping.
+- Added machine-password consistency analysis using AD pwdLastSet and recent local Netlogon event 5823 when available.
+- Added non-destructive Safe Fixes: DNS cache flush, Windows Time resync, Netlogon restart, and forced DC rediscovery.
+- Added regression tests for ODJ/Safe Fixes elevation, post-reboot resume parsing, and NetSetup error mapping.
 
 ## 1.3.1
 
