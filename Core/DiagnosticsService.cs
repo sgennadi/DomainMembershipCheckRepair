@@ -31,6 +31,7 @@ namespace DomainMembershipCheckRepair
         internal string ForestName;
         internal bool NetSetupLogPresent;
         internal DateTime? NetSetupLogModified;
+        internal HealthDiagnosticsSnapshot Health;
         internal int ResultCode;
     }
 
@@ -90,6 +91,14 @@ namespace DomainMembershipCheckRepair
                     snapshot.TargetDomain = discovery.DnsDomainName;
             }
 
+            snapshot.Health = HealthDiagnosticsService.Capture(
+                snapshot.TargetDomain,
+                snapshot.DiscoveredDc,
+                snapshot.SecureChannelApplicable && !snapshot.SecureChannelHealthy,
+                snapshot.PendingRename,
+                snapshot.DiscoveryAttempted,
+                snapshot.DiscoverySucceeded);
+
             snapshot.NetSetupLogPresent = File.Exists(NetSetupLogPath);
             if (snapshot.NetSetupLogPresent)
             {
@@ -147,6 +156,43 @@ namespace DomainMembershipCheckRepair
                 }
             }
 
+            if (s.Health != null)
+            {
+                report.AppendLine();
+                report.AppendLine("Root-cause diagnostics");
+                report.AppendLine("----------------------");
+                report.AppendLine("Windows version:     " + FirstNonEmpty(s.Health.OsDisplayVersion, "(unknown)") +
+                    (String.IsNullOrWhiteSpace(s.Health.OsBuild) ? String.Empty : " / build " + s.Health.OsBuild));
+                report.AppendLine("MII policy:          " + HealthDiagnosticsService.FormatMiiMode(s.Health.MachineIdentityIsolationPolicy));
+                report.AppendLine("MII LSA:             " + HealthDiagnosticsService.FormatMiiMode(s.Health.MachineIdentityIsolationLsa));
+                report.AppendLine("MII effective:       " + s.Health.MachineIdentityIsolationMode);
+                report.AppendLine("Credential Guard:    " + FormatNullableBool(s.Health.CredentialGuardRunning, "Running", "Not running"));
+                report.AppendLine("VBS status:          " + (s.Health.VbsStatus.HasValue ? s.Health.VbsStatus.Value.ToString() : "(unknown)"));
+                report.AppendLine("Netlogon service:    " + FormatNullableBool(s.Health.NetlogonRunning, "Running", "Not running"));
+                report.AppendLine("Windows Time:        " + FormatNullableBool(s.Health.WindowsTimeRunning, "Running", "Not running"));
+                report.AppendLine("DNS Client:          " + FormatNullableBool(s.Health.DnsClientRunning, "Running", "Not running"));
+                report.AppendLine("DNS servers:         " + FirstNonEmpty(s.Health.DnsServers, "(none detected)"));
+
+                if (s.Health.DomainFunctionalLevelAttempted)
+                {
+                    report.AppendLine("Domain functional:   " +
+                        (s.Health.DomainFunctionalLevel.HasValue
+                            ? s.Health.DomainFunctionalLevelName + " (" + s.Health.DomainFunctionalLevel.Value + ")"
+                            : "(not detected)"));
+                }
+
+                report.AppendLine("DC time skew:        " + FirstNonEmpty(s.Health.DcTimeStatus, "(not checked)"));
+                report.AppendLine("DC TCP checks:       " + FirstNonEmpty(s.Health.DcPortStatus, "(not checked)"));
+
+                if (s.Health.RootCauseHints.Count > 0)
+                {
+                    report.AppendLine();
+                    report.AppendLine("Possible root causes / checks:");
+                    foreach (string hint in s.Health.RootCauseHints)
+                        report.AppendLine("- " + hint);
+                }
+            }
+
             report.AppendLine("NetSetup.log:       " + (s.NetSetupLogPresent
                 ? "Present" + (s.NetSetupLogModified.HasValue ? "; modified " + s.NetSetupLogModified.Value.ToString("yyyy-MM-dd HH:mm:ss") : String.Empty)
                 : "Not present"));
@@ -183,6 +229,24 @@ namespace DomainMembershipCheckRepair
             AppendJson(json, "discoveredDnsDomain", s.DiscoveredDnsDomain, true);
             AppendJson(json, "discoveredDc", s.DiscoveredDc, true);
             AppendJson(json, "forest", s.ForestName, true);
+            if (s.Health != null)
+            {
+                AppendJson(json, "machineIdentityIsolationLsa", s.Health.MachineIdentityIsolationLsa.HasValue ? s.Health.MachineIdentityIsolationLsa.Value.ToString() : null, true);
+                AppendJson(json, "machineIdentityIsolationPolicy", s.Health.MachineIdentityIsolationPolicy.HasValue ? s.Health.MachineIdentityIsolationPolicy.Value.ToString() : null, true);
+                AppendJson(json, "machineIdentityIsolationMode", s.Health.MachineIdentityIsolationMode, true);
+                AppendJson(json, "credentialGuardRunning", s.Health.CredentialGuardRunning.HasValue ? (s.Health.CredentialGuardRunning.Value ? "true" : "false") : null, true);
+                AppendJson(json, "vbsStatus", s.Health.VbsStatus.HasValue ? s.Health.VbsStatus.Value.ToString() : null, true);
+                AppendJson(json, "netlogonRunning", s.Health.NetlogonRunning.HasValue ? (s.Health.NetlogonRunning.Value ? "true" : "false") : null, true);
+                AppendJson(json, "windowsTimeRunning", s.Health.WindowsTimeRunning.HasValue ? (s.Health.WindowsTimeRunning.Value ? "true" : "false") : null, true);
+                AppendJson(json, "dnsClientRunning", s.Health.DnsClientRunning.HasValue ? (s.Health.DnsClientRunning.Value ? "true" : "false") : null, true);
+                AppendJson(json, "dnsServers", s.Health.DnsServers, true);
+                AppendJson(json, "domainFunctionalLevel", s.Health.DomainFunctionalLevel.HasValue ? s.Health.DomainFunctionalLevel.Value.ToString() : null, true);
+                AppendJson(json, "domainFunctionalLevelName", s.Health.DomainFunctionalLevelName, true);
+                AppendJson(json, "dcTimeSkewSeconds", s.Health.DcTimeSkewSeconds.HasValue ? s.Health.DcTimeSkewSeconds.Value.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) : null, true);
+                AppendJson(json, "dcTcpChecks", s.Health.DcPortStatus, true);
+                AppendJson(json, "rootCauseHints", String.Join(" | ", s.Health.RootCauseHints.ToArray()), true);
+            }
+
             AppendJson(json, "netSetupLogPresent", s.NetSetupLogPresent, true);
             AppendJson(json, "netSetupLogModified", s.NetSetupLogModified.HasValue ? s.NetSetupLogModified.Value.ToString("o") : null, true);
             AppendJson(json, "resultCode", s.ResultCode, false);
@@ -353,6 +417,13 @@ namespace DomainMembershipCheckRepair
             {
                 File.WriteAllText(destination + ".copy-error.txt", ex.Message, new UTF8Encoding(false));
             }
+        }
+
+        private static string FormatNullableBool(bool? value, string trueText, string falseText)
+        {
+            if (!value.HasValue)
+                return "(unknown)";
+            return value.Value ? trueText : falseText;
         }
 
         private static string FirstNonEmpty(string first, string second)
