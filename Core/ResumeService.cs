@@ -50,7 +50,7 @@ namespace DomainMembershipCheckRepair
 
         private static string Quote(string value)
         {
-            return """ + (value ?? String.Empty).Replace(""", "\"") + """;
+            return "\"" + (value ?? String.Empty).Replace("\"", "\\\"") + "\"";
         }
     }
 }
