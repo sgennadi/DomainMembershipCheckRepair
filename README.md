@@ -6,7 +6,7 @@ The project is domain-neutral. It contains no hard-coded organization, domain, d
 
 ## Current version
 
-`1.3.1`
+`1.4.0`
 
 The release version has one source of truth: `VersionInfo.cs`. Assembly metadata and the UI read that value, and the release workflow refuses to publish a tag that does not match it.
 
@@ -32,6 +32,14 @@ The release version has one source of truth: `VersionInfo.cs`. Assembly metadata
 - Least-privilege startup: read-only diagnostics run as a standard user and mutating recovery actions request elevation only when needed.
 - Windows `runas` self-elevation is compatible with endpoint privilege brokers such as CyberArk EPM.
 - x86, x64 and ARM64 builds.
+- NetSetup.log analyzer and Windows event timeline.
+- DNS/DC Locator diagnostics and multi-DC consistency matrix.
+- AD computer-account owner/pwdLastSet/SPN/child-object analysis.
+- Ordered recovery plan with destructive deletion kept as a last resort.
+- Advanced support bundle export.
+- CyberArk/EPM local health discovery.
+- Offline Domain Join apply/provision workflows.
+- Safe post-reboot recovery resume without storing credentials.
 - Unit tests, CodeQL, Dependabot, SHA-256 checksums and release build provenance.
 
 ## Architectures
@@ -59,6 +67,12 @@ The GUI provides:
 - Join / Rejoin Domain
 - Check AD Account
 - Restart Windows
+- Advanced Diagnostics
+- Recovery Plan
+- DC Matrix
+- Support Bundle
+- CyberArk Health
+- Offline Join
 - About
 
 The **Preferred DC** field is optional. It pins Active Directory LDAP lookup/deletion to that directory server. Windows still chooses the domain controller used by the native domain-join operation.
@@ -113,6 +127,14 @@ DomainMembershipCheckRepair.exe --cli --action detect
 DomainMembershipCheckRepair.exe --cli --action ad-check
 DomainMembershipCheckRepair.exe --cli --action diagnose
 DomainMembershipCheckRepair.exe --cli --action export-diagnostics
+DomainMembershipCheckRepair.exe --cli --action advanced
+DomainMembershipCheckRepair.exe --cli --action netsetup
+DomainMembershipCheckRepair.exe --cli --action dc-matrix
+DomainMembershipCheckRepair.exe --cli --action recovery-plan
+DomainMembershipCheckRepair.exe --cli --action support-bundle
+DomainMembershipCheckRepair.exe --cli --action cyberark
+DomainMembershipCheckRepair.exe --cli --action odj-apply --blob C:\Temp\odj.txt
+DomainMembershipCheckRepair.exe --cli --action odj-provision --domain example.com --computer PC-042 --output C:\Temp\PC-042-odj.txt
 ```
 
 Options:
@@ -127,6 +149,8 @@ Options:
 --json
 --dry-run
 --output C:\Temp\domain-diagnostics.zip
+--blob C:\Temp\odj.txt
+--reuse
 --include-app-log
 --log
 --no-log
@@ -234,6 +258,91 @@ DomainMembershipCheckRepair.exe --cli --action mii-disable
 ```
 
 The MII action uses the same on-demand elevation flow as other mutating operations. It changes only values that already exist locally. If Group Policy or Intune manages MII, change the central policy too; otherwise the setting can return after policy refresh.
+
+## Advanced recovery and troubleshooting
+
+Version 1.4.0 adds a higher-level troubleshooting engine around the existing repair operations.
+
+### NetSetup.log analyzer
+
+The tool reads the recent part of `C:\Windows\Debug\NetSetup.log`, extracts relevant join/rejoin lines, remembers the most recent DC/error code, and maps common codes such as account-reuse hardening, Access Denied, RPC failures, bad credentials, no-such-domain, and no-logon-servers.
+
+### Domain Controller Matrix
+
+The tool discovers DCs through `_ldap._tcp.dc._msdcs.<domain>` SRV records and checks each discovered DC for:
+
+- DNS/Kerberos/RPC/LDAP/SMB TCP reachability
+- time-skew information
+- LDAP RootDSE access
+- optional computer-account comparison when valid domain credentials are already supplied
+
+When the same computer account is present on some DCs but missing/different on others, the matrix flags likely AD replication inconsistency.
+
+### Account Reuse Analyzer
+
+Read-only AD account inspection now includes:
+
+- object owner
+- `pwdLastSet`
+- `lastLogonTimestamp`
+- object GUID
+- canonical name
+- userAccountControl
+- supported Kerberos encryption types
+- SPN list/count
+- child-object count
+
+These values are shown before destructive deletion so an existing object is not deleted merely because Join/Rejoin failed.
+
+### Recovery Plan
+
+Recovery Plan orders corrective actions so prerequisites are handled first: pending reboot, MII compatibility, DNS/DC Locator, time/Kerberos, Netlogon, replication, secure-channel repair, account reuse/ownership, Join/Rejoin, Rename+Join, and only then Delete+Recreate.
+
+### Post-reboot resume
+
+MII disable and Offline Domain Join can register a one-time HKLM RunOnce entry that launches the tool after reboot with only the target domain and resume action. No username or password is stored.
+
+### Advanced Support Bundle
+
+The bundle can include:
+
+- advanced diagnostics report
+- diagnostics JSON
+- NetSetup.log analysis and original NetSetup.log
+- Windows event timeline
+- DNS diagnostics
+- DC Matrix
+- Recovery Plan
+- CyberArk/EPM health
+- `ipconfig /all`
+- route table
+- Windows Time status/source
+- `nltest /dsgetdc`, `/dclist`, and `/sc_query`
+- optional application log
+
+Review the bundle before sharing because Windows logs and command output can contain environment-specific metadata.
+
+### Offline Domain Join
+
+Apply an existing provisioning blob from the GUI or CLI:
+
+```text
+DomainMembershipCheckRepair.exe --cli --action odj-apply --blob C:\Temp\odj.txt
+```
+
+Provision a blob on a machine/account that has the required Active Directory permissions:
+
+```text
+DomainMembershipCheckRepair.exe --cli --action odj-provision --domain example.com --computer PC-042 --output C:\Temp\PC-042-odj.txt
+```
+
+Optional reuse of an existing computer account:
+
+```text
+--reuse
+```
+
+The tool calls the built-in Windows `djoin.exe`; it does not store domain credentials.
 
 ## Read-only AD account check
 
@@ -370,8 +479,8 @@ Dependabot checks GitHub Actions updates weekly.
 Update `VersionInfo.cs` and `CHANGELOG.md`, merge the change, then tag the same version:
 
 ```text
-git tag v1.2.0
-git push origin v1.2.0
+git tag v1.4.0
+git push origin v1.4.0
 ```
 
 The release workflow will reject a mismatched tag.
