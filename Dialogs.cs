@@ -82,7 +82,7 @@ namespace DomainMembershipCheckRepair
             };
 
             Button delete = new Button();
-            delete.Text = "Delete + Retry Same Name";
+            delete.Text = "Delete + Retry (Last Resort)";
             delete.Width = 180;
             delete.Height = 30;
             delete.Enabled = canDelete;
@@ -98,7 +98,7 @@ namespace DomainMembershipCheckRepair
             buttons.Controls.Add(delete);
             layout.Controls.Add(buttons, 0, 3);
 
-            AcceptButton = canDelete ? delete : rename;
+            AcceptButton = rename;
             CancelButton = cancel;
             Controls.Add(layout);
         }
