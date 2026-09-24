@@ -167,7 +167,7 @@ namespace DomainMembershipCheckRepair
         private static string QuoteArgument(string value)
         {
             if (value.Length == 0)
-                return """";
+                return "\"\"";
 
             bool needsQuotes = value.IndexOfAny(new char[] { ' ', '\t', '"' }) >= 0;
             if (!needsQuotes)
