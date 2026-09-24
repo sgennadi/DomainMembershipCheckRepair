@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.1
+
+- Added Machine Identity Isolation diagnostics from both LSA and policy registry locations.
+- Added Credential Guard/VBS state detection.
+- Added domain functional level detection through RootDSE and compatibility warning for MII enforcement below Windows Server 2025 functional level.
+- Added Netlogon, Windows Time, and DNS Client service checks.
+- Added active-interface DNS server reporting.
+- Added DC clock-skew diagnostics and warnings at five minutes or more.
+- Added quick TCP reachability checks for DNS 53, Kerberos 88, RPC endpoint mapper 135, LDAP 389, and SMB 445.
+- Added root-cause hints for DC discovery failure, MII, time skew, service failures, network/firewall issues, pending rename, machine-password mismatch, AD computer-account state, account-reuse hardening, replication, and permissions.
+- Added GUI MII Enforcement preflight before trust repair with an explicit Disable MII / continue / cancel choice.
+- Added CLI `--action mii-disable`, protected by the same on-demand elevation/CyberArk EPM flow.
+- MII changes are local-only and warn when Group Policy or Intune may reapply the setting.
+
 ## 1.3.0
 
 - Changed the application manifest from always-admin to least-privilege `asInvoker` startup.
