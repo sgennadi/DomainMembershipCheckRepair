@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0
+
+- Changed the application manifest from always-admin to least-privilege `asInvoker` startup.
+- Added on-demand self-elevation through the standard Windows `runas` broker so CyberArk EPM can approve the executable without making the user a permanent local administrator.
+- GUI diagnostics, trust checks, domain detection, AD account lookup, and diagnostic export remain available to standard users.
+- Repair Trust, Join/Rejoin, rename/join recovery, destructive conflict recovery, and Restart request administrator elevation only when needed.
+- Added safe GUI resume after elevation while deliberately never transferring the domain password between processes.
+- Added CLI self-elevation for mutating actions and a one-shot `--action restart`.
+- Added elevation loop protection and exit code 13 when elevation is cancelled, blocked, or returns without an administrator token.
+- Added Standard/Elevated privilege status to the GUI footer, About dialog, and CLI header.
+- Added Windows shield indicators to GUI buttons that require elevation.
+
 ## 1.2.1
 
 - Added a compact color-coded GUI status footer for Domain, Trust, DC, and AD computer-account state.
