@@ -15,10 +15,12 @@ namespace DomainMembershipCheckRepair
             TestLdapEscaping();
             TestSuggestedNames();
             TestDirectoryServerNormalization();
+            TestElevationActions();
+            TestGuiResumeOptions();
 
             if (failures == 0)
             {
-                Console.WriteLine("All DomainValidation tests passed.");
+                Console.WriteLine("All DomainMembershipCheckRepair tests passed.");
                 Environment.ExitCode = 0;
                 return;
             }
@@ -73,6 +75,47 @@ namespace DomainMembershipCheckRepair
         {
             AssertEqual("dc01.example.com", DomainValidation.NormalizeDirectoryServer(@"\\dc01.example.com"), "UNC-style DC normalization");
             AssertEqual("dc01.example.com", DomainValidation.NormalizeDirectoryServer("LDAP://dc01.example.com/"), "LDAP URL normalization");
+        }
+
+
+        private static void TestElevationActions()
+        {
+            AssertTrue(ElevationHelper.RequiresElevation("repair"), "repair requires elevation");
+            AssertTrue(ElevationHelper.RequiresElevation("join"), "join requires elevation");
+            AssertTrue(ElevationHelper.RequiresElevation("rename"), "rename requires elevation");
+            AssertTrue(ElevationHelper.RequiresElevation("restart"), "restart requires elevation");
+
+            AssertFalse(ElevationHelper.RequiresElevation("status"), "status does not require elevation");
+            AssertFalse(ElevationHelper.RequiresElevation("check"), "check does not require elevation");
+            AssertFalse(ElevationHelper.RequiresElevation("detect"), "detect does not require elevation");
+            AssertFalse(ElevationHelper.RequiresElevation("ad-check"), "ad-check does not require elevation");
+            AssertFalse(ElevationHelper.RequiresElevation("diagnose"), "diagnose does not require elevation");
+            AssertFalse(ElevationHelper.RequiresElevation("export-diagnostics"), "export diagnostics does not require elevation");
+        }
+
+        private static void TestGuiResumeOptions()
+        {
+            string[] args = new string[]
+            {
+                "--resume-action", "join",
+                "--elevation-attempted",
+                "--domain", "example.com",
+                "--user", @"EXAMPLE\admin",
+                "--dc", @"\\dc01.example.com",
+                "--no-log"
+            };
+
+            GuiResumeOptions options = ElevationHelper.ParseGuiResumeOptions(args);
+            AssertEqual("join", options.Action, "GUI resume action");
+            AssertEqual("example.com", options.Domain, "GUI resume domain");
+            AssertEqual(@"EXAMPLE\admin", options.User, "GUI resume user");
+            AssertEqual("dc01.example.com", options.PreferredDc, "GUI resume preferred DC");
+            AssertTrue(options.ElevationAttempted, "GUI resume elevation marker");
+
+            GuiResumeOptions invalid = ElevationHelper.ParseGuiResumeOptions(
+                new string[] { "--resume-action", "diagnose", "--elevation-attempted" });
+            AssertEqual(String.Empty, invalid.Action, "read-only GUI resume action rejected");
+            AssertTrue(invalid.ElevationAttempted, "invalid resume still records elevation marker");
         }
 
         private static void AssertTrue(bool value, string name)
