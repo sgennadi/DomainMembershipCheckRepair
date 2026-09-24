@@ -86,7 +86,9 @@ namespace DomainMembershipCheckRepair
                         info.CanonicalName = GetSearchPropertyString(result, "canonicalName", String.Empty);
                         info.PwdLastSet = GetAdFileTimeString(result, "pwdLastSet");
                         info.LastLogonTimestamp = GetAdFileTimeString(result, "lastLogonTimestamp");
-                        info.ServicePrincipalNames = GetMultiValueProperty(result, "servicePrincipalName", out info.ServicePrincipalNameCount);
+                        int spnCount;
+                        info.ServicePrincipalNames = GetMultiValueProperty(result, "servicePrincipalName", out spnCount);
+                        info.ServicePrincipalNameCount = spnCount;
 
                         if (result.Properties.Contains("objectGUID") && result.Properties["objectGUID"].Count > 0)
                         {
