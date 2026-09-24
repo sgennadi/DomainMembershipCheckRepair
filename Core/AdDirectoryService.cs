@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.DirectoryServices;
+using System.Security.Principal;
 
 namespace DomainMembershipCheckRepair
 {
@@ -55,6 +57,12 @@ namespace DomainMembershipCheckRepair
                         searcher.PropertiesToLoad.Add("whenCreated");
                         searcher.PropertiesToLoad.Add("whenChanged");
                         searcher.PropertiesToLoad.Add("userAccountControl");
+                        searcher.PropertiesToLoad.Add("sAMAccountName");
+                        searcher.PropertiesToLoad.Add("pwdLastSet");
+                        searcher.PropertiesToLoad.Add("lastLogonTimestamp");
+                        searcher.PropertiesToLoad.Add("canonicalName");
+                        searcher.PropertiesToLoad.Add("servicePrincipalName");
+                        searcher.PropertiesToLoad.Add("msDS-SupportedEncryptionTypes");
 
                         SearchResult result = searcher.FindOne();
                         info.LookupSucceeded = true;
@@ -74,6 +82,11 @@ namespace DomainMembershipCheckRepair
                         info.Description = GetSearchPropertyString(result, "description", String.Empty);
                         info.WhenCreated = GetSearchPropertyString(result, "whenCreated", String.Empty);
                         info.WhenChanged = GetSearchPropertyString(result, "whenChanged", String.Empty);
+                        info.SamAccountName = GetSearchPropertyString(result, "sAMAccountName", String.Empty);
+                        info.CanonicalName = GetSearchPropertyString(result, "canonicalName", String.Empty);
+                        info.PwdLastSet = GetAdFileTimeString(result, "pwdLastSet");
+                        info.LastLogonTimestamp = GetAdFileTimeString(result, "lastLogonTimestamp");
+                        info.ServicePrincipalNames = GetMultiValueProperty(result, "servicePrincipalName", out info.ServicePrincipalNameCount);
 
                         if (result.Properties.Contains("objectGUID") && result.Properties["objectGUID"].Count > 0)
                         {
@@ -86,9 +99,20 @@ namespace DomainMembershipCheckRepair
                         {
                             int uac;
                             if (Int32.TryParse(Convert.ToString(result.Properties["userAccountControl"][0]), out uac))
+                            {
+                                info.UserAccountControl = uac;
                                 info.Enabled = (uac & 0x0002) == 0;
+                            }
                         }
 
+                        if (result.Properties.Contains("msDS-SupportedEncryptionTypes") && result.Properties["msDS-SupportedEncryptionTypes"].Count > 0)
+                        {
+                            int encryptionTypes;
+                            if (Int32.TryParse(Convert.ToString(result.Properties["msDS-SupportedEncryptionTypes"][0]), out encryptionTypes))
+                                info.SupportedEncryptionTypes = encryptionTypes;
+                        }
+
+                        ReadObjectSecurityAndChildren(info, user, password);
                         WriteLog(log, "INFO", "AD computer account found on LDAP server '" + ldapServer + "'.");
                         return info;
                     }
@@ -162,6 +186,83 @@ namespace DomainMembershipCheckRepair
                 error = ex.Message;
                 WriteLog(log, "ERROR", "Unable to delete the AD computer account: " + ex.Message);
                 return false;
+            }
+        }
+
+
+        private static void ReadObjectSecurityAndChildren(AdComputerAccountInfo info, string user, string password)
+        {
+            if (info == null || String.IsNullOrWhiteSpace(info.LdapPath))
+                return;
+
+            try
+            {
+                using (DirectoryEntry entry = new DirectoryEntry(info.LdapPath, user, password, AuthenticationTypes.Secure))
+                {
+                    try
+                    {
+                        IdentityReference owner = entry.ObjectSecurity.GetOwner(typeof(NTAccount));
+                        if (owner != null)
+                            info.Owner = owner.Value;
+                    }
+                    catch
+                    {
+                    }
+
+                    try
+                    {
+                        int count = 0;
+                        foreach (DirectoryEntry child in entry.Children)
+                        {
+                            count++;
+                            child.Dispose();
+                            if (count >= 1000)
+                                break;
+                        }
+                        info.ChildObjectCount = count;
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private static string GetMultiValueProperty(SearchResult result, string propertyName, out int count)
+        {
+            count = 0;
+            if (result == null || !result.Properties.Contains(propertyName))
+                return String.Empty;
+
+            List<string> values = new List<string>();
+            foreach (object value in result.Properties[propertyName])
+            {
+                count++;
+                if (values.Count < 50)
+                    values.Add(Convert.ToString(value) ?? String.Empty);
+            }
+
+            return String.Join("; ", values.ToArray());
+        }
+
+        private static string GetAdFileTimeString(SearchResult result, string propertyName)
+        {
+            if (result == null || !result.Properties.Contains(propertyName) || result.Properties[propertyName].Count == 0)
+                return String.Empty;
+
+            try
+            {
+                long value = Convert.ToInt64(result.Properties[propertyName][0]);
+                if (value <= 0)
+                    return String.Empty;
+                return DateTime.FromFileTimeUtc(value).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+            }
+            catch
+            {
+                return Convert.ToString(result.Properties[propertyName][0]) ?? String.Empty;
             }
         }
 
