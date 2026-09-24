@@ -95,6 +95,8 @@
     <Compile Include="Core\DnsDiagnosticsService.cs" />
     <Compile Include="Core\DcMatrixService.cs" />
     <Compile Include="Core\RecoveryPlanService.cs" />
+    <Compile Include="Core\MachinePasswordAnalyzer.cs" />
+    <Compile Include="Core\SafeRecoveryService.cs" />
     <Compile Include="Core\ResumeService.cs" />
     <Compile Include="Core\CyberArkDiagnosticsService.cs" />
     <Compile Include="Core\OfflineDomainJoinService.cs" />
