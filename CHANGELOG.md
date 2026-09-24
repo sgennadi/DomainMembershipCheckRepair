@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.4.0
+
+- Added NetSetup.log analysis with common domain-join error classification.
+- Added recent Windows event timeline collection for Netlogon, Kerberos, LSA, DNS, Time Service, and Device Guard-related failures.
+- Added DNS/DC Locator diagnostics for LDAP and Kerberos SRV records.
+- Added Domain Controller Matrix with per-DC TCP reachability, LDAP RootDSE, time-skew checks, and optional cross-DC computer-account comparison.
+- Expanded AD computer-account analysis with owner, pwdLastSet, lastLogonTimestamp, canonical name, SPNs, child-object count, UAC, and supported encryption types.
+- Added ordered Recovery Plan generation that keeps destructive account deletion as a last resort.
+- Added Advanced Diagnostics and Advanced Support Bundle export.
+- Added CyberArk/EPM local health discovery and current Standard/Elevated state reporting.
+- Added Offline Domain Join blob apply and provisioning support through djoin.exe.
+- Added safe HKLM RunOnce post-reboot recovery resume without storing usernames or passwords.
+- MII disable and Offline Domain Join now register a post-reboot validation flow.
+- Added GUI actions for Advanced Diagnostics, Recovery Plan, DC Matrix, Support Bundle, CyberArk Health, and Offline Join.
+- Added CLI actions: advanced, netsetup, dc-matrix, recovery-plan, support-bundle, cyberark, odj-apply, and odj-provision.
+- Added regression tests for ODJ elevation, post-reboot resume parsing, and NetSetup error mapping.
+
 ## 1.3.1
 
 - Added Machine Identity Isolation diagnostics from both LSA and policy registry locations.
