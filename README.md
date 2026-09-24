@@ -6,7 +6,7 @@ The project is domain-neutral. It contains no hard-coded organization, domain, d
 
 ## Current version
 
-`1.2.1`
+`1.3.0`
 
 The release version has one source of truth: `VersionInfo.cs`. Assembly metadata and the UI read that value, and the release workflow refuses to publish a tag that does not match it.
 
@@ -29,6 +29,8 @@ The release version has one source of truth: `VersionInfo.cs`. Assembly metadata
 - CLI dry-run for mutating operations.
 - Optional application file logging, disabled by default and never remembered.
 - No password command-line argument and no credential persistence.
+- Least-privilege startup: read-only diagnostics run as a standard user and mutating recovery actions request elevation only when needed.
+- Windows `runas` self-elevation is compatible with endpoint privilege brokers such as CyberArk EPM.
 - x86, x64 and ARM64 builds.
 - Unit tests, CodeQL, Dependabot, SHA-256 checksums and release build provenance.
 
@@ -73,6 +75,22 @@ Application log path when enabled:
 C:\Windows\Logs\DomainMembershipRepair.log
 ```
 
+## Privilege and CyberArk EPM model
+
+The executable starts with the Windows manifest level `asInvoker`; simply opening the GUI no longer requires an administrator token.
+
+Read-only operations remain available to a standard user: Detect Domain, Check Trust/status, Diagnostics, Copy/Export Diagnostics, and Check AD Account.
+
+Operations that change Windows or domain state request elevation only when selected: Repair Trust, Join/Rejoin Domain, Rename + Join recovery, conflict deletion/retry, and Restart Windows.
+
+Elevation is requested through the standard Windows `runas` verb. This intentionally avoids a CyberArk-specific API: an installed CyberArk EPM agent can intercept and approve the normal Windows elevation request according to the organization's policy.
+
+The domain password is never placed in the elevation command line and is never transferred from the standard process to the elevated process. In GUI mode, after elevation for Join/Rejoin, enter the password in the elevated window and click Join / Rejoin again. In CLI mode, the elevated child process prompts for the password interactively.
+
+If elevation is cancelled, blocked, or returns without an administrator token, mutating actions stop safely while read-only functions remain available. CLI returns exit code `13`.
+
+For an EPM application rule, prefer matching the trusted installed executable using multiple attributes, such as trusted path plus product/signature metadata, instead of granting elevation to every binary signed by a shared publisher.
+
 ## CLI
 
 Interactive mode:
@@ -89,6 +107,7 @@ DomainMembershipCheckRepair.exe --cli --action check
 DomainMembershipCheckRepair.exe --cli --action repair
 DomainMembershipCheckRepair.exe --cli --action join
 DomainMembershipCheckRepair.exe --cli --action rename
+DomainMembershipCheckRepair.exe --cli --action restart
 DomainMembershipCheckRepair.exe --cli --action detect
 DomainMembershipCheckRepair.exe --cli --action ad-check
 DomainMembershipCheckRepair.exe --cli --action diagnose
@@ -245,6 +264,7 @@ The program does not save usernames or passwords to Registry/config files. The o
 10  AD computer account not found
 11  AD lookup failed
 12  Restart required because a rename is pending
+13  Administrator elevation was cancelled, blocked, or ineffective
 ```
 
 ## Local builds
