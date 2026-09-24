@@ -84,6 +84,7 @@ namespace DomainMembershipCheckRepair
             AssertTrue(ElevationHelper.RequiresElevation("join"), "join requires elevation");
             AssertTrue(ElevationHelper.RequiresElevation("rename"), "rename requires elevation");
             AssertTrue(ElevationHelper.RequiresElevation("restart"), "restart requires elevation");
+            AssertTrue(ElevationHelper.RequiresElevation("mii-disable"), "mii-disable requires elevation");
 
             AssertFalse(ElevationHelper.RequiresElevation("status"), "status does not require elevation");
             AssertFalse(ElevationHelper.RequiresElevation("check"), "check does not require elevation");
