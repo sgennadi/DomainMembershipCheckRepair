@@ -17,6 +17,7 @@ namespace DomainMembershipCheckRepair
             TestDirectoryServerNormalization();
             TestElevationActions();
             TestGuiResumeOptions();
+            TestNetSetupErrorMapping();
 
             if (failures == 0)
             {
@@ -85,6 +86,7 @@ namespace DomainMembershipCheckRepair
             AssertTrue(ElevationHelper.RequiresElevation("rename"), "rename requires elevation");
             AssertTrue(ElevationHelper.RequiresElevation("restart"), "restart requires elevation");
             AssertTrue(ElevationHelper.RequiresElevation("mii-disable"), "mii-disable requires elevation");
+            AssertTrue(ElevationHelper.RequiresElevation("odj-apply"), "odj-apply requires elevation");
 
             AssertFalse(ElevationHelper.RequiresElevation("status"), "status does not require elevation");
             AssertFalse(ElevationHelper.RequiresElevation("check"), "check does not require elevation");
@@ -117,6 +119,22 @@ namespace DomainMembershipCheckRepair
                 new string[] { "--resume-action", "diagnose", "--elevation-attempted" });
             AssertEqual(String.Empty, invalid.Action, "read-only GUI resume action rejected");
             AssertTrue(invalid.ElevationAttempted, "invalid resume still records elevation marker");
+
+            GuiResumeOptions postReboot = ElevationHelper.ParseGuiResumeOptions(
+                new string[] { "--resume-action", "post-reboot-check", "--domain", "example.com" });
+            AssertEqual("post-reboot-check", postReboot.Action, "post reboot resume action");
+            AssertEqual("example.com", postReboot.Domain, "post reboot domain");
+        }
+
+        private static void TestNetSetupErrorMapping()
+        {
+            string reuse = NetSetupLogAnalyzer.ExplainCode("0xAAC");
+            AssertTrue(reuse.IndexOf("reuse", StringComparison.OrdinalIgnoreCase) >= 0, "0xAAC account reuse mapping");
+
+            string rpc = NetSetupLogAnalyzer.ExplainCode("0x6ba");
+            AssertTrue(rpc.IndexOf("RPC", StringComparison.OrdinalIgnoreCase) >= 0, "0x6BA RPC mapping");
+
+            AssertEqual(String.Empty, NetSetupLogAnalyzer.ExplainCode("0xDEADBEEF"), "unknown NetSetup code");
         }
 
         private static void AssertTrue(bool value, string name)
