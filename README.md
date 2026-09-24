@@ -6,7 +6,7 @@ The project is domain-neutral. It contains no hard-coded organization, domain, d
 
 ## Current version
 
-`1.3.0`
+`1.3.1`
 
 The release version has one source of truth: `VersionInfo.cs`. Assembly metadata and the UI read that value, and the release workflow refuses to publish a tag that does not match it.
 
@@ -108,6 +108,7 @@ DomainMembershipCheckRepair.exe --cli --action repair
 DomainMembershipCheckRepair.exe --cli --action join
 DomainMembershipCheckRepair.exe --cli --action rename
 DomainMembershipCheckRepair.exe --cli --action restart
+DomainMembershipCheckRepair.exe --cli --action mii-disable
 DomainMembershipCheckRepair.exe --cli --action detect
 DomainMembershipCheckRepair.exe --cli --action ad-check
 DomainMembershipCheckRepair.exe --cli --action diagnose
@@ -184,6 +185,55 @@ The ZIP can contain:
 - a small README explaining the package
 
 The diagnostic report intentionally does not contain the entered domain username or password. Windows and third-party logs can still contain environment-specific information, so review exported logs before sharing them.
+
+## Root-cause diagnostics
+
+The diagnostics view and exported report now check more than the secure channel itself.
+
+It reports:
+
+- Machine Identity Isolation from both the local LSA and policy registry paths
+- Credential Guard and VBS state
+- Windows version/build
+- domain functional level when a DC is available
+- Netlogon, Windows Time, and DNS Client service state
+- DNS servers on active adapters
+- DC time skew
+- quick TCP checks to the discovered DC on 53, 88, 135, 389, and 445
+- pending computer rename
+- DC discovery and secure-channel state
+
+The report also produces root-cause hints. These are diagnostic leads, not proof of a single cause. In particular, do not exclude:
+
+- Machine Identity Isolation / Credential Guard interaction
+- DNS/DC Locator problems or non-AD DNS servers
+- client/DC clock skew and Kerberos failures
+- Netlogon or Windows Time service problems
+- firewall, VPN, routing, RPC, LDAP, SMB, or Kerberos reachability
+- stale, disabled, duplicate, or wrong-OU computer objects
+- machine-account password mismatch / broken secure-channel secret
+- KB5020276 account-reuse hardening and insufficient ownership/permissions
+- AD replication latency or inconsistent DC state
+- pending computer rename / reboot requirement
+- wrong credentials, UPN/NetBIOS mismatch, or insufficient join/delete rights
+- GPO/Intune security policy reapplying a setting after local repair
+- endpoint security/EDR/EPM products blocking process, registry, LSASS, Netlogon, LDAP, or RPC activity
+
+### Machine Identity Isolation repair
+
+When Repair Trust is selected and MII is detected in Enforcement mode, the GUI offers:
+
+1. disable MII locally and restart;
+2. keep MII enabled and continue repair;
+3. cancel.
+
+CLI:
+
+```text
+DomainMembershipCheckRepair.exe --cli --action mii-disable
+```
+
+The MII action uses the same on-demand elevation flow as other mutating operations. It changes only values that already exist locally. If Group Policy or Intune manages MII, change the central policy too; otherwise the setting can return after policy refresh.
 
 ## Read-only AD account check
 
