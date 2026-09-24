@@ -20,6 +20,8 @@ namespace DomainMembershipCheckRepair
         internal string ComputerName = String.Empty;
         internal string PreferredDc = String.Empty;
         internal string OutputPath = String.Empty;
+        internal string BlobPath = String.Empty;
+        internal bool ReuseComputerAccount;
         internal bool FileLogging;
         internal bool RestartAlways;
         internal bool RestartNever;
@@ -200,6 +202,11 @@ namespace DomainMembershipCheckRepair
                     result.IncludeApplicationLog = true;
                     continue;
                 }
+                if (EqualsArg(arg, "--reuse"))
+                {
+                    result.ReuseComputerAccount = true;
+                    continue;
+                }
                 if (EqualsArg(arg, "--elevation-attempted"))
                 {
                     result.ElevationAttempted = true;
@@ -270,6 +277,15 @@ namespace DomainMembershipCheckRepair
                     }
                     continue;
                 }
+                if (EqualsArg(arg, "--blob"))
+                {
+                    if (!TryReadValue(args, ref i, out result.BlobPath))
+                    {
+                        error = "--blob requires a value.";
+                        return result;
+                    }
+                    continue;
+                }
 
                 error = "Unknown argument: " + arg;
                 return result;
@@ -278,9 +294,9 @@ namespace DomainMembershipCheckRepair
             if (!String.IsNullOrWhiteSpace(result.Action))
             {
                 string action = result.Action.Trim().ToLowerInvariant();
-                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "mii-disable" && action != "detect" && action != "ad-check" && action != "diagnose" && action != "export-diagnostics")
+                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "mii-disable" && action != "detect" && action != "ad-check" && action != "diagnose" && action != "export-diagnostics" && action != "advanced" && action != "netsetup" && action != "dc-matrix" && action != "recovery-plan" && action != "support-bundle" && action != "cyberark" && action != "odj-apply" && action != "odj-provision")
                 {
-                    error = "Unknown action '" + result.Action + "'. Use status, check, repair, join, rename, restart, mii-disable, detect, ad-check, diagnose, or export-diagnostics.";
+                    error = "Unknown action '" + result.Action + "'. Use status, check, repair, join, rename, restart, mii-disable, detect, ad-check, diagnose, export-diagnostics, advanced, netsetup, dc-matrix, recovery-plan, support-bundle, cyberark, odj-apply, or odj-provision.";
                     return result;
                 }
                 result.Action = action;
@@ -292,7 +308,9 @@ namespace DomainMembershipCheckRepair
                 return result;
             }
 
-            if (result.Json && (result.Action == "repair" || result.Action == "join" || result.Action == "rename"))
+            if (result.Json && (result.Action == "repair" || result.Action == "join" || result.Action == "rename" ||
+                                result.Action == "restart" || result.Action == "mii-disable" ||
+                                result.Action == "odj-apply" || result.Action == "odj-provision"))
             {
                 error = "--json is supported for read-only/reporting actions only.";
                 return result;
@@ -355,6 +373,14 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("  --cli --action ad-check");
             Console.WriteLine("  --cli --action diagnose");
             Console.WriteLine("  --cli --action export-diagnostics");
+            Console.WriteLine("  --cli --action advanced");
+            Console.WriteLine("  --cli --action netsetup");
+            Console.WriteLine("  --cli --action dc-matrix");
+            Console.WriteLine("  --cli --action recovery-plan");
+            Console.WriteLine("  --cli --action support-bundle");
+            Console.WriteLine("  --cli --action cyberark");
+            Console.WriteLine("  --cli --action odj-apply --blob PATH");
+            Console.WriteLine("  --cli --action odj-provision --domain DOMAIN --computer NAME --output PATH [--reuse]");
             Console.WriteLine();
             Console.WriteLine("Optional arguments:");
             Console.WriteLine("  --domain example.com");
@@ -365,7 +391,9 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("  --dc dc01.example.com         preferred DC for LDAP operations");
             Console.WriteLine("  --json                        JSON output for read-only/reporting actions");
             Console.WriteLine("  --dry-run                     show planned mutating action without changing Windows/AD");
-            Console.WriteLine("  --output PATH                 export-diagnostics ZIP destination");
+            Console.WriteLine("  --output PATH                 diagnostics/support ZIP or ODJ provisioning output");
+            Console.WriteLine("  --blob PATH                   Offline Domain Join provisioning blob to apply");
+            Console.WriteLine("  --reuse                       allow djoin /provision to reuse an existing computer account");
             Console.WriteLine("  --include-app-log             include optional application log in diagnostic ZIP");
             Console.WriteLine("  --log                         write application log file");
             Console.WriteLine("  --no-log                      disable application log file (default)");
@@ -508,6 +536,14 @@ namespace DomainMembershipCheckRepair
                 case "rename": return RenameAndJoin(null, null, null, null);
                 case "restart": return RestartWindows();
                 case "mii-disable": return DisableMachineIdentityIsolation();
+                case "advanced": return AdvancedDiagnostics();
+                case "netsetup": return AnalyzeNetSetup();
+                case "dc-matrix": return DcMatrix();
+                case "recovery-plan": return RecoveryPlan();
+                case "support-bundle": return SupportBundle();
+                case "cyberark": return CyberArkHealth();
+                case "odj-apply": return ApplyOfflineDomainJoin();
+                case "odj-provision": return ProvisionOfflineDomainJoin();
                 case "detect": return DetectAndDisplayDomain();
                 case "ad-check": return CheckAdAccount();
                 case "diagnose": return Diagnostics();
@@ -684,8 +720,192 @@ namespace DomainMembershipCheckRepair
             }
 
             logger.Log("SUCCESS", details);
+            string resumeError;
+            ResumeService.RegisterPostRebootCheck(options.Domain, out resumeError);
+            if (!String.IsNullOrWhiteSpace(resumeError))
+                logger.Log("WARN", "Unable to register post-reboot recovery check: " + resumeError);
             HandleRestartAfterSuccess("Machine Identity Isolation was disabled locally. A restart is required before trust repair/rejoin.");
             return 0;
+        }
+
+
+        private static void GetOptionalCredentials(out string user, out string password)
+        {
+            user = String.Empty;
+            password = null;
+
+            if (String.IsNullOrWhiteSpace(options.User))
+                return;
+
+            string validationError;
+            if (!TryValidateUserName(options.User, out user, out validationError))
+            {
+                logger.Log("WARN", "Ignoring optional AD credentials: " + validationError);
+                user = String.Empty;
+                return;
+            }
+
+            Console.Write("Password for optional AD account analysis: ");
+            password = ReadPassword();
+            Console.WriteLine();
+            if (password == null || password.Length == 0)
+            {
+                user = String.Empty;
+                password = null;
+            }
+        }
+
+        private static int AdvancedDiagnostics()
+        {
+            string user;
+            string password;
+            GetOptionalCredentials(out user, out password);
+
+            AdvancedDiagnosticsResult result = AdvancedDiagnosticsService.Analyze(
+                options.Domain,
+                options.PreferredDc,
+                String.IsNullOrWhiteSpace(options.ComputerName) ? Environment.MachineName : options.ComputerName,
+                user,
+                password);
+
+            Console.WriteLine(AdvancedDiagnosticsService.ToText(result));
+            return result.Snapshot == null ? 1 : result.Snapshot.ResultCode;
+        }
+
+        private static int AnalyzeNetSetup()
+        {
+            NetSetupAnalysis analysis = NetSetupLogAnalyzer.Analyze(DiagnosticsService.NetSetupLogPath);
+            Console.WriteLine(NetSetupLogAnalyzer.ToText(analysis));
+            return analysis.Present ? 0 : 1;
+        }
+
+        private static int DcMatrix()
+        {
+            string domain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
+            if (String.IsNullOrWhiteSpace(domain))
+                return 3;
+
+            DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(domain, options.PreferredDc);
+            string user;
+            string password;
+            GetOptionalCredentials(out user, out password);
+
+            DcMatrixResult matrix = DcMatrixService.Analyze(
+                snapshot.TargetDomain,
+                snapshot.DiscoveredDc,
+                String.IsNullOrWhiteSpace(options.ComputerName) ? Environment.MachineName : options.ComputerName,
+                user,
+                password);
+            Console.WriteLine(DcMatrixService.ToText(matrix));
+            return matrix.Entries.Count > 0 ? 0 : 1;
+        }
+
+        private static int RecoveryPlan()
+        {
+            string user;
+            string password;
+            GetOptionalCredentials(out user, out password);
+
+            AdvancedDiagnosticsResult result = AdvancedDiagnosticsService.Analyze(
+                options.Domain,
+                options.PreferredDc,
+                String.IsNullOrWhiteSpace(options.ComputerName) ? Environment.MachineName : options.ComputerName,
+                user,
+                password);
+            Console.WriteLine(RecoveryPlanService.ToText(result.RecoveryPlan));
+            return 0;
+        }
+
+        private static int SupportBundle()
+        {
+            string user;
+            string password;
+            GetOptionalCredentials(out user, out password);
+
+            try
+            {
+                AdvancedDiagnosticsResult result = AdvancedDiagnosticsService.Analyze(
+                    options.Domain,
+                    options.PreferredDc,
+                    String.IsNullOrWhiteSpace(options.ComputerName) ? Environment.MachineName : options.ComputerName,
+                    user,
+                    password);
+
+                string archive = AdvancedSupportBundleService.Export(
+                    result,
+                    options.OutputPath,
+                    options.IncludeApplicationLog);
+                Console.WriteLine("Support bundle: " + archive);
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                logger.Log("ERROR", "Support bundle failed: " + ex.Message);
+                return 1;
+            }
+        }
+
+        private static int CyberArkHealth()
+        {
+            Console.WriteLine(CyberArkDiagnosticsService.ToText(CyberArkDiagnosticsService.Analyze()));
+            return 0;
+        }
+
+        private static int ApplyOfflineDomainJoin()
+        {
+            if (String.IsNullOrWhiteSpace(options.BlobPath))
+            {
+                logger.Log("ERROR", "--blob PATH is required for odj-apply.");
+                return 3;
+            }
+
+            if (options.DryRun)
+            {
+                Console.WriteLine("DRY RUN: would apply Offline Domain Join blob: " + options.BlobPath);
+                return 0;
+            }
+
+            string output;
+            int code = OfflineDomainJoinService.ApplyBlob(options.BlobPath, out output);
+            Console.WriteLine(output);
+            if (code == 0)
+            {
+                string resumeError;
+                ResumeService.RegisterPostRebootCheck(options.Domain, out resumeError);
+                if (!String.IsNullOrWhiteSpace(resumeError))
+                    logger.Log("WARN", "Unable to register post-reboot check: " + resumeError);
+                HandleRestartAfterSuccess("Offline Domain Join was applied successfully.");
+            }
+            return code == 0 ? 0 : 1;
+        }
+
+        private static int ProvisionOfflineDomainJoin()
+        {
+            string domain = (options.Domain ?? String.Empty).Trim();
+            string machine = (options.ComputerName ?? String.Empty).Trim();
+            string outputPath = (options.OutputPath ?? String.Empty).Trim();
+
+            if (String.IsNullOrWhiteSpace(domain) || String.IsNullOrWhiteSpace(machine) || String.IsNullOrWhiteSpace(outputPath))
+            {
+                logger.Log("ERROR", "odj-provision requires --domain, --computer, and --output.");
+                return 3;
+            }
+
+            if (options.DryRun)
+            {
+                Console.WriteLine("DRY RUN: would provision an Offline Domain Join blob for " + machine + " in " + domain + ".");
+                return 0;
+            }
+
+            string output;
+            int code = OfflineDomainJoinService.ProvisionBlob(
+                domain,
+                machine,
+                outputPath,
+                options.ReuseComputerAccount,
+                out output);
+            Console.WriteLine(output);
+            return code == 0 ? 0 : 1;
         }
 
         private static int DetectAndDisplayDomain()
