@@ -13,6 +13,7 @@ namespace DomainMembershipCheckRepair
         internal List<EventTimelineEntry> Events;
         internal CyberArkDiagnosticsResult CyberArk;
         internal AdComputerAccountInfo Account;
+        internal MachinePasswordAnalysis MachinePassword;
         internal List<string> RecoveryPlan;
     }
 
@@ -55,6 +56,11 @@ namespace DomainMembershipCheckRepair
                     null);
             }
 
+            result.MachinePassword = MachinePasswordAnalyzer.Analyze(
+                result.Account,
+                result.Events,
+                result.Snapshot.SecureChannelApplicable && !result.Snapshot.SecureChannelHealthy);
+
             result.RecoveryPlan = RecoveryPlanService.Build(
                 result.Snapshot,
                 result.NetSetup,
@@ -79,6 +85,8 @@ namespace DomainMembershipCheckRepair
             sb.AppendLine(EventTimelineService.ToText(r.Events));
             sb.AppendLine();
             sb.AppendLine(CyberArkDiagnosticsService.ToText(r.CyberArk));
+            sb.AppendLine();
+            sb.AppendLine(MachinePasswordAnalyzer.ToText(r.MachinePassword));
 
             if (r.Account != null && r.Account.LookupSucceeded)
             {
