@@ -771,6 +771,47 @@ namespace DomainMembershipCheckRepair
                 }
 
                 joinedDomain = join.Name;
+
+                int miiValue;
+                if (HealthDiagnosticsService.HasMachineIdentityIsolationEnabled(out miiValue) && miiValue == 2)
+                {
+                    DialogResult miiChoice = MessageBox.Show(
+                        this,
+                        "Machine Identity Isolation is currently in Enforcement mode.\r\n\r\n" +
+                        "On unsupported or affected configurations this can prevent the machine secure channel from working correctly.\r\n\r\n" +
+                        "Yes = disable MII locally and restart before attempting trust repair\r\n" +
+                        "No = keep MII enabled and continue with trust repair\r\n" +
+                        "Cancel = stop",
+                        "Machine Identity Isolation detected",
+                        MessageBoxButtons.YesNoCancel,
+                        MessageBoxIcon.Warning);
+
+                    if (miiChoice == DialogResult.Cancel)
+                        return;
+
+                    if (miiChoice == DialogResult.Yes)
+                    {
+                        string miiDetails;
+                        if (!HealthDiagnosticsService.DisableMachineIdentityIsolationLocally(out miiDetails))
+                        {
+                            Log("ERROR", miiDetails);
+                            MessageBox.Show(this, miiDetails, "Unable to change MII", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            return;
+                        }
+
+                        Log("SUCCESS", miiDetails);
+                        MessageBox.Show(
+                            this,
+                            miiDetails + "\r\n\r\n" +
+                            "Restart Windows before trust repair/rejoin. If Group Policy or Intune manages MII, update the central policy as well.",
+                            "Machine Identity Isolation disabled locally",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information);
+                        AskRestart("Machine Identity Isolation was disabled locally.");
+                        return;
+                    }
+                }
+
                 Log("INFO", "Starting native secure-channel repair attempt for the currently joined domain.");
 
                 NativeMethods.NetlogonControl(NativeMethods.NETLOGON_CONTROL_REDISCOVER, 2, joinedDomain);
