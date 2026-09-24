@@ -66,7 +66,7 @@ namespace DomainMembershipCheckRepair
 
                 Match dc = DcPattern.Match(line);
                 if (dc.Success)
-                    result.LastDc = dc.Value.TrimStart('\');
+                    result.LastDc = dc.Value.TrimStart('\\');
             }
 
             Classify(result);
