@@ -8,7 +8,7 @@ namespace DomainMembershipCheckRepair
 {
     internal static class VersionInfo
     {
-        internal const string ProductVersion = "1.2.1";
-        internal const string AssemblyVersion = "1.2.1.0";
+        internal const string ProductVersion = "1.3.0";
+        internal const string AssemblyVersion = "1.3.0.0";
     }
 }
