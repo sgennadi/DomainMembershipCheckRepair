@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -25,6 +26,7 @@ namespace DomainMembershipCheckRepair
         internal bool Json;
         internal bool DryRun;
         internal bool IncludeApplicationLog;
+        internal bool ElevationAttempted;
         internal bool Help;
     }
 
@@ -67,6 +69,7 @@ namespace DomainMembershipCheckRepair
         private const uint ATTACH_PARENT_PROCESS = 0xFFFFFFFF;
         private static CliLogger logger;
         private static CliOptions options;
+        private static string[] originalArgs = new string[0];
 
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool AttachConsole(uint dwProcessId);
@@ -77,6 +80,7 @@ namespace DomainMembershipCheckRepair
         internal static int Run(string[] args, bool enableFileLogging)
         {
             EnsureConsole();
+            originalArgs = args ?? new string[0];
 
             string parseError;
             options = ParseOptions(args, enableFileLogging, out parseError);
@@ -196,6 +200,11 @@ namespace DomainMembershipCheckRepair
                     result.IncludeApplicationLog = true;
                     continue;
                 }
+                if (EqualsArg(arg, "--elevation-attempted"))
+                {
+                    result.ElevationAttempted = true;
+                    continue;
+                }
 
                 if (EqualsArg(arg, "--action"))
                 {
@@ -269,9 +278,9 @@ namespace DomainMembershipCheckRepair
             if (!String.IsNullOrWhiteSpace(result.Action))
             {
                 string action = result.Action.Trim().ToLowerInvariant();
-                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "detect" && action != "ad-check" && action != "diagnose" && action != "export-diagnostics")
+                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "detect" && action != "ad-check" && action != "diagnose" && action != "export-diagnostics")
                 {
-                    error = "Unknown action '" + result.Action + "'. Use status, check, repair, join, rename, detect, ad-check, diagnose, or export-diagnostics.";
+                    error = "Unknown action '" + result.Action + "'. Use status, check, repair, join, rename, restart, detect, ad-check, diagnose, or export-diagnostics.";
                     return result;
                 }
                 result.Action = action;
@@ -320,6 +329,7 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("Computer: " + Environment.MachineName);
             Console.WriteLine("Runtime:  " + BuildInfo.RuntimeSummary);
             Console.WriteLine("File log: " + (options.FileLogging ? "YES - " + CliLogger.LogFile : "NO (default)"));
+            Console.WriteLine("Privilege: " + (ElevationHelper.IsAdministrator() ? "Administrator (elevated)" : "Standard user"));
             Console.WriteLine();
         }
 
@@ -339,6 +349,7 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("  --cli --action repair");
             Console.WriteLine("  --cli --action join");
             Console.WriteLine("  --cli --action rename");
+            Console.WriteLine("  --cli --action restart");
             Console.WriteLine("  --cli --action detect");
             Console.WriteLine("  --cli --action ad-check");
             Console.WriteLine("  --cli --action diagnose");
@@ -377,6 +388,7 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine(" 10  AD computer account not found (ad-check)");
             Console.WriteLine(" 11  AD lookup failed (ad-check)");
             Console.WriteLine(" 12  Restart required because a rename is pending");
+            Console.WriteLine(" 13  Administrator elevation was cancelled, blocked, or ineffective");
         }
 
         private static int InteractiveMenu()
@@ -405,17 +417,17 @@ namespace DomainMembershipCheckRepair
                 {
                     case "1": result = ShowStatus(true); break;
                     case "2":
-                        result = RepairTrust();
+                        result = ExecuteAction("repair");
                         if (result == 5 && AskYesNo("Native trust repair failed. Try Join/Rejoin with the current computer name now?", false))
-                            result = JoinCurrentName();
+                            result = ExecuteAction("join");
                         break;
-                    case "3": result = JoinCurrentName(); break;
-                    case "4": result = RenameAndJoin(null, null, null, null); break;
+                    case "3": result = ExecuteAction("join"); break;
+                    case "4": result = ExecuteAction("rename"); break;
                     case "5": result = DetectAndDisplayDomain(); break;
                     case "6": result = CheckAdAccount(); break;
                     case "7": result = Diagnostics(); break;
                     case "8": result = ExportDiagnostics(); break;
-                    case "9": result = RestartWindows(); break;
+                    case "9": result = ExecuteAction("restart"); break;
                     case "0": return 0;
                     default:
                         Console.WriteLine("Invalid selection.");
@@ -426,8 +438,66 @@ namespace DomainMembershipCheckRepair
             }
         }
 
+
+        private static bool TryRelaunchElevatedIfNeeded(string action, out int exitCode)
+        {
+            exitCode = 0;
+
+            if (!ElevationHelper.RequiresElevation(action) || options.DryRun || ElevationHelper.IsAdministrator())
+                return false;
+
+            if (options.ElevationAttempted)
+            {
+                logger.Log("ERROR",
+                    "Administrator privileges are required, but the process is still not elevated after an elevation request. " +
+                    "Check the Windows/CyberArk EPM policy for this executable.");
+                exitCode = ElevationHelper.ElevationFailureExitCode;
+                return true;
+            }
+
+            List<string> args = new List<string>(originalArgs ?? new string[0]);
+            bool hasAction = false;
+            bool hasMarker = false;
+
+            for (int i = 0; i < args.Count; i++)
+            {
+                if (args[i].Equals("--action", StringComparison.OrdinalIgnoreCase))
+                    hasAction = true;
+                if (args[i].Equals("--elevation-attempted", StringComparison.OrdinalIgnoreCase))
+                    hasMarker = true;
+            }
+
+            if (!hasAction)
+            {
+                args.Add("--action");
+                args.Add(action);
+            }
+            if (!hasMarker)
+                args.Add("--elevation-attempted");
+
+            logger.Log("INFO",
+                "Administrator privileges are required for '" + action +
+                "'. Requesting elevation through the Windows elevation broker (compatible with CyberArk EPM).");
+
+            string elevationError;
+            int childExitCode;
+            if (!ElevationHelper.TryStartElevated(args.ToArray(), true, out childExitCode, out elevationError))
+            {
+                logger.Log("ERROR", "Elevation was cancelled or blocked: " + elevationError);
+                exitCode = ElevationHelper.ElevationFailureExitCode;
+                return true;
+            }
+
+            exitCode = childExitCode;
+            return true;
+        }
+
         private static int ExecuteAction(string action)
         {
+            int elevatedResult;
+            if (TryRelaunchElevatedIfNeeded(action, out elevatedResult))
+                return elevatedResult;
+
             switch (action)
             {
                 case "status": return ShowStatus(true);
@@ -435,6 +505,7 @@ namespace DomainMembershipCheckRepair
                 case "repair": return RepairTrust();
                 case "join": return JoinCurrentName();
                 case "rename": return RenameAndJoin(null, null, null, null);
+                case "restart": return RestartWindows();
                 case "detect": return DetectAndDisplayDomain();
                 case "ad-check": return CheckAdAccount();
                 case "diagnose": return Diagnostics();
