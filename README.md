@@ -73,6 +73,7 @@ The GUI provides:
 - Support Bundle
 - CyberArk Health
 - Offline Join
+- Safe Fixes
 - About
 
 The **Preferred DC** field is optional. It pins Active Directory LDAP lookup/deletion to that directory server. Windows still chooses the domain controller used by the native domain-join operation.
@@ -133,6 +134,7 @@ DomainMembershipCheckRepair.exe --cli --action dc-matrix
 DomainMembershipCheckRepair.exe --cli --action recovery-plan
 DomainMembershipCheckRepair.exe --cli --action support-bundle
 DomainMembershipCheckRepair.exe --cli --action cyberark
+DomainMembershipCheckRepair.exe --cli --action safe-fixes
 DomainMembershipCheckRepair.exe --cli --action odj-apply --blob C:\Temp\odj.txt
 DomainMembershipCheckRepair.exe --cli --action odj-provision --domain example.com --computer PC-042 --output C:\Temp\PC-042-odj.txt
 ```
@@ -321,6 +323,27 @@ The bundle can include:
 - optional application log
 
 Review the bundle before sharing because Windows logs and command output can contain environment-specific metadata.
+
+### Machine-password consistency
+
+Advanced Diagnostics compares the AD computer object's `pwdLastSet` with a recent local Netlogon event 5823 when both are available. The result is treated as a diagnostic clue, not proof of a password mismatch, because event retention and AD replication can differ between machines and DCs.
+
+### Safe Fixes
+
+Safe Fixes is a non-destructive elevated workflow that:
+
+- flushes the Windows DNS resolver cache
+- requests an immediate Windows Time resynchronization
+- restarts the Netlogon service
+- forces DC Locator rediscovery
+
+It does not delete or modify the AD computer object, rename the workstation, or perform Join/Rejoin.
+
+CLI:
+
+```text
+DomainMembershipCheckRepair.exe --cli --action safe-fixes
+```
 
 ### Offline Domain Join
 
