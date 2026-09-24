@@ -123,7 +123,8 @@ namespace DomainMembershipCheckRepair
         private string BuildFooterText()
         {
             return "v" + BuildInfo.Version + "  |  " + BuildInfo.TargetArchitecture +
-                   "  |  " + (Environment.Is64BitProcess ? "64-bit" : "32-bit");
+                   "  |  " + (Environment.Is64BitProcess ? "64-bit" : "32-bit") +
+                   "  |  " + (ElevationHelper.IsAdministrator() ? "Elevated" : "Standard");
         }
 
         private void RefreshStatusCards()
