@@ -84,6 +84,7 @@
     <Compile Include="VersionInfo.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="BuildInfo.cs" />
+    <Compile Include="ElevationHelper.cs" />
     <Compile Include="Core\DomainValidation.cs" />
     <Compile Include="Core\DiagnosticsService.cs" />
     <Compile Include="Core\AdDirectoryService.cs" />
