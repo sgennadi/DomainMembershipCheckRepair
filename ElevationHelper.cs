@@ -45,7 +45,7 @@ namespace DomainMembershipCheckRepair
         internal static bool RequiresElevation(string action)
         {
             string value = (action ?? String.Empty).Trim().ToLowerInvariant();
-            return value == "repair" || value == "join" || value == "rename" || value == "restart" || value == "mii-disable" || value == "odj-apply";
+            return value == "repair" || value == "join" || value == "rename" || value == "restart" || value == "mii-disable" || value == "odj-apply" || value == "safe-fixes";
         }
 
         internal static GuiResumeOptions ParseGuiResumeOptions(string[] args)
