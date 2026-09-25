@@ -154,7 +154,7 @@ namespace DomainMembershipCheckRepair
         {
             string input = value ?? String.Empty;
             if (input.Length == 0)
-                return """";
+                return "\"\"";
 
             bool needsQuotes = input.IndexOfAny(new char[] { ' ', '\t', '"' }) >= 0;
             if (!needsQuotes)
