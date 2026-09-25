@@ -1273,10 +1273,12 @@ namespace DomainMembershipCheckRepair
                     this,
                     currentName,
                     reason,
-                    canDelete ? account.DistinguishedName : null,
+                    account,
                     canDelete);
 
-                if (choice == AccountConflictChoice.DeleteAndRetry)
+                if (choice == AccountConflictChoice.SafeFixesAndRetry)
+                    SafeFixesAndRetryJoin(currentName, user, password, targetDomain);
+                else if (choice == AccountConflictChoice.DeleteAndRetry)
                     DeleteExistingAccountAndRetryJoin(currentName, user, password, targetDomain, account);
                 else if (choice == AccountConflictChoice.RenameAndJoin)
                     RenameAndJoinWorkflow(currentName, user, password, targetDomain);
@@ -1291,6 +1293,32 @@ namespace DomainMembershipCheckRepair
                 "Domain join failed",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
+        }
+
+        private void SafeFixesAndRetryJoin(string computerName, string user, string password, string targetDomain)
+        {
+            Log("INFO", "Running non-destructive Safe Fixes before retrying Join/Rejoin with the same computer name.");
+            SafeRecoveryResult safe = SafeRecoveryService.Run(targetDomain);
+            foreach (string step in safe.Steps)
+                Log(step.StartsWith("OK:", StringComparison.OrdinalIgnoreCase) ? "INFO" : "WARN", step);
+
+            NativeMethods.DiscoverDomain(targetDomain, true);
+            int status = NativeMethods.JoinDomain(targetDomain, user, password, false);
+
+            if (status == NativeMethods.NERR_Success)
+            {
+                Log("SUCCESS", "Join/Rejoin succeeded after Safe Fixes using the existing computer name.");
+                AskRestart("Safe Fixes completed and Join/Rejoin succeeded with the existing computer name.");
+                return;
+            }
+
+            Log("ERROR", "Join/Rejoin still failed after Safe Fixes: " + NativeMethods.FormatError(status));
+            ReportDialog.ShowReport(
+                this,
+                "Safe retry did not succeed",
+                SafeRecoveryService.ToText(safe) + "\r\n\r\n" +
+                "Join/Rejoin error: " + NativeMethods.FormatError(status) + "\r\n\r\n" +
+                "No AD computer object was deleted. Use Advanced Diagnostics / Recovery Plan before considering Delete + Recreate.");
         }
 
         private string ResolveDomainForOperation(string targetDomain, string user)
