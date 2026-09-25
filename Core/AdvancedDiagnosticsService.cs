@@ -114,6 +114,12 @@ namespace DomainMembershipCheckRepair
                 result.NetSetup,
                 result.Dns,
                 result.DcMatrix,
+                result.SiteSubnet,
+                result.Protocols,
+                result.Hardening,
+                result.JoinPermissions,
+                result.HybridEntra,
+                result.PolicySources,
                 result.Account);
 
             return result;
