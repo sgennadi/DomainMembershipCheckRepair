@@ -32,8 +32,8 @@ The release version has one source of truth: `VersionInfo.cs`. Assembly metadata
 - Least-privilege startup: read-only diagnostics run as a standard user and mutating recovery actions request elevation only when needed.
 - Windows `runas` self-elevation is compatible with endpoint privilege brokers such as CyberArk EPM.
 - x86, x64 and ARM64 builds.
-- NetSetup.log analyzer and Windows event timeline.
-- DNS/DC Locator diagnostics and multi-DC consistency matrix.
+- NetSetup.log analyzer and Windows event timeline, including operational Event Log channels.
+- DNS/DC Locator, active-adapter, local FQDN, forward/reverse record and multi-NIC diagnostics.
 - AD computer-account owner/pwdLastSet/SPN/child-object analysis.
 - Ordered recovery plan with destructive deletion kept as a last resort.
 - Advanced support bundle export.
@@ -69,7 +69,7 @@ The GUI provides:
 - Restart Windows
 - Advanced Diagnostics
 - Recovery Plan
-- DC Matrix
+- DC Matrix (site, writable/RODC, synchronization, ports, time and optional cross-DC account comparison)
 - Support Bundle
 - CyberArk Health
 - Offline Join
@@ -276,6 +276,9 @@ The tool discovers DCs through `_ldap._tcp.dc._msdcs.<domain>` SRV records and c
 - DNS/Kerberos/RPC/LDAP/SMB TCP reachability
 - time-skew information
 - LDAP RootDSE access
+- AD site
+- writable vs RODC status when exposed by LDAP
+- synchronization and Global Catalog readiness
 - optional computer-account comparison when valid domain credentials are already supplied
 
 When the same computer account is present on some DCs but missing/different on others, the matrix flags likely AD replication inconsistency.
@@ -296,13 +299,13 @@ Read-only AD account inspection now includes:
 
 These values are shown before destructive deletion so an existing object is not deleted merely because Join/Rejoin failed.
 
-### Recovery Plan
+### Prioritized root-cause analysis and Recovery Plan
 
-Recovery Plan orders corrective actions so prerequisites are handled first: pending reboot, MII compatibility, DNS/DC Locator, time/Kerberos, Netlogon, replication, secure-channel repair, account reuse/ownership, Join/Rejoin, Rename+Join, and only then Delete+Recreate.
+Advanced Diagnostics generates evidence-based prioritized root-cause findings. These are troubleshooting priorities, not probability estimates. Recovery Plan then orders corrective actions so prerequisites are handled first: pending reboot, MII compatibility, DNS/DC Locator, time/Kerberos, Netlogon, DC writability/replication, Safe Fixes, secure-channel repair, account reuse/ownership, Join/Rejoin, Rename+Join, and only then Delete+Recreate.
 
 ### Post-reboot resume
 
-MII disable and Offline Domain Join can register a one-time HKLM RunOnce entry that launches the tool after reboot with only the target domain and resume action. No username or password is stored.
+MII disable and Offline Domain Join can register a one-time RunOnce entry in the interactive user's loaded registry hive. This avoids depending on an administrator logging on after reboot. The command contains only the executable path, target domain and resume action; no username or password is stored.
 
 ### Advanced Support Bundle
 
@@ -383,11 +386,14 @@ The check itself never modifies AD.
 
 ## Existing AD computer object handling
 
-If Join/Rejoin fails with an account reuse/name conflict, or Access Denied plus an LDAP lookup confirms the same computer account exists, the tool can:
+If Join/Rejoin fails with an account reuse/name conflict, or Access Denied plus an LDAP lookup confirms the same computer account exists, the tool shows owner, pwdLastSet, GUID, SPN count and child-object count before recovery choices.
 
-1. delete the exact existing AD computer object and retry the same name;
-2. use a new computer name;
-3. cancel.
+Recommended order:
+
+1. run non-destructive Safe Fixes and retry the same name;
+2. use a new computer name if safe reuse is not possible;
+3. delete the exact existing AD computer object and retry the same name only as a last resort;
+4. cancel.
 
 Deletion is never silent.
 
