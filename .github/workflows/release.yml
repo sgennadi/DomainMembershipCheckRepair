@@ -72,9 +72,13 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force unsigned | Out-Null
+          New-Item -ItemType Directory -Force release-configs | Out-Null
           Copy-Item .\bin\Release\x86\DomainMembershipCheckRepair.exe .\unsigned\DomainMembershipCheckRepair-x86.exe
           Copy-Item .\bin\Release\x64\DomainMembershipCheckRepair.exe .\unsigned\DomainMembershipCheckRepair-x64.exe
           Copy-Item .\bin\Release\ARM64\DomainMembershipCheckRepair.exe .\unsigned\DomainMembershipCheckRepair-arm64.exe
+          Copy-Item .\bin\Release\x86\DomainMembershipCheckRepair.exe.config .\release-configs\DomainMembershipCheckRepair-x86.exe.config
+          Copy-Item .\bin\Release\x64\DomainMembershipCheckRepair.exe.config .\release-configs\DomainMembershipCheckRepair-x64.exe.config
+          Copy-Item .\bin\Release\ARM64\DomainMembershipCheckRepair.exe.config .\release-configs\DomainMembershipCheckRepair-arm64.exe.config
 
           $version = (Get-Item .\bin\Release\x64\DomainMembershipCheckRepair.exe).VersionInfo.ProductVersion
           if ([string]::IsNullOrWhiteSpace($version)) {
@@ -164,9 +168,13 @@ jobs:
             Copy-Item $file.FullName (Join-Path .\release-files $name)
           }
 
+          Copy-Item .\release-configs\DomainMembershipCheckRepair-x86.exe.config .\release-files\DomainMembershipCheckRepair-x86.exe.config
+          Copy-Item .\release-configs\DomainMembershipCheckRepair-x64.exe.config .\release-files\DomainMembershipCheckRepair-x64.exe.config
+          Copy-Item .\release-configs\DomainMembershipCheckRepair-arm64.exe.config .\release-files\DomainMembershipCheckRepair-arm64.exe.config
+
           $signingStatus = "These release executables are Authenticode-signed using SignPath.io with a certificate provided by SignPath Foundation. The workflow refuses to publish unsigned release binaries."
 
-          $lines = Get-ChildItem .\release-files\*.exe | Sort-Object Name | ForEach-Object {
+          $lines = Get-ChildItem .\release-files\DomainMembershipCheckRepair-* -File | Sort-Object Name | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           }
@@ -183,7 +191,9 @@ jobs:
 
           ## Supply-chain verification
 
-          SHA-256 checksums are attached to this release. GitHub build-provenance attestations are generated for the final release executables.
+          SHA-256 checksums are attached to this release. GitHub build-provenance attestations are generated for the final release files.
+
+          Keep the matching .exe.config file next to the executable. It contains the required WinForms PerMonitorV2/high-DPI configuration.
 
           ## Source
 
@@ -204,8 +214,11 @@ jobs:
         run: |
           gh release create "$env:GITHUB_REF_NAME" `
             .\release-files\DomainMembershipCheckRepair-x86.exe `
+            .\release-files\DomainMembershipCheckRepair-x86.exe.config `
             .\release-files\DomainMembershipCheckRepair-x64.exe `
+            .\release-files\DomainMembershipCheckRepair-x64.exe.config `
             .\release-files\DomainMembershipCheckRepair-arm64.exe `
+            .\release-files\DomainMembershipCheckRepair-arm64.exe.config `
             .\release-files\SHA256SUMS.txt `
             --notes-file .\release-files\RELEASE_NOTES.md `
             --title "$env:GITHUB_REF_NAME"
