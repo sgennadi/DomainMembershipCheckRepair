@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.5.0
+
+- Added Per-Monitor V2 DPI configuration and high-DPI automatic WinForms resizing.
+- Reworked the main GUI into responsive Basic/Advanced tabs with scroll-safe, resizable layout for small displays and 100-200%+ DPI scaling.
+- Reworked all custom dialogs to use DPI scaling, TableLayout/FlowLayout, minimum sizes and resizable report/conflict views instead of fixed pixel coordinates.
+- Added AD Site/Subnet diagnostics using client site detection, DC site data and AD Sites and Services subnet matching.
+- Added protocol-level checks for DNS UDP SRV queries, LDAP/LDAPS authenticated bind, Kerberos ticket requests, RPC service-control reachability and SMB.
+- Added LDAP signing/channel-binding, Netlogon/NTLM and Kerberos encryption hardening diagnostics.
+- Added decoding of computer-account Kerberos encryption flags and warnings for DES/RC4-only configurations.
+- Added Domain Join Permissions Analyzer for MachineAccountQuota, operator SID/token groups, OU/computer ACL evidence, ownership and account-reuse rights.
+- Added Hybrid Microsoft Entra diagnostics from dsregcmd /status.
+- Added Policy Source Analyzer for GPO/runtime/MDM evidence around MII, Credential Guard, LDAP, Kerberos and Netlogon settings.
+- Added application Self Test in GUI and CLI.
+- Added automatic BEFORE/AFTER recovery snapshots for mutating workflows without storing passwords.
+- Added pre-change support bundles before MII disable, Offline Domain Join, Rename+Join and Delete+Recreate.
+- Added a destructive AD Delete Safety Gate that blocks deletion when GUID/owner verification is missing, child objects exist, the object changed too recently, RODC/writable-DC validation fails, or cross-DC replication state is inconsistent.
+- Extended prioritized root-cause analysis and Recovery Plan with site/subnet, protocol, hardening, permissions, policy-source and Hybrid Entra evidence.
+- Added CLI actions: site-subnet, protocols, hardening, join-permissions, hybrid-entra, policy-source and self-test.
+- Added optional internal code-signing documentation and helper scripts for AD CS or managed-endpoint self-signed trust while SignPath onboarding is pending.
+- Public GitHub releases remain SignPath signing-required; internal signing does not weaken that release policy.
+
 ## 1.4.0
 
 - Added prioritized evidence-based root-cause findings to Advanced Diagnostics and Support Bundle.
@@ -23,7 +44,7 @@
 - Added Advanced Diagnostics and Advanced Support Bundle export.
 - Added CyberArk/EPM local health discovery and current Standard/Elevated state reporting.
 - Added Offline Domain Join blob apply and provisioning support through djoin.exe.
-- Added safe HKLM RunOnce post-reboot recovery resume without storing usernames or passwords.
+- Added safe post-reboot recovery resume without storing usernames or passwords.
 - MII disable and Offline Domain Join now register a post-reboot validation flow.
 - Added GUI actions for Advanced Diagnostics, Recovery Plan, DC Matrix, Support Bundle, CyberArk Health, and Offline Join.
 - Added CLI actions: advanced, netsetup, dc-matrix, recovery-plan, support-bundle, cyberark, odj-apply, and odj-provision.
