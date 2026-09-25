@@ -59,6 +59,17 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifacts | Out-Null
+          $configs = @(
+            ".\bin\Release\x86\DomainMembershipCheckRepair.exe.config",
+            ".\bin\Release\x64\DomainMembershipCheckRepair.exe.config",
+            ".\bin\Release\ARM64\DomainMembershipCheckRepair.exe.config"
+          )
+          foreach ($config in $configs) {
+            if (-not (Test-Path $config)) { throw "Required DPI config is missing: $config" }
+            $configText = Get-Content $config -Raw
+            if ($configText -notmatch 'PerMonitorV2') { throw "PerMonitorV2 is missing from: $config" }
+          }
+
           Copy-Item .\bin\Release\x86\DomainMembershipCheckRepair.exe .\artifacts\DomainMembershipCheckRepair-x86.exe
           Copy-Item .\bin\Release\x86\DomainMembershipCheckRepair.exe.config .\artifacts\DomainMembershipCheckRepair-x86.exe.config
           Copy-Item .\bin\Release\x64\DomainMembershipCheckRepair.exe .\artifacts\DomainMembershipCheckRepair-x64.exe
