@@ -282,6 +282,18 @@ namespace DomainMembershipCheckRepair
             Add(result, "SMB server enumeration", "FAILED", text);
         }
 
+        internal static string BuildRemoteScArguments(string host, string serviceName)
+        {
+            string server = DomainValidation.NormalizeDirectoryServer(host);
+            return "\\\\" + server + " query " + (serviceName ?? String.Empty);
+        }
+
+        internal static string BuildRemoteNetViewArguments(string host)
+        {
+            string server = DomainValidation.NormalizeDirectoryServer(host);
+            return "view \\\\" + server;
+        }
+
         private static byte[] BuildDnsQuery(string name, ushort type)
         {
             List<byte> bytes = new List<byte>();
