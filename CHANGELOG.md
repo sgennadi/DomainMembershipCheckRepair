@@ -26,6 +26,7 @@
 - Added SPN collision analyzer for HOST, RestrictedKrbHost and TERMSRV registrations.
 - Added SMB/Kerberos analyzer with explicit CIFS ticket acquisition, SMB access testing and NTLM/signing policy context.
 - Integrated replication/SPN/SMB analyzers into Advanced Diagnostics, Support Bundle, CLI and the Advanced GUI tab.
+- Fed replication/SPN/SMB evidence into prioritized root-cause findings and the ordered Recovery Plan.
 - Extended Self Test with DN-to-DNS conversion validation and optional `repadmin.exe` availability reporting.
 - Fixed Advanced GUI busy-state handling so all diagnostic buttons are disabled during an active operation.
 - Added optional internal code-signing documentation and helper scripts for AD CS or managed-endpoint self-signed trust while SignPath onboarding is pending.
