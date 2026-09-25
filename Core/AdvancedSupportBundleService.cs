@@ -80,32 +80,17 @@ namespace DomainMembershipCheckRepair
 
         private static void CollectCommand(string folder, string name, string exe, string args)
         {
-            try
-            {
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = exe;
-                psi.Arguments = args;
-                psi.UseShellExecute = false;
-                psi.RedirectStandardOutput = true;
-                psi.RedirectStandardError = true;
-                psi.CreateNoWindow = true;
+            CommandResult result = ProcessRunner.Run(exe, args, 10000);
+            string output = result.CombinedOutput;
 
-                using (Process p = Process.Start(psi))
-                {
-                    if (p == null) return;
-                    string output = p.StandardOutput.ReadToEnd() + Environment.NewLine + p.StandardError.ReadToEnd();
-                    if (!p.WaitForExit(10000))
-                    {
-                        try { p.Kill(); } catch { }
-                        output += Environment.NewLine + "[Command timed out]";
-                    }
-                    Write(Path.Combine(folder, name), output);
-                }
-            }
-            catch (Exception ex)
-            {
-                Write(Path.Combine(folder, name + ".error.txt"), ex.Message);
-            }
+            if (result.TimedOut)
+                output += Environment.NewLine + "[Command timed out]";
+            if (!String.IsNullOrWhiteSpace(result.Error))
+                output += Environment.NewLine + "[Runner error] " + result.Error;
+            if (result.Started && !result.TimedOut)
+                output += Environment.NewLine + "[Exit code] " + result.ExitCode;
+
+            Write(Path.Combine(folder, name), output);
         }
 
         private static void Copy(string source, string destination)
