@@ -20,8 +20,14 @@ namespace DomainMembershipCheckRepair
             NetSetupAnalysis netSetup,
             DnsDiagnosticsResult dns,
             DcMatrixResult matrix,
+            SiteSubnetDiagnosticsResult siteSubnet,
+            ProtocolDiagnosticsResult protocols,
             AdComputerAccountInfo account,
-            MachinePasswordAnalysis machinePassword)
+            MachinePasswordAnalysis machinePassword,
+            HardeningDiagnosticsResult hardening,
+            JoinPermissionsResult joinPermissions,
+            HybridEntraDiagnosticsResult hybridEntra,
+            PolicySourceDiagnosticsResult policySources)
         {
             List<RootCauseFinding> findings = new List<RootCauseFinding>();
 
@@ -170,6 +176,123 @@ namespace DomainMembershipCheckRepair
                     {
                         Add(findings, 79, "MEDIUM", "Machine-account password / stale DC view", item,
                             "Compare pwdLastSet across writable DCs and retry secure-channel repair only after replication/DNS/time are healthy.");
+                    }
+                }
+            }
+
+            if (siteSubnet != null)
+            {
+                foreach (string item in siteSubnet.Findings)
+                {
+                    string text = item ?? String.Empty;
+                    int priority = text.StartsWith("HIGH:", StringComparison.OrdinalIgnoreCase) ? 93 : 78;
+                    Add(
+                        findings,
+                        priority,
+                        priority >= 90 ? "HIGH" : "MEDIUM",
+                        "AD Site / Subnet",
+                        text,
+                        "Correct AD Sites and Services subnet mapping or DC Locator site selection, then re-run diagnostics.");
+                }
+            }
+
+            if (protocols != null)
+            {
+                foreach (ProtocolCheckResult check in protocols.Checks)
+                {
+                    if (String.Equals(check.Status, "FAILED", StringComparison.OrdinalIgnoreCase))
+                    {
+                        int priority = check.Name.IndexOf("DNS", StringComparison.OrdinalIgnoreCase) >= 0 ? 97 : 91;
+                        Add(
+                            findings,
+                            priority,
+                            "HIGH",
+                            "Protocol failure: " + check.Name,
+                            check.Details,
+                            "Resolve this application-level protocol failure before destructive AD recovery.");
+                    }
+                }
+            }
+
+            if (hardening != null)
+            {
+                foreach (string item in hardening.Findings)
+                {
+                    string text = item ?? String.Empty;
+                    if (text.StartsWith("HIGH:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Add(
+                            findings,
+                            90,
+                            "HIGH",
+                            "Authentication hardening",
+                            text,
+                            "Review LDAP/Kerberos/Netlogon hardening compatibility before retrying the join.");
+                    }
+                    else if (text.StartsWith("CHECK:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Add(
+                            findings,
+                            76,
+                            "MEDIUM",
+                            "Authentication hardening",
+                            text,
+                            "Confirm the effective hardening policy is intentional and compatible.");
+                    }
+                }
+            }
+
+            if (joinPermissions != null)
+            {
+                foreach (string item in joinPermissions.Findings)
+                {
+                    string text = item ?? String.Empty;
+                    if (text.IndexOf("reuse", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        text.IndexOf("MachineAccountQuota", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        text.IndexOf("ACL", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        Add(
+                            findings,
+                            87,
+                            "MEDIUM",
+                            "Domain join permissions",
+                            text,
+                            "Review OU delegation, account ownership and account-reuse rights before deleting the computer object.");
+                    }
+                }
+            }
+
+            if (policySources != null)
+            {
+                foreach (string item in policySources.Findings)
+                {
+                    string text = item ?? String.Empty;
+                    if (text.StartsWith("HIGH:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Add(
+                            findings,
+                            95,
+                            "HIGH",
+                            "Policy source conflict",
+                            text,
+                            "Correct the authoritative GPO/MDM policy source; local registry changes alone can be overwritten.");
+                    }
+                }
+            }
+
+            if (hybridEntra != null)
+            {
+                foreach (string item in hybridEntra.Findings)
+                {
+                    if ((item ?? String.Empty).StartsWith("HIGH:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Add(
+                            findings,
+                            60,
+                            "MEDIUM",
+                            "Hybrid Microsoft Entra state",
+                            item,
+                            "Restore on-prem AD trust first, then remediate the Entra device state.");
                     }
                 }
             }
