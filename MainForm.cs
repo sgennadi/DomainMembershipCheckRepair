@@ -1562,6 +1562,19 @@ namespace DomainMembershipCheckRepair
                     continue;
                 }
 
+                CreatePreChangeBundle(
+                    "rename-and-join",
+                    targetDomain,
+                    user,
+                    password);
+
+                using (RecoverySnapshotScope snapshot = new RecoverySnapshotScope(
+                    "rename-and-join",
+                    targetDomain,
+                    dcBox == null ? String.Empty : dcBox.Text,
+                    user,
+                    password))
+                {
                 Log("INFO", "Setting pending computer name to '" + newName + "'.");
                 int renameError;
                 if (!NativeMethods.SetPendingComputerName(newName, out renameError))
@@ -1600,6 +1613,7 @@ namespace DomainMembershipCheckRepair
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
                 return;
+                }
             }
         }
 
