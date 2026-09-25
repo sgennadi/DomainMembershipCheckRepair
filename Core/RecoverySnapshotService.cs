@@ -108,7 +108,7 @@ namespace DomainMembershipCheckRepair
             state.SecureChannelHealthy = snapshot.SecureChannelHealthy;
             state.SecureChannelStatus = snapshot.SecureChannelStatus;
             state.PendingRename = snapshot.PendingRename;
-            state.PendingName = snapshot.PendingName ?? String.Empty;
+            state.PendingName = snapshot.PendingComputerName ?? String.Empty;
             state.MiiMode = snapshot.Health == null
                 ? String.Empty
                 : snapshot.Health.MachineIdentityIsolationMode;
