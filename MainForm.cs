@@ -1714,6 +1714,24 @@ namespace DomainMembershipCheckRepair
                 return;
             }
 
+            DeleteSafetyResult deleteSafety = DeleteSafetyAnalyzer.Analyze(
+                targetDomain,
+                dcBox == null ? String.Empty : dcBox.Text,
+                computerName,
+                user,
+                password,
+                account);
+
+            if (!deleteSafety.Allowed)
+            {
+                ReportDialog.ShowReport(
+                    this,
+                    "AD Delete BLOCKED",
+                    DeleteSafetyAnalyzer.ToText(deleteSafety));
+                Log("WARN", "AD computer account deletion blocked by the safety gate.");
+                return;
+            }
+
             string dn = String.IsNullOrWhiteSpace(account.DistinguishedName) ? computerName + "$" : account.DistinguishedName;
 
             DialogResult confirm = MessageBox.Show(this,
@@ -1733,6 +1751,19 @@ namespace DomainMembershipCheckRepair
             if (confirm != DialogResult.Yes)
                 return;
 
+            CreatePreChangeBundle(
+                "delete-and-recreate",
+                targetDomain,
+                user,
+                password);
+
+            using (RecoverySnapshotScope snapshot = new RecoverySnapshotScope(
+                "delete-and-recreate",
+                targetDomain,
+                dcBox == null ? String.Empty : dcBox.Text,
+                user,
+                password))
+            {
             string deleteError;
             if (!AdDirectoryService.DeleteComputerAccount(account, computerName, user, password, Log, out deleteError))
             {
@@ -1799,6 +1830,7 @@ namespace DomainMembershipCheckRepair
                 "Domain join failed",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
+            }
         }
 
         private static string EscapeLdapFilterValue(string value)
