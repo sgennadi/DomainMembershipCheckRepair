@@ -55,11 +55,13 @@ The release version has one source of truth: `VersionInfo.cs`. Assembly metadata
 
 GitHub Actions builds:
 
-- `DomainMembershipCheckRepair-x86.exe` — .NET Framework 4.8
-- `DomainMembershipCheckRepair-x64.exe` — .NET Framework 4.8
-- `DomainMembershipCheckRepair-arm64.exe` — .NET Framework 4.8.1
+- `DomainMembershipCheckRepair-x86.exe` + `DomainMembershipCheckRepair-x86.exe.config` — .NET Framework 4.8
+- `DomainMembershipCheckRepair-x64.exe` + `DomainMembershipCheckRepair-x64.exe.config` — .NET Framework 4.8
+- `DomainMembershipCheckRepair-arm64.exe` + `DomainMembershipCheckRepair-arm64.exe.config` — .NET Framework 4.8.1
 
 ARM64 is intended for Windows 11 on Arm.
+
+**Keep the matching `.exe.config` file next to the EXE.** The config contains the WinForms `PerMonitorV2` and high-DPI auto-resizing settings. Renaming or distributing an EXE without the correspondingly renamed `.exe.config` falls back to less reliable DPI behavior.
 
 ## GUI
 
@@ -538,7 +540,8 @@ The repository uses Node.js 24-compatible GitHub Actions. Actions are pinned to 
 
 - runs unit tests
 - builds x86, x64 and ARM64
-- creates SHA-256 checksums
+- packages each EXE with its matching `.exe.config`
+- creates SHA-256 checksums for executable and config files
 - uploads the build artifact
 
 `codeql.yml` performs scheduled and push/PR C# analysis.
@@ -548,7 +551,9 @@ The repository uses Node.js 24-compatible GitHub Actions. Actions are pinned to 
 - verifies that the Git tag matches `VersionInfo.cs`
 - runs tests
 - builds all architectures
-- generates `SHA256SUMS.txt`
+- signs the EXE files through SignPath
+- includes the matching DPI `.exe.config` files unchanged
+- generates `SHA256SUMS.txt` for all final files
 - creates GitHub build-provenance attestations
 - publishes the GitHub Release
 
