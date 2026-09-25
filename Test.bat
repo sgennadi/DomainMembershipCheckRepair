@@ -1,26 +1,32 @@
 @echo off
 setlocal EnableExtensions
 
-set "CSC=%WINDIR%\Microsoft.NET\Framework\v4.0.30319\csc.exe"
-set "OUTDIR=%~dp0dist\tests"
-set "OUT=%OUTDIR%\DomainMembershipCheckRepair.Tests.exe"
-
-if not exist "%CSC%" (
-    echo ERROR: .NET Framework C# compiler was not found:
-    echo %CSC%
+set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if not exist "%VSWHERE%" (
+    echo ERROR: Visual Studio 2022 Build Tools or Visual Studio 2022 is required.
+    echo Install the .NET desktop development workload and .NET Framework 4.8 targeting pack.
     exit /b 1
 )
 
-if not exist "%OUTDIR%" mkdir "%OUTDIR%"
+for /f "usebackq tokens=*" %%I in (`"%VSWHERE%" -latest -products * -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe`) do set "MSBUILD=%%I"
+if not defined MSBUILD (
+    echo ERROR: MSBuild was not found.
+    exit /b 1
+)
 
-"%CSC%" /nologo /target:exe /platform:anycpu /optimize+ /out:"%OUT%" /reference:System.dll /reference:System.Core.dll "%~dp0Core\DomainValidation.cs" "%~dp0Tests\Program.cs"
+if not exist "%ProgramFiles(x86)%\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\mscorlib.dll" (
+    echo ERROR: .NET Framework 4.8 targeting pack was not found.
+    exit /b 1
+)
+
+"%MSBUILD%" "%~dp0Tests\DomainMembershipCheckRepair.Tests.csproj" /m /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU
 if errorlevel 1 (
     echo.
     echo TEST BUILD FAILED.
     exit /b 1
 )
 
-"%OUT%"
+"%~dp0Tests\bin\Release\DomainMembershipCheckRepair.Tests.exe"
 if errorlevel 1 (
     echo.
     echo TESTS FAILED.
