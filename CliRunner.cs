@@ -1734,6 +1734,21 @@ namespace DomainMembershipCheckRepair
                 return 9;
             }
 
+            DeleteSafetyResult deleteSafety = DeleteSafetyAnalyzer.Analyze(
+                targetDomain,
+                options.PreferredDc,
+                computerName,
+                user,
+                password,
+                account);
+
+            if (!deleteSafety.Allowed)
+            {
+                Console.WriteLine(DeleteSafetyAnalyzer.ToText(deleteSafety));
+                logger.Log("WARN", "AD computer account deletion blocked by the safety gate.");
+                return 9;
+            }
+
             string dn = String.IsNullOrWhiteSpace(account.DistinguishedName) ? computerName + "$" : account.DistinguishedName;
             Console.WriteLine();
             Console.WriteLine("WARNING: DESTRUCTIVE ACTIVE DIRECTORY OPERATION");
@@ -1752,6 +1767,12 @@ namespace DomainMembershipCheckRepair
                 logger.Log("INFO", "AD computer account deletion cancelled by the operator.");
                 return 7;
             }
+
+            CreatePreChangeBundle(
+                "delete-and-recreate",
+                targetDomain,
+                user,
+                password);
 
             string deleteError;
             if (!AdDirectoryService.DeleteComputerAccount(account, computerName, user, password, logger.Log, out deleteError))
