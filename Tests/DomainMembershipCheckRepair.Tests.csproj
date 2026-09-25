@@ -27,6 +27,7 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
   <ItemGroup>
@@ -36,6 +37,9 @@
     </Compile>
     <Compile Include="..\ElevationHelper.cs">
       <Link>ElevationHelper.cs</Link>
+    </Compile>
+    <Compile Include="..\UiLayoutHelper.cs">
+      <Link>UiLayoutHelper.cs</Link>
     </Compile>
     <Compile Include="..\Core\NetSetupLogAnalyzer.cs">
       <Link>NetSetupLogAnalyzer.cs</Link>
