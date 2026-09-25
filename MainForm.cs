@@ -37,6 +37,7 @@ namespace DomainMembershipCheckRepair
         private Button cyberArkButton;
         private Button offlineJoinButton;
         private Button safeFixesButton;
+        private Button selfTestButton;
         private Button restartButton;
         private Button aboutButton;
         private TextBox logBox;
@@ -262,6 +263,7 @@ namespace DomainMembershipCheckRepair
             cyberArkButton = CreateButton("CyberArk Health", 125);
             offlineJoinButton = CreateButton("Offline Join", 110);
             safeFixesButton = CreateButton("Safe Fixes", 105);
+            selfTestButton = CreateButton("Self Test", 105);
             repairButton = CreateButton("Repair Trust", 120);
             joinButton = CreateButton("Join / Rejoin Domain", 170);
             adCheckButton = CreateButton("Check AD Account", 150);
@@ -286,6 +288,7 @@ namespace DomainMembershipCheckRepair
             cyberArkButton.Click += delegate { CyberArkHealthWorkflow(); };
             offlineJoinButton.Click += delegate { OfflineDomainJoinWorkflow(); };
             safeFixesButton.Click += delegate { SafeFixesWorkflow(); };
+            selfTestButton.Click += delegate { SelfTestWorkflow(); };
             repairButton.Click += delegate { RepairTrustWorkflow(); };
             joinButton.Click += delegate { JoinCurrentNameWorkflow(); };
             adCheckButton.Click += delegate { CheckAdAccountWorkflow(); };
@@ -308,6 +311,7 @@ namespace DomainMembershipCheckRepair
             advancedActions.Controls.Add(supportBundleButton);
             advancedActions.Controls.Add(cyberArkButton);
             advancedActions.Controls.Add(offlineJoinButton);
+            advancedActions.Controls.Add(selfTestButton);
             advancedActions.Controls.Add(aboutButton);
 
             root.Controls.Add(actionTabs, 0, 7);
@@ -920,6 +924,35 @@ namespace DomainMembershipCheckRepair
             {
                 Log("ERROR", "Support bundle failed: " + ex.Message);
                 MessageBox.Show(this, ex.Message, "Support bundle failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private void SelfTestWorkflow()
+        {
+            SetBusy(true);
+            try
+            {
+                SelfTestResult result = SelfTestService.Run(
+                    domainBox == null ? String.Empty : domainBox.Text,
+                    dcBox == null ? String.Empty : dcBox.Text);
+                ReportDialog.ShowReport(
+                    this,
+                    "Application Self Test",
+                    SelfTestService.ToText(result));
+            }
+            catch (Exception ex)
+            {
+                Log("ERROR", "Self Test failed: " + ex.Message);
+                MessageBox.Show(
+                    this,
+                    ex.Message,
+                    "Self Test failed",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
             finally
             {
@@ -1758,6 +1791,7 @@ namespace DomainMembershipCheckRepair
             if (cyberArkButton != null) cyberArkButton.Enabled = !busy;
             if (offlineJoinButton != null) offlineJoinButton.Enabled = !busy;
             if (safeFixesButton != null) safeFixesButton.Enabled = !busy;
+            if (selfTestButton != null) selfTestButton.Enabled = !busy;
             if (restartButton != null) restartButton.Enabled = !busy;
             if (aboutButton != null) aboutButton.Enabled = !busy;
             Application.DoEvents();
