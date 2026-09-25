@@ -8,11 +8,11 @@ namespace DomainMembershipCheckRepair
     {
         private AccountConflictChoice choice = AccountConflictChoice.Cancel;
 
-        private AccountConflictDialog(string computerName, string reason, string distinguishedName, bool canDelete)
+        private AccountConflictDialog(string computerName, string reason, AdComputerAccountInfo account, bool canDelete)
         {
             Text = "Computer account conflict";
-            Width = 700;
-            Height = 340;
+            Width = 760;
+            Height = 510;
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -26,32 +26,55 @@ namespace DomainMembershipCheckRepair
             layout.ColumnCount = 1;
             layout.RowCount = 4;
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48F));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54F));
 
             Label message = new Label();
             message.AutoSize = true;
-            message.MaximumSize = new Size(650, 0);
+            message.MaximumSize = new Size(710, 0);
             message.Text = reason + "\r\n\r\nComputer: " + computerName;
             layout.Controls.Add(message, 0, 0);
 
-            Label accountLabel = new Label();
-            accountLabel.AutoSize = true;
-            accountLabel.MaximumSize = new Size(650, 0);
-            accountLabel.Margin = new Padding(0, 12, 0, 0);
-            accountLabel.Text = canDelete
-                ? "Existing AD object: " + distinguishedName
-                : "The AD object could not be located with the supplied credentials, so Delete is unavailable.";
-            layout.Controls.Add(accountLabel, 0, 1);
+            TextBox details = new TextBox();
+            details.Multiline = true;
+            details.ReadOnly = true;
+            details.ScrollBars = ScrollBars.Vertical;
+            details.WordWrap = false;
+            details.Dock = DockStyle.Fill;
+            details.Font = new Font("Consolas", 9F);
+
+            if (account != null && account.LookupSucceeded && account.Exists)
+            {
+                details.Text =
+                    "Existing AD object\r\n" +
+                    "------------------\r\n" +
+                    "DN:            " + First(account.DistinguishedName, "(not returned)") + "\r\n" +
+                    "Owner:         " + First(account.Owner, "(not returned)") + "\r\n" +
+                    "Enabled:       " + (account.Enabled.HasValue ? (account.Enabled.Value ? "Yes" : "No") : "(unknown)") + "\r\n" +
+                    "pwdLastSet:    " + First(account.PwdLastSet, "(not returned)") + "\r\n" +
+                    "whenChanged:   " + First(account.WhenChanged, "(not returned)") + "\r\n" +
+                    "objectGUID:    " + First(account.ObjectGuid, "(not returned)") + "\r\n" +
+                    "SPN count:     " + account.ServicePrincipalNameCount + "\r\n" +
+                    "Child objects: " + account.ChildObjectCount + "\r\n" +
+                    "Canonical:     " + First(account.CanonicalName, "(not returned)");
+            }
+            else
+            {
+                details.Text =
+                    "The AD computer object could not be located with the supplied credentials.\r\n" +
+                    "Delete is unavailable.";
+            }
+
+            layout.Controls.Add(details, 0, 1);
 
             Label warning = new Label();
             warning.AutoSize = true;
-            warning.MaximumSize = new Size(650, 0);
-            warning.Margin = new Padding(0, 12, 0, 0);
-            warning.Text = canDelete
-                ? "Delete + Retry permanently removes the existing AD computer object and then retries Join/Rejoin with the same name. A second confirmation is required before deletion."
-                : "You can enter a new computer name instead.";
+            warning.MaximumSize = new Size(710, 0);
+            warning.Margin = new Padding(0, 10, 0, 4);
+            warning.Text =
+                "Recommended order: Safe Fixes + Retry Same Name -> Use New Name -> Delete + Retry only as a last resort. " +
+                "Deletion can also remove child recovery data such as LAPS/BitLocker information.";
             layout.Controls.Add(warning, 0, 2);
 
             FlowLayoutPanel buttons = new FlowLayoutPanel();
@@ -61,7 +84,7 @@ namespace DomainMembershipCheckRepair
 
             Button cancel = new Button();
             cancel.Text = "Cancel";
-            cancel.Width = 100;
+            cancel.Width = 90;
             cancel.Height = 30;
             cancel.Click += delegate
             {
@@ -70,20 +93,9 @@ namespace DomainMembershipCheckRepair
                 Close();
             };
 
-            Button rename = new Button();
-            rename.Text = "Use New Name";
-            rename.Width = 125;
-            rename.Height = 30;
-            rename.Click += delegate
-            {
-                choice = AccountConflictChoice.RenameAndJoin;
-                DialogResult = DialogResult.OK;
-                Close();
-            };
-
             Button delete = new Button();
-            delete.Text = "Delete + Retry (Last Resort)";
-            delete.Width = 180;
+            delete.Text = "Delete + Retry";
+            delete.Width = 120;
             delete.Height = 30;
             delete.Enabled = canDelete;
             delete.Click += delegate
@@ -93,23 +105,60 @@ namespace DomainMembershipCheckRepair
                 Close();
             };
 
+            Button rename = new Button();
+            rename.Text = "Use New Name";
+            rename.Width = 115;
+            rename.Height = 30;
+            rename.Click += delegate
+            {
+                choice = AccountConflictChoice.RenameAndJoin;
+                DialogResult = DialogResult.OK;
+                Close();
+            };
+
+            Button safeRetry = new Button();
+            safeRetry.Text = "Safe Fixes + Retry Same Name";
+            safeRetry.Width = 205;
+            safeRetry.Height = 30;
+            safeRetry.Click += delegate
+            {
+                choice = AccountConflictChoice.SafeFixesAndRetry;
+                DialogResult = DialogResult.OK;
+                Close();
+            };
+
             buttons.Controls.Add(cancel);
-            buttons.Controls.Add(rename);
             buttons.Controls.Add(delete);
+            buttons.Controls.Add(rename);
+            buttons.Controls.Add(safeRetry);
             layout.Controls.Add(buttons, 0, 3);
 
-            AcceptButton = rename;
+            AcceptButton = safeRetry;
             CancelButton = cancel;
             Controls.Add(layout);
         }
 
-        internal static AccountConflictChoice ShowDialog(IWin32Window owner, string computerName, string reason, string distinguishedName, bool canDelete)
+        internal static AccountConflictChoice ShowDialog(
+            IWin32Window owner,
+            string computerName,
+            string reason,
+            AdComputerAccountInfo account,
+            bool canDelete)
         {
-            using (AccountConflictDialog dialog = new AccountConflictDialog(computerName, reason, distinguishedName, canDelete))
+            using (AccountConflictDialog dialog = new AccountConflictDialog(
+                computerName,
+                reason,
+                account,
+                canDelete))
             {
                 dialog.ShowDialog(owner);
                 return dialog.choice;
             }
+        }
+
+        private static string First(string value, string fallback)
+        {
+            return String.IsNullOrWhiteSpace(value) ? fallback : value;
         }
     }
 
