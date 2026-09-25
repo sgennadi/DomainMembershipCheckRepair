@@ -28,6 +28,7 @@
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
+    <Reference Include="System.DirectoryServices.Protocols" />
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
   <ItemGroup>
@@ -49,6 +50,12 @@
     </Compile>
     <Compile Include="..\Core\HardeningDiagnosticsService.cs">
       <Link>HardeningDiagnosticsService.cs</Link>
+    </Compile>
+    <Compile Include="..\Core\ProcessRunner.cs">
+      <Link>ProcessRunner.cs</Link>
+    </Compile>
+    <Compile Include="..\Core\ProtocolDiagnosticsService.cs">
+      <Link>ProtocolDiagnosticsService.cs</Link>
     </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
