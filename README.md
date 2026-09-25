@@ -37,6 +37,9 @@ The release version has one source of truth: `VersionInfo.cs`. Assembly metadata
 - Protocol-level DNS/LDAP/LDAPS/Kerberos/RPC/SMB diagnostics.
 - LDAP/Kerberos/Netlogon hardening analysis.
 - Domain Join Permissions Analyzer and policy-source analysis.
+- AD replication metadata diagnostics using `repadmin` when RSAT AD DS tools are available.
+- SPN collision detection for HOST/RestrictedKrbHost/TERMSRV registrations.
+- SMB/Kerberos authentication analysis with explicit CIFS ticket testing and NTLM/signing policy context.
 - Hybrid Microsoft Entra diagnostics.
 - Automatic pre/post recovery snapshots and pre-change safety bundles.
 - Destructive AD Delete Safety Gate with cross-DC/RODC/child-object/recent-change checks.
@@ -86,6 +89,9 @@ The GUI provides:
 - Offline Join
 - Safe Fixes
 - Self Test
+- Replication Metadata
+- SPN Collisions
+- SMB / Kerberos
 - About
 
 The **Preferred DC** field is optional. It pins Active Directory LDAP lookup/deletion to that directory server. Windows still chooses the domain controller used by the native domain-join operation.
@@ -149,6 +155,9 @@ DomainMembershipCheckRepair.exe --cli --action hardening
 DomainMembershipCheckRepair.exe --cli --action join-permissions
 DomainMembershipCheckRepair.exe --cli --action hybrid-entra
 DomainMembershipCheckRepair.exe --cli --action policy-source
+DomainMembershipCheckRepair.exe --cli --action replication-metadata
+DomainMembershipCheckRepair.exe --cli --action spn-collisions
+DomainMembershipCheckRepair.exe --cli --action smb-kerberos
 DomainMembershipCheckRepair.exe --cli --action self-test
 DomainMembershipCheckRepair.exe --cli --action recovery-plan
 DomainMembershipCheckRepair.exe --cli --action support-bundle
