@@ -1122,24 +1122,62 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("Computer account conflict detected.");
             Console.WriteLine("Computer: " + currentName);
             if (canDelete)
-                Console.WriteLine("AD object: " + account.DistinguishedName);
+            {
+                Console.WriteLine("AD object:      " + account.DistinguishedName);
+                Console.WriteLine("Owner:          " + FirstNonEmpty(account.Owner, "(unknown)"));
+                Console.WriteLine("pwdLastSet:     " + FirstNonEmpty(account.PwdLastSet, "(unknown)"));
+                Console.WriteLine("SPN count:      " + account.ServicePrincipalNameCount);
+                Console.WriteLine("Child objects:  " + account.ChildObjectCount);
+            }
             else
+            {
                 Console.WriteLine("AD object could not be located with the supplied credentials. Delete is unavailable.");
+            }
+
             Console.WriteLine();
-            if (canDelete)
-                Console.WriteLine("  1. Delete existing AD computer object + retry SAME name");
+            Console.WriteLine("Recommended order:");
+            Console.WriteLine("  1. Safe Fixes + retry SAME name");
             Console.WriteLine("  2. Use a NEW computer name and join");
-            Console.WriteLine("  3. Cancel");
+            if (canDelete)
+                Console.WriteLine("  3. DELETE existing AD object + retry SAME name (last resort)");
+            Console.WriteLine("  4. Cancel");
             Console.Write("Selection: ");
 
             string selection = (Console.ReadLine() ?? String.Empty).Trim();
-            if (selection == "1" && canDelete)
-                return DeleteExistingAccountAndRetryJoin(currentName, user, password, targetDomain, account);
+            if (selection == "1")
+                return SafeFixesAndRetryJoin(currentName, user, password, targetDomain);
             if (selection == "2")
                 return RenameAndJoin(currentName, user, password, targetDomain);
+            if (selection == "3" && canDelete)
+                return DeleteExistingAccountAndRetryJoin(currentName, user, password, targetDomain, account);
 
             logger.Log("INFO", "Operation cancelled by the operator.");
             return 7;
+        }
+
+        private static int SafeFixesAndRetryJoin(string computerName, string user, string password, string targetDomain)
+        {
+            logger.Log("INFO", "Running non-destructive Safe Fixes before retrying Join/Rejoin with the same computer name.");
+            SafeRecoveryResult safe = SafeRecoveryService.Run(targetDomain);
+
+            foreach (string step in safe.Steps)
+                logger.Log(step.StartsWith("OK:", StringComparison.OrdinalIgnoreCase) ? "INFO" : "WARN", step);
+
+            NativeMethods.DiscoverDomain(targetDomain, true);
+            int status = NativeMethods.JoinDomain(targetDomain, user, password, false);
+
+            if (status == NativeMethods.NERR_Success)
+            {
+                logger.Log("SUCCESS", "Join/Rejoin succeeded after Safe Fixes using the existing computer name.");
+                HandleRestartAfterSuccess("Safe Fixes completed and Join/Rejoin succeeded with the existing computer name.");
+                return 0;
+            }
+
+            logger.Log("ERROR", "Join/Rejoin still failed after Safe Fixes: " + NativeMethods.FormatError(status));
+            Console.WriteLine();
+            Console.WriteLine("No AD computer object was deleted.");
+            Console.WriteLine("Run --action advanced or --action recovery-plan before considering Delete + Recreate.");
+            return 6;
         }
 
         private static int RenameAndJoin(string currentName, string existingUser, string existingPassword, string existingTargetDomain)
