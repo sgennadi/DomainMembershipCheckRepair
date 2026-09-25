@@ -295,13 +295,13 @@ Advanced Diagnostics additionally includes:
 - GPO/runtime/MDM policy-source evidence;
 - application Self Test.
 
-These checks feed the prioritized root-cause engine and Recovery Plan rather than appearing only as raw diagnostic output.
+These checks feed the prioritized root-cause engine and Recovery Plan rather than appearing only as raw diagnostic output. The Advanced GUI also exposes Site/Subnet, Protocol Tests, Hardening, Join Permissions, Hybrid Entra and Policy Sources as individual reports.
 
 ### DPI and display scaling
 
 The WinForms application is configured for `PerMonitorV2` DPI awareness on .NET Framework 4.8/4.8.1 with high-DPI automatic resizing enabled.
 
-The main window and custom dialogs use responsive TableLayout/FlowLayout containers, wrapping action areas, minimum sizes and scroll-safe layouts. The UI is intended to remain usable across common laptop/desktop resolutions and Windows display scaling including 100%, 125%, 150%, 175% and 200%+.
+The main window and custom dialogs use responsive TableLayout/FlowLayout containers, wrapping action areas and scroll-safe layouts. A screen-aware sizing helper clamps windows to the current monitor working area after DPI changes, so high scaling does not force a form larger than the available desktop. The UI is intended to remain usable across common laptop/desktop resolutions and Windows display scaling including 100%, 125%, 150%, 175%, 200% and higher.
 
 ### Recovery snapshots and safety bundles
 
