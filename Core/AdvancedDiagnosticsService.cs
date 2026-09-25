@@ -135,7 +135,10 @@ namespace DomainMembershipCheckRepair
                 result.Hardening,
                 result.JoinPermissions,
                 result.HybridEntra,
-                result.PolicySources);
+                result.PolicySources,
+                result.ReplicationMetadata,
+                result.SpnCollisions,
+                result.SmbKerberos);
 
             result.RecoveryPlan = RecoveryPlanService.Build(
                 result.Snapshot,
@@ -148,6 +151,9 @@ namespace DomainMembershipCheckRepair
                 result.JoinPermissions,
                 result.HybridEntra,
                 result.PolicySources,
+                result.ReplicationMetadata,
+                result.SpnCollisions,
+                result.SmbKerberos,
                 result.Account);
 
             return result;
