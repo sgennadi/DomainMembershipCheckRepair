@@ -23,10 +23,17 @@ if not exist "%ProgramFiles(x86)%\Reference Assemblies\Microsoft\Framework\.NETF
 "%MSBUILD%" "%~dp0DomainMembershipCheckRepair.csproj" /m /t:Rebuild /p:Configuration=Release /p:Platform=ARM64
 if errorlevel 1 exit /b 1
 
-if not exist "%~dp0dist\ARM64" mkdir "%~dp0dist\ARM64"
-copy /y "%~dp0bin\Release\ARM64\DomainMembershipCheckRepair.exe" "%~dp0dist\ARM64\DomainMembershipCheckRepair-arm64.exe" >nul
+set "OUTDIR=%~dp0dist\ARM64"
+if not exist "%OUTDIR%" mkdir "%OUTDIR%"
+
+copy /y "%~dp0bin\Release\ARM64\DomainMembershipCheckRepair.exe" "%OUTDIR%\DomainMembershipCheckRepair-arm64.exe" >nul
+if errorlevel 1 exit /b 1
+
+copy /y "%~dp0bin\Release\ARM64\DomainMembershipCheckRepair.exe.config" "%OUTDIR%\DomainMembershipCheckRepair-arm64.exe.config" >nul
+if errorlevel 1 exit /b 1
 
 echo.
 echo BUILD SUCCESSFUL:
-echo %~dp0dist\ARM64\DomainMembershipCheckRepair-arm64.exe
+echo %OUTDIR%\DomainMembershipCheckRepair-arm64.exe
+echo %OUTDIR%\DomainMembershipCheckRepair-arm64.exe.config
 exit /b 0
