@@ -53,11 +53,12 @@ namespace DomainMembershipCheckRepair
             initialFileLogging = enableFileLogging;
             startupOptions = ElevationHelper.ParseGuiResumeOptions(args);
             Text = "Domain Membership Check & Repair v" + BuildInfo.Version;
-            Width = 900;
-            Height = 860;
+            Width = 980;
+            Height = 820;
+            MinimumSize = new Size(720, 620);
             StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
+            FormBorderStyle = FormBorderStyle.Sizable;
+            MaximizeBox = true;
             MinimizeBox = true;
             Font = new Font("Segoe UI", 9F);
             ApplyWindowPolish();
@@ -77,8 +78,15 @@ namespace DomainMembershipCheckRepair
 
         private void BuildUi()
         {
+            Panel scrollHost = new Panel();
+            scrollHost.Dock = DockStyle.Fill;
+            scrollHost.AutoScroll = true;
+
             TableLayoutPanel root = new TableLayoutPanel();
-            root.Dock = DockStyle.Fill;
+            root.Dock = DockStyle.Top;
+            root.AutoSize = true;
+            root.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            root.MinimumSize = new Size(660, 0);
             root.Padding = new Padding(14);
             root.ColumnCount = 2;
             root.RowCount = 12;
@@ -145,7 +153,8 @@ namespace DomainMembershipCheckRepair
             FlowLayoutPanel dcPanel = new FlowLayoutPanel();
             dcPanel.Dock = DockStyle.Fill;
             dcPanel.FlowDirection = FlowDirection.LeftToRight;
-            dcPanel.WrapContents = false;
+            dcPanel.WrapContents = true;
+            dcPanel.AutoSize = true;
             dcPanel.Margin = new Padding(0, 2, 0, 0);
 
             Label dcLabel = new Label();
@@ -199,7 +208,8 @@ namespace DomainMembershipCheckRepair
             FlowLayoutPanel passwordPanel = new FlowLayoutPanel();
             passwordPanel.Dock = DockStyle.Fill;
             passwordPanel.FlowDirection = FlowDirection.LeftToRight;
-            passwordPanel.WrapContents = false;
+            passwordPanel.WrapContents = true;
+            passwordPanel.AutoSize = true;
 
             passwordBox = new TextBox();
             passwordBox.Width = 390;
@@ -216,10 +226,30 @@ namespace DomainMembershipCheckRepair
             passwordPanel.Controls.Add(showPasswordBox);
             root.Controls.Add(passwordPanel, 1, 6);
 
-            FlowLayoutPanel actions = new FlowLayoutPanel();
-            actions.Dock = DockStyle.Fill;
-            actions.AutoSize = true;
-            actions.WrapContents = true;
+            TabControl actionTabs = new TabControl();
+            actionTabs.Dock = DockStyle.Fill;
+            actionTabs.Height = 132;
+            actionTabs.MinimumSize = new Size(0, 116);
+
+            TabPage basicPage = new TabPage("Basic");
+            TabPage advancedPage = new TabPage("Advanced");
+
+            FlowLayoutPanel basicActions = new FlowLayoutPanel();
+            basicActions.Dock = DockStyle.Fill;
+            basicActions.AutoScroll = true;
+            basicActions.WrapContents = true;
+            basicActions.Padding = new Padding(6);
+
+            FlowLayoutPanel advancedActions = new FlowLayoutPanel();
+            advancedActions.Dock = DockStyle.Fill;
+            advancedActions.AutoScroll = true;
+            advancedActions.WrapContents = true;
+            advancedActions.Padding = new Padding(6);
+
+            basicPage.Controls.Add(basicActions);
+            advancedPage.Controls.Add(advancedActions);
+            actionTabs.TabPages.Add(basicPage);
+            actionTabs.TabPages.Add(advancedPage);
 
             checkButton = CreateButton("Check Trust", 120);
             diagnosticsButton = CreateButton("Diagnostics", 120);
@@ -262,37 +292,40 @@ namespace DomainMembershipCheckRepair
             restartButton.Click += delegate { RestartWindows(); };
             aboutButton.Click += delegate { ShowAbout(); };
 
-            actions.Controls.Add(checkButton);
-            actions.Controls.Add(diagnosticsButton);
-            actions.Controls.Add(copyDiagnosticsButton);
-            actions.Controls.Add(exportButton);
-            actions.Controls.Add(advancedButton);
-            actions.Controls.Add(recoveryPlanButton);
-            actions.Controls.Add(dcMatrixButton);
-            actions.Controls.Add(supportBundleButton);
-            actions.Controls.Add(cyberArkButton);
-            actions.Controls.Add(offlineJoinButton);
-            actions.Controls.Add(safeFixesButton);
-            actions.Controls.Add(repairButton);
-            actions.Controls.Add(joinButton);
-            actions.Controls.Add(adCheckButton);
-            actions.Controls.Add(restartButton);
-            actions.Controls.Add(aboutButton);
+            basicActions.Controls.Add(checkButton);
+            basicActions.Controls.Add(diagnosticsButton);
+            basicActions.Controls.Add(safeFixesButton);
+            basicActions.Controls.Add(repairButton);
+            basicActions.Controls.Add(joinButton);
+            basicActions.Controls.Add(adCheckButton);
+            basicActions.Controls.Add(restartButton);
 
-            root.Controls.Add(actions, 0, 7);
-            root.SetColumnSpan(actions, 2);
+            advancedActions.Controls.Add(copyDiagnosticsButton);
+            advancedActions.Controls.Add(exportButton);
+            advancedActions.Controls.Add(advancedButton);
+            advancedActions.Controls.Add(recoveryPlanButton);
+            advancedActions.Controls.Add(dcMatrixButton);
+            advancedActions.Controls.Add(supportBundleButton);
+            advancedActions.Controls.Add(cyberArkButton);
+            advancedActions.Controls.Add(offlineJoinButton);
+            advancedActions.Controls.Add(aboutButton);
+
+            root.Controls.Add(actionTabs, 0, 7);
+            root.SetColumnSpan(actionTabs, 2);
 
             Label note = new Label();
             note.Text = "The target domain is detected automatically when possible and remains editable. Preferred DC pins LDAP lookup/deletion only; Windows chooses the DC used for domain join. Check AD Account is read-only. Destructive AD deletion always requires explicit confirmation.";
             note.AutoSize = true;
-            note.MaximumSize = new Size(790, 0);
+            note.Dock = DockStyle.Fill;
+            note.MaximumSize = new Size(0, 0);
             root.Controls.Add(note, 0, 8);
             root.SetColumnSpan(note, 2);
 
             FlowLayoutPanel fileLogPanel = new FlowLayoutPanel();
             fileLogPanel.Dock = DockStyle.Fill;
             fileLogPanel.FlowDirection = FlowDirection.LeftToRight;
-            fileLogPanel.WrapContents = false;
+            fileLogPanel.WrapContents = true;
+            fileLogPanel.AutoSize = true;
             fileLogPanel.Margin = new Padding(0);
 
             fileLogBox = new CheckBox();
@@ -324,20 +357,21 @@ namespace DomainMembershipCheckRepair
             root.Controls.Add(statusFooter, 0, 11);
             root.SetColumnSpan(statusFooter, 2);
 
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 38F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 38F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 190F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 145F));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 230F));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-            Controls.Add(root);
+            scrollHost.Controls.Add(root);
+            Controls.Add(scrollHost);
         }
 
         private static Label CreateLabel(string text)
@@ -362,8 +396,10 @@ namespace DomainMembershipCheckRepair
         {
             Button button = new Button();
             button.Text = text;
-            button.Width = width;
-            button.Height = 32;
+            button.AutoSize = true;
+            button.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            button.MinimumSize = new Size(width, 32);
+            button.Padding = new Padding(6, 2, 6, 2);
             return button;
         }
 
