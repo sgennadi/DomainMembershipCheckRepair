@@ -40,35 +40,23 @@ namespace DomainMembershipCheckRepair
 
         private static int RunDjoin(string args, out string output)
         {
-            try
-            {
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = Path.Combine(Environment.SystemDirectory, "djoin.exe");
-                psi.Arguments = args;
-                psi.UseShellExecute = false;
-                psi.RedirectStandardOutput = true;
-                psi.RedirectStandardError = true;
-                psi.CreateNoWindow = true;
+            string djoin = Path.Combine(Environment.SystemDirectory, "djoin.exe");
+            CommandResult result = ProcessRunner.Run(djoin, args, 120000);
 
-                using (Process p = Process.Start(psi))
-                {
-                    if (p == null)
-                    {
-                        output = "Unable to start djoin.exe.";
-                        return 1;
-                    }
-                    string stdout = p.StandardOutput.ReadToEnd();
-                    string stderr = p.StandardError.ReadToEnd();
-                    p.WaitForExit();
-                    output = stdout + Environment.NewLine + stderr;
-                    return p.ExitCode;
-                }
-            }
-            catch (Exception ex)
+            output = result.CombinedOutput;
+            if (!String.IsNullOrWhiteSpace(result.Error))
             {
-                output = ex.Message;
+                output = result.Error + Environment.NewLine + output;
                 return 1;
             }
+
+            if (result.TimedOut)
+            {
+                output += Environment.NewLine + "djoin.exe timed out after 120 seconds.";
+                return 1;
+            }
+
+            return result.ExitCode;
         }
 
         private static string Quote(string value)
