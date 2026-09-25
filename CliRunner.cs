@@ -294,9 +294,9 @@ namespace DomainMembershipCheckRepair
             if (!String.IsNullOrWhiteSpace(result.Action))
             {
                 string action = result.Action.Trim().ToLowerInvariant();
-                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "mii-disable" && action != "detect" && action != "ad-check" && action != "diagnose" && action != "export-diagnostics" && action != "advanced" && action != "netsetup" && action != "dc-matrix" && action != "site-subnet" && action != "protocols" && action != "hardening" && action != "join-permissions" && action != "hybrid-entra" && action != "policy-source" && action != "self-test" && action != "recovery-plan" && action != "support-bundle" && action != "cyberark" && action != "safe-fixes" && action != "odj-apply" && action != "odj-provision")
+                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "mii-disable" && action != "detect" && action != "ad-check" && action != "diagnose" && action != "export-diagnostics" && action != "advanced" && action != "netsetup" && action != "dc-matrix" && action != "site-subnet" && action != "protocols" && action != "hardening" && action != "join-permissions" && action != "hybrid-entra" && action != "policy-source" && action != "replication-metadata" && action != "spn-collisions" && action != "smb-kerberos" && action != "self-test" && action != "recovery-plan" && action != "support-bundle" && action != "cyberark" && action != "safe-fixes" && action != "odj-apply" && action != "odj-provision")
                 {
-                    error = "Unknown action '" + result.Action + "'. Use status, check, repair, join, rename, restart, mii-disable, detect, ad-check, diagnose, export-diagnostics, advanced, netsetup, dc-matrix, site-subnet, protocols, hardening, join-permissions, hybrid-entra, policy-source, self-test, recovery-plan, support-bundle, cyberark, safe-fixes, odj-apply, or odj-provision.";
+                    error = "Unknown action '" + result.Action + "'. Use status, check, repair, join, rename, restart, mii-disable, detect, ad-check, diagnose, export-diagnostics, advanced, netsetup, dc-matrix, site-subnet, protocols, hardening, join-permissions, hybrid-entra, policy-source, replication-metadata, spn-collisions, smb-kerberos, self-test, recovery-plan, support-bundle, cyberark, safe-fixes, odj-apply, or odj-provision.";
                     return result;
                 }
                 result.Action = action;
@@ -382,6 +382,9 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("  --cli --action join-permissions");
             Console.WriteLine("  --cli --action hybrid-entra");
             Console.WriteLine("  --cli --action policy-source");
+            Console.WriteLine("  --cli --action replication-metadata");
+            Console.WriteLine("  --cli --action spn-collisions");
+            Console.WriteLine("  --cli --action smb-kerberos");
             Console.WriteLine("  --cli --action self-test");
             Console.WriteLine("  --cli --action recovery-plan");
             Console.WriteLine("  --cli --action support-bundle");
@@ -566,6 +569,9 @@ namespace DomainMembershipCheckRepair
                     case "join-permissions": return JoinPermissions();
                     case "hybrid-entra": return HybridEntra();
                     case "policy-source": return PolicySources();
+                    case "replication-metadata": return ReplicationMetadata();
+                    case "spn-collisions": return SpnCollisions();
+                    case "smb-kerberos": return SmbKerberos();
                     case "self-test": return SelfTest();
                     case "recovery-plan": return RecoveryPlan();
                     case "support-bundle": return SupportBundle();
@@ -968,6 +974,101 @@ namespace DomainMembershipCheckRepair
                 PolicySourceAnalyzer.Analyze();
             Console.WriteLine(PolicySourceAnalyzer.ToText(result));
             return 0;
+        }
+
+        private static int ReplicationMetadata()
+        {
+            string domain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
+            if (String.IsNullOrWhiteSpace(domain))
+                return 3;
+
+            DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
+                domain,
+                options.PreferredDc);
+
+            string user;
+            string password;
+            GetOptionalCredentials(out user, out password);
+
+            string computerName = String.IsNullOrWhiteSpace(options.ComputerName)
+                ? Environment.MachineName
+                : options.ComputerName;
+            string objectDn = String.Empty;
+
+            if (!String.IsNullOrWhiteSpace(user) && password != null)
+            {
+                AdComputerAccountInfo account = AdDirectoryService.FindComputerAccount(
+                    computerName,
+                    user,
+                    password,
+                    snapshot.TargetDomain,
+                    snapshot.DiscoveredDc,
+                    logger.Log);
+
+                if (account != null && account.LookupSucceeded && account.Exists)
+                    objectDn = account.DistinguishedName;
+            }
+
+            ReplicationMetadataResult result = ReplicationMetadataService.Analyze(
+                snapshot.TargetDomain,
+                snapshot.DiscoveredDc,
+                objectDn);
+
+            Console.WriteLine(ReplicationMetadataService.ToText(result));
+            return result.RepadminAvailable ? 0 : 1;
+        }
+
+        private static int SpnCollisions()
+        {
+            string domain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
+            if (String.IsNullOrWhiteSpace(domain))
+                return 3;
+
+            DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
+                domain,
+                options.PreferredDc);
+
+            string user;
+            string password;
+            GetOptionalCredentials(out user, out password);
+
+            SpnCollisionResult result = SpnCollisionAnalyzer.Analyze(
+                snapshot.TargetDomain,
+                snapshot.DiscoveredDc,
+                String.IsNullOrWhiteSpace(options.ComputerName)
+                    ? Environment.MachineName
+                    : options.ComputerName,
+                user,
+                password);
+
+            Console.WriteLine(SpnCollisionAnalyzer.ToText(result));
+
+            foreach (string finding in result.Findings)
+            {
+                if (finding.StartsWith("HIGH:", StringComparison.OrdinalIgnoreCase))
+                    return 1;
+            }
+            return 0;
+        }
+
+        private static int SmbKerberos()
+        {
+            string domain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
+            if (String.IsNullOrWhiteSpace(domain))
+                return 3;
+
+            DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
+                domain,
+                options.PreferredDc);
+
+            SmbKerberosAuthResult result = SmbKerberosAuthAnalyzer.Analyze(
+                snapshot.TargetDomain,
+                snapshot.DiscoveredDc);
+
+            Console.WriteLine(SmbKerberosAuthAnalyzer.ToText(result));
+            return String.Equals(result.KerberosCifsStatus, "OK", StringComparison.OrdinalIgnoreCase)
+                ? 0
+                : 1;
         }
 
         private static int SelfTest()
