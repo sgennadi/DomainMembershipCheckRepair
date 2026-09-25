@@ -20,6 +20,7 @@ namespace DomainMembershipCheckRepair
             TestNetSetupErrorMapping();
             TestUiLayoutMath();
             TestKerberosEncryptionTypeDecoding();
+            TestRemoteProtocolArguments();
 
             if (failures == 0)
             {
@@ -152,6 +153,19 @@ namespace DomainMembershipCheckRepair
             string mixed = HardeningDiagnosticsService.DecodeEncryptionTypes(0x1C);
             AssertTrue(mixed.IndexOf("RC4", StringComparison.OrdinalIgnoreCase) >= 0, "mixed RC4 flag decoded");
             AssertTrue(mixed.IndexOf("AES256", StringComparison.OrdinalIgnoreCase) >= 0, "mixed AES flag decoded");
+        }
+
+        private static void TestRemoteProtocolArguments()
+        {
+            AssertEqual(
+                @"\\dc01.example.com query Netlogon",
+                ProtocolDiagnosticsService.BuildRemoteScArguments(@"\\dc01.example.com", "Netlogon"),
+                "SC remote target uses UNC");
+
+            AssertEqual(
+                @"view \\dc01.example.com",
+                ProtocolDiagnosticsService.BuildRemoteNetViewArguments("dc01.example.com"),
+                "NET VIEW remote target uses UNC");
         }
 
         private static void TestUiLayoutMath()
