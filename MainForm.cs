@@ -38,6 +38,12 @@ namespace DomainMembershipCheckRepair
         private Button offlineJoinButton;
         private Button safeFixesButton;
         private Button selfTestButton;
+        private Button siteSubnetButton;
+        private Button protocolsButton;
+        private Button hardeningButton;
+        private Button joinPermissionsButton;
+        private Button hybridEntraButton;
+        private Button policySourceButton;
         private Button restartButton;
         private Button aboutButton;
         private TextBox logBox;
@@ -262,6 +268,12 @@ namespace DomainMembershipCheckRepair
             offlineJoinButton = CreateButton("Offline Join", 110);
             safeFixesButton = CreateButton("Safe Fixes", 105);
             selfTestButton = CreateButton("Self Test", 105);
+            siteSubnetButton = CreateButton("Site / Subnet", 115);
+            protocolsButton = CreateButton("Protocol Tests", 120);
+            hardeningButton = CreateButton("Hardening", 105);
+            joinPermissionsButton = CreateButton("Join Permissions", 135);
+            hybridEntraButton = CreateButton("Hybrid Entra", 115);
+            policySourceButton = CreateButton("Policy Sources", 120);
             repairButton = CreateButton("Repair Trust", 120);
             joinButton = CreateButton("Join / Rejoin Domain", 170);
             adCheckButton = CreateButton("Check AD Account", 150);
@@ -287,6 +299,12 @@ namespace DomainMembershipCheckRepair
             offlineJoinButton.Click += delegate { OfflineDomainJoinWorkflow(); };
             safeFixesButton.Click += delegate { SafeFixesWorkflow(); };
             selfTestButton.Click += delegate { SelfTestWorkflow(); };
+            siteSubnetButton.Click += delegate { SiteSubnetWorkflow(); };
+            protocolsButton.Click += delegate { ProtocolDiagnosticsWorkflow(); };
+            hardeningButton.Click += delegate { HardeningWorkflow(); };
+            joinPermissionsButton.Click += delegate { JoinPermissionsWorkflow(); };
+            hybridEntraButton.Click += delegate { HybridEntraWorkflow(); };
+            policySourceButton.Click += delegate { PolicySourceWorkflow(); };
             repairButton.Click += delegate { RepairTrustWorkflow(); };
             joinButton.Click += delegate { JoinCurrentNameWorkflow(); };
             adCheckButton.Click += delegate { CheckAdAccountWorkflow(); };
@@ -310,6 +328,12 @@ namespace DomainMembershipCheckRepair
             advancedActions.Controls.Add(cyberArkButton);
             advancedActions.Controls.Add(offlineJoinButton);
             advancedActions.Controls.Add(selfTestButton);
+            advancedActions.Controls.Add(siteSubnetButton);
+            advancedActions.Controls.Add(protocolsButton);
+            advancedActions.Controls.Add(hardeningButton);
+            advancedActions.Controls.Add(joinPermissionsButton);
+            advancedActions.Controls.Add(hybridEntraButton);
+            advancedActions.Controls.Add(policySourceButton);
             advancedActions.Controls.Add(aboutButton);
 
             root.Controls.Add(actionTabs, 0, 7);
@@ -951,6 +975,194 @@ namespace DomainMembershipCheckRepair
                     "Self Test failed",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private void SiteSubnetWorkflow()
+        {
+            SetBusy(true);
+            try
+            {
+                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
+                string password = passwordBox == null ? null : passwordBox.Text;
+                if (String.IsNullOrWhiteSpace(user) || String.IsNullOrEmpty(password))
+                {
+                    user = String.Empty;
+                    password = null;
+                }
+
+                SiteSubnetDiagnosticsResult result = SiteSubnetDiagnosticsService.Analyze(
+                    domainBox == null ? String.Empty : domainBox.Text,
+                    dcBox == null ? String.Empty : dcBox.Text,
+                    user,
+                    password);
+
+                ReportDialog.ShowReport(this, "AD Site / Subnet Diagnostics", SiteSubnetDiagnosticsService.ToText(result));
+            }
+            catch (Exception ex)
+            {
+                Log("ERROR", "Site/Subnet diagnostics failed: " + ex.Message);
+                MessageBox.Show(this, ex.Message, "Site/Subnet diagnostics failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private void ProtocolDiagnosticsWorkflow()
+        {
+            SetBusy(true);
+            try
+            {
+                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
+                string password = passwordBox == null ? null : passwordBox.Text;
+                if (String.IsNullOrWhiteSpace(user) || String.IsNullOrEmpty(password))
+                {
+                    user = String.Empty;
+                    password = null;
+                }
+
+                ProtocolDiagnosticsResult result = ProtocolDiagnosticsService.Analyze(
+                    domainBox == null ? String.Empty : domainBox.Text,
+                    dcBox == null ? String.Empty : dcBox.Text,
+                    user,
+                    password);
+
+                ReportDialog.ShowReport(this, "Protocol-level Diagnostics", ProtocolDiagnosticsService.ToText(result));
+            }
+            catch (Exception ex)
+            {
+                Log("ERROR", "Protocol diagnostics failed: " + ex.Message);
+                MessageBox.Show(this, ex.Message, "Protocol diagnostics failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private void HardeningWorkflow()
+        {
+            SetBusy(true);
+            try
+            {
+                AdComputerAccountInfo account = null;
+                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
+                string password = passwordBox == null ? null : passwordBox.Text;
+
+                if (!String.IsNullOrWhiteSpace(user) && !String.IsNullOrEmpty(password))
+                {
+                    string targetDomain = domainBox == null ? String.Empty : (domainBox.Text ?? String.Empty).Trim();
+                    account = AdDirectoryService.FindComputerAccount(
+                        Environment.MachineName,
+                        user,
+                        password,
+                        targetDomain,
+                        dcBox == null ? String.Empty : dcBox.Text,
+                        null);
+                }
+
+                HardeningDiagnosticsResult result = HardeningDiagnosticsService.Analyze(account);
+                ReportDialog.ShowReport(this, "LDAP / Kerberos / Netlogon Hardening", HardeningDiagnosticsService.ToText(result));
+            }
+            catch (Exception ex)
+            {
+                Log("ERROR", "Hardening diagnostics failed: " + ex.Message);
+                MessageBox.Show(this, ex.Message, "Hardening diagnostics failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private void JoinPermissionsWorkflow()
+        {
+            SetBusy(true);
+            try
+            {
+                string targetDomain = domainBox == null ? String.Empty : (domainBox.Text ?? String.Empty).Trim();
+                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
+                string password = passwordBox == null ? null : passwordBox.Text;
+                AdComputerAccountInfo account = null;
+
+                if (!String.IsNullOrWhiteSpace(user) && !String.IsNullOrEmpty(password))
+                {
+                    account = AdDirectoryService.FindComputerAccount(
+                        Environment.MachineName,
+                        user,
+                        password,
+                        targetDomain,
+                        dcBox == null ? String.Empty : dcBox.Text,
+                        null);
+                }
+                else
+                {
+                    user = String.Empty;
+                    password = null;
+                }
+
+                DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
+                    targetDomain,
+                    dcBox == null ? String.Empty : dcBox.Text);
+
+                JoinPermissionsResult result = JoinPermissionsAnalyzer.Analyze(
+                    snapshot.TargetDomain,
+                    snapshot.DiscoveredDc,
+                    Environment.MachineName,
+                    user,
+                    password,
+                    account);
+
+                ReportDialog.ShowReport(this, "Domain Join Permissions Analyzer", JoinPermissionsAnalyzer.ToText(result));
+            }
+            catch (Exception ex)
+            {
+                Log("ERROR", "Join Permissions analysis failed: " + ex.Message);
+                MessageBox.Show(this, ex.Message, "Join Permissions analysis failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private void HybridEntraWorkflow()
+        {
+            SetBusy(true);
+            try
+            {
+                HybridEntraDiagnosticsResult result = HybridEntraDiagnosticsService.Analyze();
+                ReportDialog.ShowReport(this, "Hybrid Microsoft Entra Diagnostics", HybridEntraDiagnosticsService.ToText(result));
+            }
+            catch (Exception ex)
+            {
+                Log("ERROR", "Hybrid Entra diagnostics failed: " + ex.Message);
+                MessageBox.Show(this, ex.Message, "Hybrid Entra diagnostics failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private void PolicySourceWorkflow()
+        {
+            SetBusy(true);
+            try
+            {
+                PolicySourceDiagnosticsResult result = PolicySourceAnalyzer.Analyze();
+                ReportDialog.ShowReport(this, "Policy Source Analyzer", PolicySourceAnalyzer.ToText(result));
+            }
+            catch (Exception ex)
+            {
+                Log("ERROR", "Policy Source analysis failed: " + ex.Message);
+                MessageBox.Show(this, ex.Message, "Policy Source analysis failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
