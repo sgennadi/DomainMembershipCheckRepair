@@ -22,6 +22,12 @@
 - Extended prioritized root-cause analysis and Recovery Plan with site/subnet, protocol, hardening, permissions, policy-source and Hybrid Entra evidence.
 - Added CLI actions: site-subnet, protocols, hardening, join-permissions, hybrid-entra, policy-source and self-test.
 - Added individual Advanced GUI actions for Site/Subnet, Protocol Tests, Hardening, Join Permissions, Hybrid Entra and Policy Sources.
+- Added AD replication metadata analyzer with `repadmin /replsummary`, `/showobjmeta` and `/showattr` support when RSAT is installed.
+- Added SPN collision analyzer for HOST, RestrictedKrbHost and TERMSRV registrations.
+- Added SMB/Kerberos analyzer with explicit CIFS ticket acquisition, SMB access testing and NTLM/signing policy context.
+- Integrated replication/SPN/SMB analyzers into Advanced Diagnostics, Support Bundle, CLI and the Advanced GUI tab.
+- Extended Self Test with DN-to-DNS conversion validation and optional `repadmin.exe` availability reporting.
+- Fixed Advanced GUI busy-state handling so all diagnostic buttons are disabled during an active operation.
 - Added optional internal code-signing documentation and helper scripts for AD CS or managed-endpoint self-signed trust while SignPath onboarding is pending.
 - Public GitHub releases remain SignPath signing-required; internal signing does not weaken that release policy.
 - Modernized local Test/Build BAT scripts to use the current MSBuild project instead of an obsolete partial-source CSC build.
