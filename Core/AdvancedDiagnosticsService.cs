@@ -14,6 +14,7 @@ namespace DomainMembershipCheckRepair
         internal CyberArkDiagnosticsResult CyberArk;
         internal AdComputerAccountInfo Account;
         internal MachinePasswordAnalysis MachinePassword;
+        internal List<RootCauseFinding> RootCauses;
         internal List<string> RecoveryPlan;
     }
 
@@ -61,6 +62,14 @@ namespace DomainMembershipCheckRepair
                 result.Events,
                 result.Snapshot.SecureChannelApplicable && !result.Snapshot.SecureChannelHealthy);
 
+            result.RootCauses = RootCauseEngine.Analyze(
+                result.Snapshot,
+                result.NetSetup,
+                result.Dns,
+                result.DcMatrix,
+                result.Account,
+                result.MachinePassword);
+
             result.RecoveryPlan = RecoveryPlanService.Build(
                 result.Snapshot,
                 result.NetSetup,
@@ -87,6 +96,8 @@ namespace DomainMembershipCheckRepair
             sb.AppendLine(CyberArkDiagnosticsService.ToText(r.CyberArk));
             sb.AppendLine();
             sb.AppendLine(MachinePasswordAnalyzer.ToText(r.MachinePassword));
+            sb.AppendLine();
+            sb.AppendLine(RootCauseEngine.ToText(r.RootCauses));
 
             if (r.Account != null && r.Account.LookupSucceeded)
             {
