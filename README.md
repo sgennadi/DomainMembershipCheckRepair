@@ -6,7 +6,7 @@ The project is domain-neutral. It contains no hard-coded organization, domain, d
 
 ## Current version
 
-`1.4.0`
+`1.5.0`
 
 The release version has one source of truth: `VersionInfo.cs`. Assembly metadata and the UI read that value, and the release workflow refuses to publish a tag that does not match it.
 
@@ -32,6 +32,15 @@ The release version has one source of truth: `VersionInfo.cs`. Assembly metadata
 - Least-privilege startup: read-only diagnostics run as a standard user and mutating recovery actions request elevation only when needed.
 - Windows `runas` self-elevation is compatible with endpoint privilege brokers such as CyberArk EPM.
 - x86, x64 and ARM64 builds.
+- Per-Monitor V2 high-DPI UI with resizable/scroll-safe layouts for small displays and 100-200%+ scaling.
+- AD Site/Subnet diagnostics.
+- Protocol-level DNS/LDAP/LDAPS/Kerberos/RPC/SMB diagnostics.
+- LDAP/Kerberos/Netlogon hardening analysis.
+- Domain Join Permissions Analyzer and policy-source analysis.
+- Hybrid Microsoft Entra diagnostics.
+- Automatic pre/post recovery snapshots and pre-change safety bundles.
+- Destructive AD Delete Safety Gate with cross-DC/RODC/child-object/recent-change checks.
+- Application Self Test for deployment validation.
 - NetSetup.log analyzer and Windows event timeline, including operational Event Log channels.
 - DNS/DC Locator, active-adapter, local FQDN, forward/reverse record and multi-NIC diagnostics.
 - AD computer-account owner/pwdLastSet/SPN/child-object analysis.
@@ -74,6 +83,7 @@ The GUI provides:
 - CyberArk Health
 - Offline Join
 - Safe Fixes
+- Self Test
 - About
 
 The **Preferred DC** field is optional. It pins Active Directory LDAP lookup/deletion to that directory server. Windows still chooses the domain controller used by the native domain-join operation.
@@ -131,6 +141,13 @@ DomainMembershipCheckRepair.exe --cli --action export-diagnostics
 DomainMembershipCheckRepair.exe --cli --action advanced
 DomainMembershipCheckRepair.exe --cli --action netsetup
 DomainMembershipCheckRepair.exe --cli --action dc-matrix
+DomainMembershipCheckRepair.exe --cli --action site-subnet
+DomainMembershipCheckRepair.exe --cli --action protocols
+DomainMembershipCheckRepair.exe --cli --action hardening
+DomainMembershipCheckRepair.exe --cli --action join-permissions
+DomainMembershipCheckRepair.exe --cli --action hybrid-entra
+DomainMembershipCheckRepair.exe --cli --action policy-source
+DomainMembershipCheckRepair.exe --cli --action self-test
 DomainMembershipCheckRepair.exe --cli --action recovery-plan
 DomainMembershipCheckRepair.exe --cli --action support-bundle
 DomainMembershipCheckRepair.exe --cli --action cyberark
@@ -263,7 +280,34 @@ The MII action uses the same on-demand elevation flow as other mutating operatio
 
 ## Advanced recovery and troubleshooting
 
-Version 1.4.0 adds a higher-level troubleshooting engine around the existing repair operations.
+Version 1.4.0 introduced the higher-level troubleshooting engine. Version 1.5.0 extends it with enterprise policy, protocol, permissions, site/subnet, Hybrid Entra and deployment self-test analysis.
+
+### Enterprise diagnostics in 1.5.0
+
+Advanced Diagnostics additionally includes:
+
+- client AD site, selected DC site and AD subnet matching;
+- protocol-level DNS UDP, LDAP/LDAPS bind, Kerberos ticket, RPC and SMB checks;
+- LDAP signing/channel binding, Netlogon/NTLM and Kerberos encryption policy;
+- computer-account Kerberos encryption decoding;
+- MachineAccountQuota and conservative join-permission ACL evidence;
+- Microsoft Entra hybrid-join/device-auth state from `dsregcmd /status`;
+- GPO/runtime/MDM policy-source evidence;
+- application Self Test.
+
+These checks feed the prioritized root-cause engine and Recovery Plan rather than appearing only as raw diagnostic output.
+
+### DPI and display scaling
+
+The WinForms application is configured for `PerMonitorV2` DPI awareness on .NET Framework 4.8/4.8.1 with high-DPI automatic resizing enabled.
+
+The main window and custom dialogs use responsive TableLayout/FlowLayout containers, wrapping action areas, minimum sizes and scroll-safe layouts. The UI is intended to remain usable across common laptop/desktop resolutions and Windows display scaling including 100%, 125%, 150%, 175% and 200%+.
+
+### Recovery snapshots and safety bundles
+
+Mutating workflows capture compact BEFORE/AFTER state snapshots without storing domain passwords. Riskier operations also create a pre-change support bundle where possible.
+
+The destructive AD Delete path has an additional safety gate. Deletion is blocked when identity/ownership cannot be verified, child objects exist, the object changed too recently, a writable/synchronized DC cannot be verified, the preferred DC is an RODC, or DC Matrix evidence indicates replication inconsistency.
 
 ### NetSetup.log analyzer
 
@@ -317,6 +361,13 @@ The bundle can include:
 - Windows event timeline
 - DNS diagnostics
 - DC Matrix
+- AD Site/Subnet report
+- protocol-level diagnostics
+- LDAP/Kerberos/Netlogon hardening report
+- Join Permissions report
+- Hybrid Microsoft Entra report
+- policy-source report
+- application self-test
 - Recovery Plan
 - CyberArk/EPM health
 - `ipconfig /all`
@@ -508,13 +559,18 @@ Dependabot checks GitHub Actions updates weekly.
 Update `VersionInfo.cs` and `CHANGELOG.md`, merge the change, then tag the same version:
 
 ```text
-git tag v1.4.0
-git push origin v1.4.0
+git tag v1.5.0
+git push origin v1.5.0
 ```
 
 The release workflow will reject a mismatched tag.
 
+## Internal signing fallback
+
+While SignPath Foundation onboarding is pending, managed organizational endpoints can use an internal AD CS or self-signed/GPO trust path without changing the public signed-only release policy. See [INTERNAL_SIGNING.md](INTERNAL_SIGNING.md).
+
 ## Code signing policy
+
 
 Free code signing is provided by [SignPath.io](https://signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
 
