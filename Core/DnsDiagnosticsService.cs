@@ -112,27 +112,10 @@ namespace DomainMembershipCheckRepair
 
         private static string RunNslookup(string name)
         {
-            try
-            {
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = "nslookup.exe";
-                psi.Arguments = "-type=SRV " + name;
-                psi.UseShellExecute = false;
-                psi.RedirectStandardOutput = true;
-                psi.RedirectStandardError = true;
-                psi.CreateNoWindow = true;
-                using (Process p = Process.Start(psi))
-                {
-                    if (p == null) return String.Empty;
-                    string text = p.StandardOutput.ReadToEnd() + Environment.NewLine + p.StandardError.ReadToEnd();
-                    if (!p.WaitForExit(7000))
-                    {
-                        try { p.Kill(); } catch { }
-                    }
-                    return text.Trim();
-                }
-            }
-            catch { return String.Empty; }
+            CommandResult result = ProcessRunner.Run("nslookup.exe", "-type=SRV " + name, 7000);
+            if (!String.IsNullOrWhiteSpace(result.Error))
+                return result.Error;
+            return result.CombinedOutput.Trim();
         }
 
         private static string First(string value, string fallback)
