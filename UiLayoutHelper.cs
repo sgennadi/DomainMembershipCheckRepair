@@ -8,7 +8,7 @@ namespace DomainMembershipCheckRepair
     {
         internal static void EnableScreenAwareSizing(
             Form form,
-            Size minimumDeviceSize)
+            Size minimumLogicalSize)
         {
             if (form == null)
                 return;
@@ -17,7 +17,7 @@ namespace DomainMembershipCheckRepair
 
             form.Shown += delegate
             {
-                FitToWorkingArea(form, minimumDeviceSize);
+                FitToWorkingArea(form, minimumLogicalSize);
             };
 
             form.DpiChanged += delegate
@@ -26,7 +26,7 @@ namespace DomainMembershipCheckRepair
                 {
                     form.BeginInvoke(new MethodInvoker(delegate
                     {
-                        FitToWorkingArea(form, minimumDeviceSize);
+                        FitToWorkingArea(form, minimumLogicalSize);
                     }));
                 }
             };
@@ -56,7 +56,7 @@ namespace DomainMembershipCheckRepair
 
         private static void FitToWorkingArea(
             Form form,
-            Size minimumDeviceSize)
+            Size minimumLogicalSize)
         {
             if (form == null || form.WindowState == FormWindowState.Minimized)
                 return;
@@ -67,15 +67,20 @@ namespace DomainMembershipCheckRepair
                 return;
 
             int margin = Math.Max(12, Math.Min(32, working.Width / 40));
+            float scale = Math.Max(1.0F, form.DeviceDpi / 96.0F);
+            Size scaledMinimum = new Size(
+                Math.Max(1, (int)Math.Round(minimumLogicalSize.Width * scale)),
+                Math.Max(1, (int)Math.Round(minimumLogicalSize.Height * scale)));
+
             Size fitted = CalculateFittedSize(
                 form.Size,
                 working.Size,
                 margin,
-                minimumDeviceSize);
+                scaledMinimum);
 
             form.MinimumSize = new Size(
-                Math.Min(minimumDeviceSize.Width, fitted.Width),
-                Math.Min(minimumDeviceSize.Height, fitted.Height));
+                Math.Min(scaledMinimum.Width, fitted.Width),
+                Math.Min(scaledMinimum.Height, fitted.Height));
 
             if (form.WindowState == FormWindowState.Normal)
             {
