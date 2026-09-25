@@ -212,7 +212,7 @@ namespace DomainMembershipCheckRepair
 
             CommandResult command = ProcessRunner.Run(
                 "sc.exe",
-                "\\" + result.Dc + " query Netlogon",
+                BuildRemoteScArguments(result.Dc, "Netlogon"),
                 10000);
 
             string text = Collapse(command.CombinedOutput, 360);
@@ -252,7 +252,7 @@ namespace DomainMembershipCheckRepair
 
             CommandResult command = ProcessRunner.Run(
                 "net.exe",
-                "view \\" + result.Dc,
+                BuildRemoteNetViewArguments(result.Dc),
                 10000);
 
             string text = Collapse(command.CombinedOutput, 360);
