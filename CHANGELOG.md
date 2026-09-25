@@ -2,6 +2,18 @@
 
 ## 1.4.0
 
+- Added prioritized evidence-based root-cause findings to Advanced Diagnostics and Support Bundle.
+- Hardened all external command execution with bounded timeouts and asynchronous stdout/stderr draining.
+- Improved post-reboot resume to target the interactive user's RunOnce hive instead of relying on an administrator logon.
+- Upgraded operational Event Log collection to EventLogReader for Device Guard, Kerberos and DNS channels.
+- Expanded DC Matrix with AD site, writable/RODC state, synchronization and Global Catalog readiness.
+- Expanded DNS diagnostics with active adapter details, DNS suffixes, gateways, local FQDN forward/reverse consistency, stale/duplicate record hints and multi-NIC/VPN hints.
+- Added Safe Fixes + Retry Same Name as the preferred non-destructive computer-account conflict recovery option.
+- Conflict recovery now displays owner, pwdLastSet, GUID, SPN count and child-object count before destructive choices.
+- Recovery Plan numbering is now dynamic and includes Safe Fixes and DC writability/replication checks.
+- Added a 120-second timeout to Offline Domain Join execution.
+
+
 - Added NetSetup.log analysis with common domain-join error classification.
 - Added recent Windows event timeline collection for Netlogon, Kerberos, LSA, DNS, Time Service, and Device Guard-related failures.
 - Added DNS/DC Locator diagnostics for LDAP and Kerberos SRV records.
