@@ -6,6 +6,7 @@
 - Reworked the main GUI into responsive Basic/Advanced tabs with scroll-safe, resizable layout for small displays and 100-200%+ DPI scaling.
 - Reworked all custom dialogs to use DPI scaling, TableLayout/FlowLayout, minimum sizes and resizable report/conflict views instead of fixed pixel coordinates.
 - Added screen-aware sizing that clamps top-level windows to the active monitor working area and re-evaluates layout after per-monitor DPI changes.
+- Updated GitHub artifacts, signed release packaging, local builds and checksums so every architecture ships with the matching `.exe.config` required for PerMonitorV2 DPI behavior.
 - Added AD Site/Subnet diagnostics using client site detection, DC site data and AD Sites and Services subnet matching.
 - Added protocol-level checks for DNS UDP SRV queries, LDAP/LDAPS authenticated bind, Kerberos ticket requests, RPC service-control reachability and SMB.
 - Fixed remote RPC/SMB command targeting to use proper UNC server syntax and added regression tests.
@@ -23,6 +24,7 @@
 - Added individual Advanced GUI actions for Site/Subnet, Protocol Tests, Hardening, Join Permissions, Hybrid Entra and Policy Sources.
 - Added optional internal code-signing documentation and helper scripts for AD CS or managed-endpoint self-signed trust while SignPath onboarding is pending.
 - Public GitHub releases remain SignPath signing-required; internal signing does not weaken that release policy.
+- Modernized local Test/Build BAT scripts to use the current MSBuild project instead of an obsolete partial-source CSC build.
 
 ## 1.4.0
 
