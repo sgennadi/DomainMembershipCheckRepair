@@ -46,6 +46,9 @@ namespace DomainMembershipCheckRepair
                 Write(Path.Combine(temp, "join-permissions.txt"), JoinPermissionsAnalyzer.ToText(advanced.JoinPermissions));
                 Write(Path.Combine(temp, "hybrid-entra.txt"), HybridEntraDiagnosticsService.ToText(advanced.HybridEntra));
                 Write(Path.Combine(temp, "policy-sources.txt"), PolicySourceAnalyzer.ToText(advanced.PolicySources));
+                Write(Path.Combine(temp, "replication-metadata.txt"), ReplicationMetadataService.ToText(advanced.ReplicationMetadata));
+                Write(Path.Combine(temp, "spn-collisions.txt"), SpnCollisionAnalyzer.ToText(advanced.SpnCollisions));
+                Write(Path.Combine(temp, "smb-kerberos.txt"), SmbKerberosAuthAnalyzer.ToText(advanced.SmbKerberos));
                 Write(Path.Combine(temp, "self-test.txt"), SelfTestService.ToText(advanced.SelfTest));
                 Write(Path.Combine(temp, "machine-password.txt"), MachinePasswordAnalyzer.ToText(advanced.MachinePassword));
                 Write(Path.Combine(temp, "root-causes.txt"), RootCauseEngine.ToText(advanced.RootCauses));
