@@ -8,6 +8,9 @@ namespace DomainMembershipCheckRepair
         [STAThread]
         private static int Main(string[] args)
         {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+
             bool enableFileLogging = false;
             bool cliMode = false;
             bool helpRequested = false;
@@ -44,8 +47,6 @@ namespace DomainMembershipCheckRepair
             if (cliMode || helpRequested)
                 return CliRunner.Run(args, enableFileLogging);
 
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new MainForm(enableFileLogging, args));
             return 0;
         }
