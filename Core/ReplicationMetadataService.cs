@@ -64,7 +64,7 @@ namespace DomainMembershipCheckRepair
             if (CommandFailed(summary) || HasReplicationFailures(summary == null ? String.Empty : summary.CombinedOutput))
                 r.Findings.Add("HIGH: repadmin /replsummary reports replication failures or unavailable partners.");
 
-            if (CommandFailed(meta))
+            if (meta != null && CommandFailed(meta))
                 r.Findings.Add("CHECK: object replication metadata could not be read cleanly from the selected DC.");
 
             return r;
