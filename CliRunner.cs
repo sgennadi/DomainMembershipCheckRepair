@@ -535,36 +535,55 @@ namespace DomainMembershipCheckRepair
             if (TryRelaunchElevatedIfNeeded(action, out elevatedResult))
                 return elevatedResult;
 
-            switch (action)
+            RecoverySnapshotScope snapshot = null;
+            try
             {
-                case "status": return ShowStatus(true);
-                case "check": return CheckTrustOnly();
-                case "repair": return RepairTrust();
-                case "join": return JoinCurrentName();
-                case "rename": return RenameAndJoin(null, null, null, null);
-                case "restart": return RestartWindows();
-                case "mii-disable": return DisableMachineIdentityIsolation();
-                case "advanced": return AdvancedDiagnostics();
-                case "netsetup": return AnalyzeNetSetup();
-                case "dc-matrix": return DcMatrix();
-                case "site-subnet": return SiteSubnet();
-                case "protocols": return ProtocolDiagnostics();
-                case "hardening": return HardeningDiagnostics();
-                case "join-permissions": return JoinPermissions();
-                case "hybrid-entra": return HybridEntra();
-                case "policy-source": return PolicySources();
-                case "self-test": return SelfTest();
-                case "recovery-plan": return RecoveryPlan();
-                case "support-bundle": return SupportBundle();
-                case "cyberark": return CyberArkHealth();
-                case "safe-fixes": return SafeFixes();
-                case "odj-apply": return ApplyOfflineDomainJoin();
-                case "odj-provision": return ProvisionOfflineDomainJoin();
-                case "detect": return DetectAndDisplayDomain();
-                case "ad-check": return CheckAdAccount();
-                case "diagnose": return Diagnostics();
-                case "export-diagnostics": return ExportDiagnostics();
-                default: return 3;
+                if (ElevationHelper.RequiresElevation(action) && !options.DryRun)
+                {
+                    snapshot = new RecoverySnapshotScope(
+                        action,
+                        options.Domain,
+                        options.PreferredDc,
+                        null,
+                        null);
+                }
+
+                switch (action)
+                {
+                    case "status": return ShowStatus(true);
+                    case "check": return CheckTrustOnly();
+                    case "repair": return RepairTrust();
+                    case "join": return JoinCurrentName();
+                    case "rename": return RenameAndJoin(null, null, null, null);
+                    case "restart": return RestartWindows();
+                    case "mii-disable": return DisableMachineIdentityIsolation();
+                    case "advanced": return AdvancedDiagnostics();
+                    case "netsetup": return AnalyzeNetSetup();
+                    case "dc-matrix": return DcMatrix();
+                    case "site-subnet": return SiteSubnet();
+                    case "protocols": return ProtocolDiagnostics();
+                    case "hardening": return HardeningDiagnostics();
+                    case "join-permissions": return JoinPermissions();
+                    case "hybrid-entra": return HybridEntra();
+                    case "policy-source": return PolicySources();
+                    case "self-test": return SelfTest();
+                    case "recovery-plan": return RecoveryPlan();
+                    case "support-bundle": return SupportBundle();
+                    case "cyberark": return CyberArkHealth();
+                    case "safe-fixes": return SafeFixes();
+                    case "odj-apply": return ApplyOfflineDomainJoin();
+                    case "odj-provision": return ProvisionOfflineDomainJoin();
+                    case "detect": return DetectAndDisplayDomain();
+                    case "ad-check": return CheckAdAccount();
+                    case "diagnose": return Diagnostics();
+                    case "export-diagnostics": return ExportDiagnostics();
+                    default: return 3;
+                }
+            }
+            finally
+            {
+                if (snapshot != null)
+                    snapshot.Dispose();
             }
         }
 
@@ -996,6 +1015,32 @@ namespace DomainMembershipCheckRepair
             {
                 logger.Log("ERROR", "Support bundle failed: " + ex.Message);
                 return 1;
+            }
+        }
+
+        private static void CreatePreChangeBundle(
+            string operation,
+            string domain,
+            string user,
+            string password)
+        {
+            string bundlePath;
+            string bundleError;
+            if (SafetyBundleService.TryCreate(
+                operation,
+                domain,
+                options.PreferredDc,
+                Environment.MachineName,
+                user,
+                password,
+                out bundlePath,
+                out bundleError))
+            {
+                logger.Log("INFO", "Pre-change safety bundle created: " + bundlePath);
+            }
+            else
+            {
+                logger.Log("WARN", "Pre-change safety bundle could not be created: " + bundleError);
             }
         }
 
