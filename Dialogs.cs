@@ -10,8 +10,9 @@ namespace DomainMembershipCheckRepair
         {
             form.AutoScaleDimensions = new SizeF(96F, 96F);
             form.AutoScaleMode = AutoScaleMode.Dpi;
-            form.MinimumSize = minimumSize;
+            form.MinimumSize = Size.Empty;
             form.Font = new Font("Segoe UI", 9F);
+            UiLayoutHelper.EnableScreenAwareSizing(form, minimumSize);
             form.StartPosition = FormStartPosition.CenterParent;
             form.ShowInTaskbar = false;
         }
