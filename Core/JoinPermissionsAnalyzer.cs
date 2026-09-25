@@ -192,7 +192,7 @@ namespace DomainMembershipCheckRepair
             try
             {
                 string filter;
-                int slash = user.IndexOf('\');
+                int slash = user.IndexOf('\\');
                 if (slash >= 0 && slash < user.Length - 1)
                 {
                     string sam = DomainValidation.EscapeLdapFilterValue(user.Substring(slash + 1));
