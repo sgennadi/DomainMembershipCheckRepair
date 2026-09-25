@@ -531,7 +531,7 @@ Future releases are configured as **signed-only**: the release workflow will not
 
 Privacy statement: **This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.** See the full [Privacy Policy](PRIVACY.md).
 
-Release `v1.1.0` predates SignPath Foundation onboarding and is unsigned. When `SIGNPATH_ENABLED=true` and the required repository variable/secret are configured, tagged releases use the SignPath pipeline automatically. If signing is not enabled, the release workflow clearly marks the binaries as unsigned.
+Release `v1.1.0` predates SignPath Foundation onboarding and is unsigned. New tagged releases are signing-required: `SIGNPATH_ORGANIZATION_ID` and `SIGNPATH_API_TOKEN` must be configured before the release workflow can publish binaries. The workflow intentionally fails rather than publishing an unsigned release.
 
 ## Privacy
 
