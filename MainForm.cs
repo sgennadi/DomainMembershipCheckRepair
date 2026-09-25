@@ -44,6 +44,9 @@ namespace DomainMembershipCheckRepair
         private Button joinPermissionsButton;
         private Button hybridEntraButton;
         private Button policySourceButton;
+        private Button replicationMetadataButton;
+        private Button spnCollisionsButton;
+        private Button smbKerberosButton;
         private Button restartButton;
         private Button aboutButton;
         private TextBox logBox;
@@ -274,6 +277,9 @@ namespace DomainMembershipCheckRepair
             joinPermissionsButton = CreateButton("Join Permissions", 135);
             hybridEntraButton = CreateButton("Hybrid Entra", 115);
             policySourceButton = CreateButton("Policy Sources", 120);
+            replicationMetadataButton = CreateButton("Replication Metadata", 155);
+            spnCollisionsButton = CreateButton("SPN Collisions", 125);
+            smbKerberosButton = CreateButton("SMB / Kerberos", 130);
             repairButton = CreateButton("Repair Trust", 120);
             joinButton = CreateButton("Join / Rejoin Domain", 170);
             adCheckButton = CreateButton("Check AD Account", 150);
@@ -305,6 +311,9 @@ namespace DomainMembershipCheckRepair
             joinPermissionsButton.Click += delegate { JoinPermissionsWorkflow(); };
             hybridEntraButton.Click += delegate { HybridEntraWorkflow(); };
             policySourceButton.Click += delegate { PolicySourceWorkflow(); };
+            replicationMetadataButton.Click += delegate { ReplicationMetadataWorkflow(); };
+            spnCollisionsButton.Click += delegate { SpnCollisionsWorkflow(); };
+            smbKerberosButton.Click += delegate { SmbKerberosWorkflow(); };
             repairButton.Click += delegate { RepairTrustWorkflow(); };
             joinButton.Click += delegate { JoinCurrentNameWorkflow(); };
             adCheckButton.Click += delegate { CheckAdAccountWorkflow(); };
@@ -334,6 +343,9 @@ namespace DomainMembershipCheckRepair
             advancedActions.Controls.Add(joinPermissionsButton);
             advancedActions.Controls.Add(hybridEntraButton);
             advancedActions.Controls.Add(policySourceButton);
+            advancedActions.Controls.Add(replicationMetadataButton);
+            advancedActions.Controls.Add(spnCollisionsButton);
+            advancedActions.Controls.Add(smbKerberosButton);
             advancedActions.Controls.Add(aboutButton);
 
             root.Controls.Add(actionTabs, 0, 7);
@@ -1163,6 +1175,115 @@ namespace DomainMembershipCheckRepair
             {
                 Log("ERROR", "Policy Source analysis failed: " + ex.Message);
                 MessageBox.Show(this, ex.Message, "Policy Source analysis failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private void ReplicationMetadataWorkflow()
+        {
+            SetBusy(true);
+            try
+            {
+                string targetDomain = domainBox == null ? String.Empty : (domainBox.Text ?? String.Empty).Trim();
+                string preferredDc = dcBox == null ? String.Empty : (dcBox.Text ?? String.Empty).Trim();
+                DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(targetDomain, preferredDc);
+
+                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
+                string password = passwordBox == null ? null : passwordBox.Text;
+                string objectDn = String.Empty;
+
+                if (!String.IsNullOrWhiteSpace(user) && !String.IsNullOrEmpty(password))
+                {
+                    AdComputerAccountInfo account = AdDirectoryService.FindComputerAccount(
+                        Environment.MachineName,
+                        user,
+                        password,
+                        snapshot.TargetDomain,
+                        snapshot.DiscoveredDc,
+                        null);
+
+                    if (account != null && account.LookupSucceeded && account.Exists)
+                        objectDn = account.DistinguishedName;
+                }
+
+                ReplicationMetadataResult result = ReplicationMetadataService.Analyze(
+                    snapshot.TargetDomain,
+                    snapshot.DiscoveredDc,
+                    objectDn);
+
+                ReportDialog.ShowReport(
+                    this,
+                    "AD Replication Metadata",
+                    ReplicationMetadataService.ToText(result));
+            }
+            catch (Exception ex)
+            {
+                Log("ERROR", "Replication metadata analysis failed: " + ex.Message);
+                MessageBox.Show(this, ex.Message, "Replication metadata analysis failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private void SpnCollisionsWorkflow()
+        {
+            SetBusy(true);
+            try
+            {
+                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
+                string password = passwordBox == null ? null : passwordBox.Text;
+                if (String.IsNullOrWhiteSpace(user) || String.IsNullOrEmpty(password))
+                {
+                    user = String.Empty;
+                    password = null;
+                }
+
+                SpnCollisionResult result = SpnCollisionAnalyzer.Analyze(
+                    domainBox == null ? String.Empty : domainBox.Text,
+                    dcBox == null ? String.Empty : dcBox.Text,
+                    Environment.MachineName,
+                    user,
+                    password);
+
+                ReportDialog.ShowReport(
+                    this,
+                    "SPN Collision Analyzer",
+                    SpnCollisionAnalyzer.ToText(result));
+            }
+            catch (Exception ex)
+            {
+                Log("ERROR", "SPN collision analysis failed: " + ex.Message);
+                MessageBox.Show(this, ex.Message, "SPN collision analysis failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private void SmbKerberosWorkflow()
+        {
+            SetBusy(true);
+            try
+            {
+                SmbKerberosAuthResult result = SmbKerberosAuthAnalyzer.Analyze(
+                    domainBox == null ? String.Empty : domainBox.Text,
+                    dcBox == null ? String.Empty : dcBox.Text);
+
+                ReportDialog.ShowReport(
+                    this,
+                    "SMB / Kerberos Authentication",
+                    SmbKerberosAuthAnalyzer.ToText(result));
+            }
+            catch (Exception ex)
+            {
+                Log("ERROR", "SMB/Kerberos analysis failed: " + ex.Message);
+                MessageBox.Show(this, ex.Message, "SMB/Kerberos analysis failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
@@ -2121,6 +2242,15 @@ namespace DomainMembershipCheckRepair
             if (offlineJoinButton != null) offlineJoinButton.Enabled = !busy;
             if (safeFixesButton != null) safeFixesButton.Enabled = !busy;
             if (selfTestButton != null) selfTestButton.Enabled = !busy;
+            if (siteSubnetButton != null) siteSubnetButton.Enabled = !busy;
+            if (protocolsButton != null) protocolsButton.Enabled = !busy;
+            if (hardeningButton != null) hardeningButton.Enabled = !busy;
+            if (joinPermissionsButton != null) joinPermissionsButton.Enabled = !busy;
+            if (hybridEntraButton != null) hybridEntraButton.Enabled = !busy;
+            if (policySourceButton != null) policySourceButton.Enabled = !busy;
+            if (replicationMetadataButton != null) replicationMetadataButton.Enabled = !busy;
+            if (spnCollisionsButton != null) spnCollisionsButton.Enabled = !busy;
+            if (smbKerberosButton != null) smbKerberosButton.Enabled = !busy;
             if (restartButton != null) restartButton.Enabled = !busy;
             if (aboutButton != null) aboutButton.Enabled = !busy;
             Application.DoEvents();
