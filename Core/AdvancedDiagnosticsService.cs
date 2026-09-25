@@ -100,8 +100,14 @@ namespace DomainMembershipCheckRepair
                 result.NetSetup,
                 result.Dns,
                 result.DcMatrix,
+                result.SiteSubnet,
+                result.Protocols,
                 result.Account,
-                result.MachinePassword);
+                result.MachinePassword,
+                result.Hardening,
+                result.JoinPermissions,
+                result.HybridEntra,
+                result.PolicySources);
 
             result.RecoveryPlan = RecoveryPlanService.Build(
                 result.Snapshot,
