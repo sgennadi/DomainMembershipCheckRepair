@@ -112,6 +112,7 @@
     <Compile Include="Models.cs" />
     <Compile Include="Dialogs.cs" />
     <None Include="app.manifest" />
+    <None Include="App.config" />
     <None Include="Generate-AppIcon.ps1" />
     <None Include="README.md" />
     <None Include="CHANGELOG.md" />
