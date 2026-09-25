@@ -10,9 +10,16 @@ namespace DomainMembershipCheckRepair
         internal NetSetupAnalysis NetSetup;
         internal DnsDiagnosticsResult Dns;
         internal DcMatrixResult DcMatrix;
+        internal SiteSubnetDiagnosticsResult SiteSubnet;
+        internal ProtocolDiagnosticsResult Protocols;
         internal List<EventTimelineEntry> Events;
         internal CyberArkDiagnosticsResult CyberArk;
         internal AdComputerAccountInfo Account;
+        internal HardeningDiagnosticsResult Hardening;
+        internal JoinPermissionsResult JoinPermissions;
+        internal HybridEntraDiagnosticsResult HybridEntra;
+        internal PolicySourceDiagnosticsResult PolicySources;
+        internal SelfTestResult SelfTest;
         internal MachinePasswordAnalysis MachinePassword;
         internal List<RootCauseFinding> RootCauses;
         internal List<string> RecoveryPlan;
@@ -43,6 +50,18 @@ namespace DomainMembershipCheckRepair
                 String.IsNullOrWhiteSpace(computerName) ? Environment.MachineName : computerName,
                 user,
                 password);
+            result.SiteSubnet = SiteSubnetDiagnosticsService.Analyze(
+                effectiveDomain,
+                discoveredDc,
+                user,
+                password);
+
+            result.Protocols = ProtocolDiagnosticsService.Analyze(
+                effectiveDomain,
+                discoveredDc,
+                user,
+                password);
+
             result.Events = EventTimelineService.Collect(48);
             result.CyberArk = CyberArkDiagnosticsService.Analyze();
 
@@ -56,6 +75,20 @@ namespace DomainMembershipCheckRepair
                     preferredDc,
                     null);
             }
+
+            result.Hardening = HardeningDiagnosticsService.Analyze(result.Account);
+
+            result.JoinPermissions = JoinPermissionsAnalyzer.Analyze(
+                effectiveDomain,
+                discoveredDc,
+                String.IsNullOrWhiteSpace(computerName) ? Environment.MachineName : computerName,
+                user,
+                password,
+                result.Account);
+
+            result.HybridEntra = HybridEntraDiagnosticsService.Analyze();
+            result.PolicySources = PolicySourceAnalyzer.Analyze();
+            result.SelfTest = SelfTestService.Run(effectiveDomain, discoveredDc);
 
             result.MachinePassword = MachinePasswordAnalyzer.Analyze(
                 result.Account,
@@ -91,9 +124,23 @@ namespace DomainMembershipCheckRepair
             sb.AppendLine();
             sb.AppendLine(DcMatrixService.ToText(r.DcMatrix));
             sb.AppendLine();
+            sb.AppendLine(SiteSubnetDiagnosticsService.ToText(r.SiteSubnet));
+            sb.AppendLine();
+            sb.AppendLine(ProtocolDiagnosticsService.ToText(r.Protocols));
+            sb.AppendLine();
             sb.AppendLine(EventTimelineService.ToText(r.Events));
             sb.AppendLine();
             sb.AppendLine(CyberArkDiagnosticsService.ToText(r.CyberArk));
+            sb.AppendLine();
+            sb.AppendLine(HardeningDiagnosticsService.ToText(r.Hardening));
+            sb.AppendLine();
+            sb.AppendLine(JoinPermissionsAnalyzer.ToText(r.JoinPermissions));
+            sb.AppendLine();
+            sb.AppendLine(HybridEntraDiagnosticsService.ToText(r.HybridEntra));
+            sb.AppendLine();
+            sb.AppendLine(PolicySourceAnalyzer.ToText(r.PolicySources));
+            sb.AppendLine();
+            sb.AppendLine(SelfTestService.ToText(r.SelfTest));
             sb.AppendLine();
             sb.AppendLine(MachinePasswordAnalyzer.ToText(r.MachinePassword));
             sb.AppendLine();
