@@ -5,8 +5,10 @@
 - Added Per-Monitor V2 DPI configuration and high-DPI automatic WinForms resizing.
 - Reworked the main GUI into responsive Basic/Advanced tabs with scroll-safe, resizable layout for small displays and 100-200%+ DPI scaling.
 - Reworked all custom dialogs to use DPI scaling, TableLayout/FlowLayout, minimum sizes and resizable report/conflict views instead of fixed pixel coordinates.
+- Added screen-aware sizing that clamps top-level windows to the active monitor working area and re-evaluates layout after per-monitor DPI changes.
 - Added AD Site/Subnet diagnostics using client site detection, DC site data and AD Sites and Services subnet matching.
 - Added protocol-level checks for DNS UDP SRV queries, LDAP/LDAPS authenticated bind, Kerberos ticket requests, RPC service-control reachability and SMB.
+- Fixed remote RPC/SMB command targeting to use proper UNC server syntax and added regression tests.
 - Added LDAP signing/channel-binding, Netlogon/NTLM and Kerberos encryption hardening diagnostics.
 - Added decoding of computer-account Kerberos encryption flags and warnings for DES/RC4-only configurations.
 - Added Domain Join Permissions Analyzer for MachineAccountQuota, operator SID/token groups, OU/computer ACL evidence, ownership and account-reuse rights.
@@ -18,6 +20,7 @@
 - Added a destructive AD Delete Safety Gate that blocks deletion when GUID/owner verification is missing, child objects exist, the object changed too recently, RODC/writable-DC validation fails, or cross-DC replication state is inconsistent.
 - Extended prioritized root-cause analysis and Recovery Plan with site/subnet, protocol, hardening, permissions, policy-source and Hybrid Entra evidence.
 - Added CLI actions: site-subnet, protocols, hardening, join-permissions, hybrid-entra, policy-source and self-test.
+- Added individual Advanced GUI actions for Site/Subnet, Protocol Tests, Hardening, Join Permissions, Hybrid Entra and Policy Sources.
 - Added optional internal code-signing documentation and helper scripts for AD CS or managed-endpoint self-signed trust while SignPath onboarding is pending.
 - Public GitHub releases remain SignPath signing-required; internal signing does not weaken that release policy.
 
