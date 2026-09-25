@@ -17,6 +17,9 @@ namespace DomainMembershipCheckRepair
             JoinPermissionsResult joinPermissions,
             HybridEntraDiagnosticsResult hybridEntra,
             PolicySourceDiagnosticsResult policySources,
+            ReplicationMetadataResult replicationMetadata,
+            SpnCollisionResult spnCollisions,
+            SmbKerberosAuthResult smbKerberos,
             AdComputerAccountInfo account)
         {
             List<string> steps = new List<string>();
@@ -78,6 +81,36 @@ namespace DomainMembershipCheckRepair
                 AddStep(
                     steps,
                     "Resolve LDAP/Kerberos/Netlogon hardening incompatibility before retrying Join/Rejoin.");
+            }
+
+            if (replicationMetadata != null && HasHighFinding(replicationMetadata.Findings))
+            {
+                AddStep(
+                    steps,
+                    "Resolve AD replication failures reported by the replication metadata analyzer before trust repair or destructive account recovery.");
+            }
+
+            if (spnCollisions != null && HasHighFinding(spnCollisions.Findings))
+            {
+                AddStep(
+                    steps,
+                    "Remove or correct duplicate SPN registrations, wait for AD replication, then re-test Kerberos and the secure channel.");
+            }
+            else if (spnCollisions != null && ContainsText(spnCollisions.Findings, "expected HOST SPN"))
+            {
+                AddStep(
+                    steps,
+                    "Restore the expected HOST SPNs on the correct computer object before retrying Kerberos-dependent recovery.");
+            }
+
+            if (smbKerberos != null &&
+                !String.IsNullOrWhiteSpace(smbKerberos.KerberosCifsStatus) &&
+                !String.Equals(smbKerberos.KerberosCifsStatus, "OK", StringComparison.OrdinalIgnoreCase) &&
+                !String.Equals(smbKerberos.KerberosCifsStatus, "NOT TESTED", StringComparison.OrdinalIgnoreCase))
+            {
+                AddStep(
+                    steps,
+                    "Resolve CIFS Kerberos ticket/SPN/DNS failures and verify NTLM fallback policy before retrying domain recovery.");
             }
 
             if (dcMatrix != null && HasDcMatrixRisk(dcMatrix))
@@ -209,6 +242,20 @@ namespace DomainMembershipCheckRepair
             foreach (string item in findings)
             {
                 if ((item ?? String.Empty).StartsWith("HIGH:", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool ContainsText(List<string> findings, string term)
+        {
+            if (findings == null || String.IsNullOrWhiteSpace(term))
+                return false;
+
+            foreach (string value in findings)
+            {
+                if ((value ?? String.Empty).IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0)
                     return true;
             }
 
