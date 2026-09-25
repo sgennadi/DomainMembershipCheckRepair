@@ -76,52 +76,32 @@ namespace DomainMembershipCheckRepair
             string arguments,
             int timeoutMs)
         {
-            try
-            {
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = fileName;
-                psi.Arguments = arguments;
-                psi.UseShellExecute = false;
-                psi.RedirectStandardOutput = true;
-                psi.RedirectStandardError = true;
-                psi.CreateNoWindow = true;
+            CommandResult command = ProcessRunner.Run(fileName, arguments, timeoutMs);
 
-                using (Process p = Process.Start(psi))
-                {
-                    if (p == null)
-                    {
-                        result.Success = false;
-                        result.Steps.Add("FAIL: " + title + ": process did not start.");
-                        return;
-                    }
-
-                    string output = p.StandardOutput.ReadToEnd();
-                    string error = p.StandardError.ReadToEnd();
-
-                    if (!p.WaitForExit(timeoutMs))
-                    {
-                        try { p.Kill(); } catch { }
-                        result.Success = false;
-                        result.Steps.Add("FAIL: " + title + ": timed out.");
-                        return;
-                    }
-
-                    string detail = Collapse(output + " " + error, 240);
-                    if (p.ExitCode == 0)
-                        result.Steps.Add("OK: " + title + (detail.Length > 0 ? " - " + detail : String.Empty));
-                    else
-                    {
-                        result.Success = false;
-                        result.Steps.Add("FAIL: " + title + " (exit " + p.ExitCode + ")" +
-                            (detail.Length > 0 ? " - " + detail : String.Empty));
-                    }
-                }
-            }
-            catch (Exception ex)
+            if (!String.IsNullOrWhiteSpace(command.Error))
             {
                 result.Success = false;
-                result.Steps.Add("FAIL: " + title + ": " + ex.Message);
+                result.Steps.Add("FAIL: " + title + ": " + command.Error);
+                return;
             }
+
+            if (command.TimedOut)
+            {
+                result.Success = false;
+                result.Steps.Add("FAIL: " + title + ": timed out.");
+                return;
+            }
+
+            string detail = Collapse(command.CombinedOutput, 240);
+            if (command.ExitCode == 0)
+            {
+                result.Steps.Add("OK: " + title + (detail.Length > 0 ? " - " + detail : String.Empty));
+                return;
+            }
+
+            result.Success = false;
+            result.Steps.Add("FAIL: " + title + " (exit " + command.ExitCode + ")" +
+                (detail.Length > 0 ? " - " + detail : String.Empty));
         }
 
         private static string Collapse(string value, int max)
