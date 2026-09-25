@@ -18,6 +18,7 @@ namespace DomainMembershipCheckRepair
             TestElevationActions();
             TestGuiResumeOptions();
             TestNetSetupErrorMapping();
+            TestKerberosEncryptionTypeDecoding();
 
             if (failures == 0)
             {
@@ -136,6 +137,20 @@ namespace DomainMembershipCheckRepair
             AssertTrue(rpc.IndexOf("RPC", StringComparison.OrdinalIgnoreCase) >= 0, "0x6BA RPC mapping");
 
             AssertEqual(String.Empty, NetSetupLogAnalyzer.ExplainCode("0xDEADBEEF"), "unknown NetSetup code");
+        }
+
+        private static void TestKerberosEncryptionTypeDecoding()
+        {
+            string rc4 = HardeningDiagnosticsService.DecodeEncryptionTypes(0x4);
+            AssertTrue(rc4.IndexOf("RC4", StringComparison.OrdinalIgnoreCase) >= 0, "RC4 encryption flag decoded");
+
+            string aes = HardeningDiagnosticsService.DecodeEncryptionTypes(0x18);
+            AssertTrue(aes.IndexOf("AES128", StringComparison.OrdinalIgnoreCase) >= 0, "AES128 encryption flag decoded");
+            AssertTrue(aes.IndexOf("AES256", StringComparison.OrdinalIgnoreCase) >= 0, "AES256 encryption flag decoded");
+
+            string mixed = HardeningDiagnosticsService.DecodeEncryptionTypes(0x1C);
+            AssertTrue(mixed.IndexOf("RC4", StringComparison.OrdinalIgnoreCase) >= 0, "mixed RC4 flag decoded");
+            AssertTrue(mixed.IndexOf("AES256", StringComparison.OrdinalIgnoreCase) >= 0, "mixed AES flag decoded");
         }
 
         private static void AssertTrue(bool value, string name)
