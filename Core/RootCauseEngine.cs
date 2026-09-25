@@ -27,7 +27,10 @@ namespace DomainMembershipCheckRepair
             HardeningDiagnosticsResult hardening,
             JoinPermissionsResult joinPermissions,
             HybridEntraDiagnosticsResult hybridEntra,
-            PolicySourceDiagnosticsResult policySources)
+            PolicySourceDiagnosticsResult policySources,
+            ReplicationMetadataResult replicationMetadata,
+            SpnCollisionResult spnCollisions,
+            SmbKerberosAuthResult smbKerberos)
         {
             List<RootCauseFinding> findings = new List<RootCauseFinding>();
 
@@ -293,6 +296,55 @@ namespace DomainMembershipCheckRepair
                             "Hybrid Microsoft Entra state",
                             item,
                             "Restore on-prem AD trust first, then remediate the Entra device state.");
+                    }
+                }
+            }
+
+            if (replicationMetadata != null)
+            {
+                foreach (string item in replicationMetadata.Findings)
+                {
+                    string text = item ?? String.Empty;
+                    if (text.StartsWith("HIGH:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Add(findings, 97, "HIGH", "AD replication metadata", text,
+                            "Resolve AD replication failures before trust repair, rejoin or destructive computer-account recovery.");
+                    }
+                    else if (text.StartsWith("CHECK:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Add(findings, 84, "MEDIUM", "AD replication metadata", text,
+                            "Verify object replication metadata on a writable DC before destructive computer-account recovery.");
+                    }
+                }
+            }
+
+            if (spnCollisions != null)
+            {
+                foreach (string item in spnCollisions.Findings)
+                {
+                    string text = item ?? String.Empty;
+                    if (text.StartsWith("HIGH:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Add(findings, 99, "HIGH", "SPN collision", text,
+                            "Remove or correct duplicate SPN registrations, allow AD replication to converge, then re-test Kerberos and domain trust.");
+                    }
+                    else if (text.StartsWith("CHECK:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Add(findings, 88, "MEDIUM", "Computer SPN registration", text,
+                            "Restore the expected computer SPNs on the correct AD computer object and re-test Kerberos.");
+                    }
+                }
+            }
+
+            if (smbKerberos != null)
+            {
+                foreach (string item in smbKerberos.Findings)
+                {
+                    string text = item ?? String.Empty;
+                    if (text.StartsWith("CHECK:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Add(findings, 89, "MEDIUM", "Kerberos / SMB authentication", text,
+                            "Correct CIFS SPN/DNS/Kerberos issues and confirm whether NTLM fallback is permitted before retrying recovery.");
                     }
                 }
             }
