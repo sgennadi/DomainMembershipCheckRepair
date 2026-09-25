@@ -19,6 +19,10 @@ namespace DomainMembershipCheckRepair
         internal string DefaultNamingContext = String.Empty;
         internal string ConfigurationNamingContext = String.Empty;
         internal string LdapError = String.Empty;
+        internal string Site = String.Empty;
+        internal bool? IsReadOnly;
+        internal bool? IsSynchronized;
+        internal bool? IsGlobalCatalogReady;
         internal bool? ComputerAccountExists;
         internal string ComputerObjectGuid = String.Empty;
         internal string ComputerPwdLastSet = String.Empty;
@@ -74,7 +78,7 @@ namespace DomainMembershipCheckRepair
                 }
                 entry.Ports = ProbePorts(entry.Host);
                 entry.TimeSkew = QueryTimeSkew(entry.Host);
-                ReadRootDse(entry);
+                ReadRootDse(entry, user, password);
 
                 if (!String.IsNullOrWhiteSpace(user) && password != null &&
                     !String.IsNullOrWhiteSpace(computerName))
@@ -102,6 +106,15 @@ namespace DomainMembershipCheckRepair
             }
 
             DetectInconsistency(result);
+
+            foreach (DcMatrixEntry entry in result.Entries)
+            {
+                if (entry.IsReadOnly == true)
+                    result.Notes.Add("RODC detected: " + entry.Host + ". Join/rejoin and account changes should use a writable DC.");
+                if (entry.IsSynchronized == false)
+                    result.Notes.Add("DC reports isSynchronized=FALSE: " + entry.Host + ". Investigate AD replication/initial synchronization.");
+            }
+
             return result;
         }
 
@@ -124,6 +137,14 @@ namespace DomainMembershipCheckRepair
                     sb.AppendLine("  LDAP host:   " + e.DnsHostName);
                 if (!String.IsNullOrWhiteSpace(e.DefaultNamingContext))
                     sb.AppendLine("  Naming ctx:  " + e.DefaultNamingContext);
+                if (!String.IsNullOrWhiteSpace(e.Site))
+                    sb.AppendLine("  Site:        " + e.Site);
+                if (e.IsReadOnly.HasValue)
+                    sb.AppendLine("  DC type:     " + (e.IsReadOnly.Value ? "RODC (read-only)" : "Writable"));
+                if (e.IsSynchronized.HasValue)
+                    sb.AppendLine("  Synced:      " + (e.IsSynchronized.Value ? "Yes" : "No"));
+                if (e.IsGlobalCatalogReady.HasValue)
+                    sb.AppendLine("  GC ready:    " + (e.IsGlobalCatalogReady.Value ? "Yes" : "No"));
                 if (!String.IsNullOrWhiteSpace(e.LdapError))
                     sb.AppendLine("  LDAP error:  " + e.LdapError);
 
@@ -174,22 +195,81 @@ namespace DomainMembershipCheckRepair
             return hosts;
         }
 
-        private static void ReadRootDse(DcMatrixEntry entry)
+        private static void ReadRootDse(DcMatrixEntry entry, string user, string password)
         {
             try
             {
-                using (DirectoryEntry root = new DirectoryEntry("LDAP://" + entry.Host + "/RootDSE"))
+                string path = "LDAP://" + entry.Host + "/RootDSE";
+                DirectoryEntry root = !String.IsNullOrWhiteSpace(user) && password != null
+                    ? new DirectoryEntry(path, user, password, AuthenticationTypes.Secure)
+                    : new DirectoryEntry(path);
+
+                using (root)
                 {
                     entry.DnsHostName = Convert.ToString(root.Properties["dnsHostName"].Value) ?? String.Empty;
                     entry.DefaultNamingContext = Convert.ToString(root.Properties["defaultNamingContext"].Value) ?? String.Empty;
                     entry.ConfigurationNamingContext = Convert.ToString(root.Properties["configurationNamingContext"].Value) ?? String.Empty;
+                    string serverName = Convert.ToString(root.Properties["serverName"].Value) ?? String.Empty;
+
+                    entry.IsSynchronized = ReadBoolean(root, "isSynchronized");
+                    entry.IsGlobalCatalogReady = ReadBoolean(root, "isGlobalCatalogReady");
+                    entry.Site = ParseSiteFromServerDn(serverName);
                     entry.RootDseOk = !String.IsNullOrWhiteSpace(entry.DefaultNamingContext);
+
+                    if (!String.IsNullOrWhiteSpace(serverName))
+                    {
+                        string ntdsPath = "LDAP://" + entry.Host + "/" + serverName;
+                        try
+                        {
+                            DirectoryEntry ntds = !String.IsNullOrWhiteSpace(user) && password != null
+                                ? new DirectoryEntry(ntdsPath, user, password, AuthenticationTypes.Secure)
+                                : new DirectoryEntry(ntdsPath);
+
+                            using (ntds)
+                            {
+                                object rodc = ntds.Properties["msDS-isRODC"].Value;
+                                if (rodc != null)
+                                    entry.IsReadOnly = Convert.ToBoolean(rodc);
+                            }
+                        }
+                        catch
+                        {
+                        }
+                    }
                 }
             }
             catch (Exception ex)
             {
                 entry.LdapError = ex.Message;
             }
+        }
+
+        private static bool? ReadBoolean(DirectoryEntry entry, string propertyName)
+        {
+            try
+            {
+                object value = entry.Properties[propertyName].Value;
+                if (value == null)
+                    return null;
+                return Convert.ToBoolean(value);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string ParseSiteFromServerDn(string serverDn)
+        {
+            if (String.IsNullOrWhiteSpace(serverDn))
+                return String.Empty;
+
+            Match match = Regex.Match(
+                serverDn,
+                @"CN=NTDS Settings,CN=[^,]+,CN=Servers,CN=([^,]+),CN=Sites",
+                RegexOptions.IgnoreCase);
+
+            return match.Success ? match.Groups[1].Value : String.Empty;
         }
 
         private static string ProbePorts(string host)
