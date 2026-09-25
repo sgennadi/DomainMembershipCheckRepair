@@ -27,24 +27,20 @@ namespace DomainMembershipCheckRepair
         {
             Icon = SystemIcons.Shield;
             ShowIcon = true;
+            AutoScaleDimensions = new SizeF(96F, 96F);
             AutoScaleMode = AutoScaleMode.Dpi;
         }
 
         private Control CreateStatusFooterPanel()
         {
-            TableLayoutPanel panel = new TableLayoutPanel();
+            FlowLayoutPanel panel = new FlowLayoutPanel();
             panel.Dock = DockStyle.Fill;
+            panel.AutoSize = true;
+            panel.WrapContents = true;
+            panel.FlowDirection = FlowDirection.LeftToRight;
             panel.Margin = new Padding(0, 3, 0, 0);
             panel.Padding = new Padding(0);
-            panel.ColumnCount = 5;
-            panel.RowCount = 1;
             panel.BackColor = SystemColors.ControlLightLight;
-
-            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 145F));
-            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120F));
-            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190F));
-            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 165F));
-            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
             domainStatusBadge = CreateStatusBadge("Domain: Checking...");
             trustStatusBadge = CreateStatusBadge("Trust: Checking...");
@@ -52,19 +48,18 @@ namespace DomainMembershipCheckRepair
             adStatusBadge = CreateStatusBadge("AD: Not checked");
 
             footerLabel = new Label();
-            footerLabel.Dock = DockStyle.Fill;
-            footerLabel.TextAlign = ContentAlignment.MiddleRight;
+            footerLabel.AutoSize = true;
             footerLabel.AutoEllipsis = true;
             footerLabel.ForeColor = SystemColors.GrayText;
             footerLabel.Font = new Font("Segoe UI", 8.25F);
-            footerLabel.Margin = new Padding(4, 1, 2, 1);
+            footerLabel.Margin = new Padding(10, 7, 2, 1);
             footerLabel.Text = BuildFooterText();
 
-            panel.Controls.Add(domainStatusBadge, 0, 0);
-            panel.Controls.Add(trustStatusBadge, 1, 0);
-            panel.Controls.Add(dcStatusBadge, 2, 0);
-            panel.Controls.Add(adStatusBadge, 3, 0);
-            panel.Controls.Add(footerLabel, 4, 0);
+            panel.Controls.Add(domainStatusBadge);
+            panel.Controls.Add(trustStatusBadge);
+            panel.Controls.Add(dcStatusBadge);
+            panel.Controls.Add(adStatusBadge);
+            panel.Controls.Add(footerLabel);
 
             SetStatusBadge(domainStatusBadge, "Domain", "Checking...", UiStatusKind.Info);
             SetStatusBadge(trustStatusBadge, "Trust", "Checking...", UiStatusKind.Info);
@@ -77,13 +72,12 @@ namespace DomainMembershipCheckRepair
         private static Label CreateStatusBadge(string text)
         {
             Label label = new Label();
-            label.Dock = DockStyle.Fill;
-            label.AutoSize = false;
+            label.AutoSize = true;
             label.AutoEllipsis = true;
             label.TextAlign = ContentAlignment.MiddleLeft;
             label.Font = new Font("Segoe UI", 8.25F, FontStyle.Bold);
             label.Margin = new Padding(1);
-            label.Padding = new Padding(6, 0, 4, 0);
+            label.Padding = new Padding(6, 5, 6, 5);
             label.Text = text;
             return label;
         }
