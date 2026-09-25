@@ -747,6 +747,12 @@ namespace DomainMembershipCheckRepair
             if (!AskYesNo("Disable Machine Identity Isolation locally now?", false))
                 return 7;
 
+            CreatePreChangeBundle(
+                "mii-disable",
+                options.Domain,
+                null,
+                null);
+
             string details;
             if (!HealthDiagnosticsService.DisableMachineIdentityIsolationLocally(out details))
             {
@@ -1087,6 +1093,12 @@ namespace DomainMembershipCheckRepair
                 Console.WriteLine("DRY RUN: would apply Offline Domain Join blob: " + options.BlobPath);
                 return 0;
             }
+
+            CreatePreChangeBundle(
+                "offline-domain-join",
+                options.Domain,
+                null,
+                null);
 
             string output;
             int code = OfflineDomainJoinService.ApplyBlob(options.BlobPath, out output);
@@ -1470,6 +1482,12 @@ namespace DomainMembershipCheckRepair
 
                 break;
             }
+
+            CreatePreChangeBundle(
+                "rename-and-join",
+                targetDomain,
+                user,
+                password);
 
             logger.Log("INFO", "Setting pending computer name to '" + requestedName + "'.");
             int renameError;
