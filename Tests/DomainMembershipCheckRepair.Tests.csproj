@@ -54,6 +54,9 @@
     <Compile Include="..\Core\ProcessRunner.cs">
       <Link>ProcessRunner.cs</Link>
     </Compile>
+    <Compile Include="..\Core\ReplicationMetadataService.cs">
+      <Link>ReplicationMetadataService.cs</Link>
+    </Compile>
     <Compile Include="..\Core\ProtocolDiagnosticsService.cs">
       <Link>ProtocolDiagnosticsService.cs</Link>
     </Compile>
