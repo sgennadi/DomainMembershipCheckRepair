@@ -1,31 +1,39 @@
 @echo off
 setlocal EnableExtensions
 
-set "CSC=%WINDIR%\Microsoft.NET\Framework\v4.0.30319\csc.exe"
-set "OUTDIR=%~dp0dist\x86"
-set "OUT=%OUTDIR%\DomainMembershipCheckRepair-x86.exe"
-set "ICON=%~dp0obj\generated\DomainMembershipCheckRepair.ico"
-
-if not exist "%CSC%" (
-    echo ERROR: .NET Framework C# compiler was not found:
-    echo %CSC%
+set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if not exist "%VSWHERE%" (
+    echo ERROR: Visual Studio 2022 Build Tools or Visual Studio 2022 is required.
+    echo Install the .NET desktop development workload and .NET Framework 4.8 targeting pack.
     exit /b 1
 )
 
-if not exist "%OUTDIR%" mkdir "%OUTDIR%"
+for /f "usebackq tokens=*" %%I in (`"%VSWHERE%" -latest -products * -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe`) do set "MSBUILD=%%I"
+if not defined MSBUILD (
+    echo ERROR: MSBuild was not found.
+    exit /b 1
+)
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Generate-AppIcon.ps1" -OutputPath "%ICON%"
+if not exist "%ProgramFiles(x86)%\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\mscorlib.dll" (
+    echo ERROR: .NET Framework 4.8 targeting pack was not found.
+    echo Install the .NET Framework 4.8 Developer Pack.
+    exit /b 1
+)
+
+"%MSBUILD%" "%~dp0DomainMembershipCheckRepair.csproj" /m /t:Rebuild /p:Configuration=Release /p:Platform=x86
 if errorlevel 1 exit /b 1
 
-"%CSC%" /nologo /target:winexe /platform:x86 /define:ARCH_X86 /optimize+ /win32manifest:"%~dp0app.manifest" /win32icon:"%ICON%" /out:"%OUT%" /reference:System.dll /reference:System.Core.dll /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.DirectoryServices.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll "%~dp0AssemblyInfo.cs" "%~dp0VersionInfo.cs" "%~dp0Program.cs" "%~dp0BuildInfo.cs" "%~dp0Core\DomainValidation.cs" "%~dp0Core\DiagnosticsService.cs" "%~dp0Core\AdDirectoryService.cs" "%~dp0CliRunner.cs" "%~dp0MainForm.cs" "%~dp0NativeMethods.cs" "%~dp0Models.cs" "%~dp0Dialogs.cs"
+set "OUTDIR=%~dp0dist\x86"
+if not exist "%OUTDIR%" mkdir "%OUTDIR%"
 
-if errorlevel 1 (
-    echo.
-    echo BUILD FAILED.
-    exit /b 1
-)
+copy /y "%~dp0bin\Release\x86\DomainMembershipCheckRepair.exe" "%OUTDIR%\DomainMembershipCheckRepair-x86.exe" >nul
+if errorlevel 1 exit /b 1
+
+copy /y "%~dp0bin\Release\x86\DomainMembershipCheckRepair.exe.config" "%OUTDIR%\DomainMembershipCheckRepair-x86.exe.config" >nul
+if errorlevel 1 exit /b 1
 
 echo.
 echo BUILD SUCCESSFUL:
-echo %OUT%
+echo %OUTDIR%\DomainMembershipCheckRepair-x86.exe
+echo %OUTDIR%\DomainMembershipCheckRepair-x86.exe.config
 exit /b 0
