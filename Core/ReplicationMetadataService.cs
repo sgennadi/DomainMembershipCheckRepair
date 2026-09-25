@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace DomainMembershipCheckRepair
 {
@@ -40,9 +41,10 @@ namespace DomainMembershipCheckRepair
             CommandResult summary = ProcessRunner.Run(repadmin, "/replsummary", 30000);
             r.ReplSummary = FormatCommand(summary);
 
+            CommandResult meta = null;
             if (!String.IsNullOrWhiteSpace(r.Dc) && !String.IsNullOrWhiteSpace(r.ObjectDn))
             {
-                CommandResult meta = ProcessRunner.Run(
+                meta = ProcessRunner.Run(
                     repadmin,
                     "/showobjmeta " + Quote(r.Dc) + " " + Quote(r.ObjectDn),
                     30000);
@@ -59,10 +61,10 @@ namespace DomainMembershipCheckRepair
                 r.Findings.Add("Object metadata was not requested because the DC or object DN is unavailable.");
             }
 
-            if (ContainsFailure(r.ReplSummary))
+            if (CommandFailed(summary) || HasReplicationFailures(summary == null ? String.Empty : summary.CombinedOutput))
                 r.Findings.Add("HIGH: repadmin /replsummary reports replication failures or unavailable partners.");
 
-            if (ContainsFailure(r.ObjectMetadata))
+            if (CommandFailed(meta))
                 r.Findings.Add("CHECK: object replication metadata could not be read cleanly from the selected DC.");
 
             return r;
@@ -129,17 +131,41 @@ namespace DomainMembershipCheckRepair
             return sb.ToString().Trim();
         }
 
-        private static bool ContainsFailure(string text)
+        internal static bool HasReplicationFailures(string text)
         {
             if (String.IsNullOrWhiteSpace(text))
                 return false;
 
             string value = text.ToLowerInvariant();
-            return value.Contains("fails") ||
-                   value.Contains("error") ||
-                   value.Contains("1722") ||
-                   value.Contains("8452") ||
-                   value.Contains("access is denied");
+            if (value.Contains("access is denied") ||
+                value.Contains("rpc server is unavailable") ||
+                value.Contains("target principal name is incorrect") ||
+                value.Contains("naming context is in the process of being removed"))
+            {
+                return true;
+            }
+
+            string[] lines = text.Replace("\r", String.Empty).Split('\n');
+            foreach (string line in lines)
+            {
+                Match failureCount = Regex.Match(
+                    line,
+                    @"(?<!\d)([1-9]\d*)\s*/\s*\d+(?!\d)");
+
+                if (failureCount.Success)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool CommandFailed(CommandResult result)
+        {
+            if (result == null)
+                return true;
+            if (!result.Started || result.TimedOut || !String.IsNullOrWhiteSpace(result.Error))
+                return true;
+            return result.ExitCode != 0;
         }
 
         private static string Quote(string value)
