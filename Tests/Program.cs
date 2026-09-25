@@ -18,6 +18,7 @@ namespace DomainMembershipCheckRepair
             TestElevationActions();
             TestGuiResumeOptions();
             TestNetSetupErrorMapping();
+            TestUiLayoutMath();
             TestKerberosEncryptionTypeDecoding();
 
             if (failures == 0)
@@ -151,6 +152,33 @@ namespace DomainMembershipCheckRepair
             string mixed = HardeningDiagnosticsService.DecodeEncryptionTypes(0x1C);
             AssertTrue(mixed.IndexOf("RC4", StringComparison.OrdinalIgnoreCase) >= 0, "mixed RC4 flag decoded");
             AssertTrue(mixed.IndexOf("AES256", StringComparison.OrdinalIgnoreCase) >= 0, "mixed AES flag decoded");
+        }
+
+        private static void TestUiLayoutMath()
+        {
+            System.Drawing.Size fitted = UiLayoutHelper.CalculateFittedSize(
+                new System.Drawing.Size(1200, 900),
+                new System.Drawing.Size(1024, 768),
+                20,
+                new System.Drawing.Size(640, 480));
+
+            AssertEqualInt(984, fitted.Width, "UI fitted width");
+            AssertEqualInt(728, fitted.Height, "UI fitted height");
+
+            System.Drawing.Size tiny = UiLayoutHelper.CalculateFittedSize(
+                new System.Drawing.Size(300, 200),
+                new System.Drawing.Size(640, 480),
+                16,
+                new System.Drawing.Size(640, 480));
+
+            AssertEqualInt(608, tiny.Width, "UI minimum clamped to working width");
+            AssertEqualInt(448, tiny.Height, "UI minimum clamped to working height");
+        }
+
+        private static void AssertEqualInt(int expected, int actual, string name)
+        {
+            if (expected != actual)
+                Fail(name + " (expected '" + expected + "', actual '" + actual + "')");
         }
 
         private static void AssertTrue(bool value, string name)
