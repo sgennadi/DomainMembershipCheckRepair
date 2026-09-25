@@ -22,6 +22,7 @@ namespace DomainMembershipCheckRepair
             TestUiLayoutMath();
             TestKerberosEncryptionTypeDecoding();
             TestRemoteProtocolArguments();
+            TestReplicationSummaryParsing();
 
             if (failures == 0)
             {
@@ -185,6 +186,25 @@ namespace DomainMembershipCheckRepair
                 @"view \\dc01.example.com",
                 ProtocolDiagnosticsService.BuildRemoteNetViewArguments("dc01.example.com"),
                 "NET VIEW remote target uses UNC");
+        }
+
+        private static void TestReplicationSummaryParsing()
+        {
+            string healthy =
+                "Source DSA          largest delta    fails/total %%   error\r\n" +
+                " DC01                    05m:10s    0 /   5    0\r\n";
+
+            string failed =
+                "Source DSA          largest delta    fails/total %%   error\r\n" +
+                " DC01                    05m:10s    2 /   5   40   1722\r\n";
+
+            AssertFalse(
+                ReplicationMetadataService.HasReplicationFailures(healthy),
+                "repadmin healthy summary is not a failure");
+
+            AssertTrue(
+                ReplicationMetadataService.HasReplicationFailures(failed),
+                "repadmin non-zero failure count detected");
         }
 
         private static void TestUiLayoutMath()
