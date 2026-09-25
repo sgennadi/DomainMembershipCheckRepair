@@ -41,6 +41,7 @@ namespace DomainMembershipCheckRepair
                 Write(Path.Combine(temp, "event-timeline.txt"), EventTimelineService.ToText(advanced.Events));
                 Write(Path.Combine(temp, "cyberark-epm.txt"), CyberArkDiagnosticsService.ToText(advanced.CyberArk));
                 Write(Path.Combine(temp, "machine-password.txt"), MachinePasswordAnalyzer.ToText(advanced.MachinePassword));
+                Write(Path.Combine(temp, "root-causes.txt"), RootCauseEngine.ToText(advanced.RootCauses));
                 Write(Path.Combine(temp, "recovery-plan.txt"), RecoveryPlanService.ToText(advanced.RecoveryPlan));
 
                 CollectCommand(temp, "ipconfig-all.txt", "ipconfig.exe", "/all");
