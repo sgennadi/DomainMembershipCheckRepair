@@ -966,6 +966,32 @@ namespace DomainMembershipCheckRepair
             ReportDialog.ShowReport(this, "CyberArk / EPM Health", CyberArkDiagnosticsService.ToText(result));
         }
 
+        private void CreatePreChangeBundle(
+            string operation,
+            string domain,
+            string user,
+            string password)
+        {
+            string bundlePath;
+            string bundleError;
+            if (SafetyBundleService.TryCreate(
+                operation,
+                domain,
+                dcBox == null ? String.Empty : dcBox.Text,
+                Environment.MachineName,
+                user,
+                password,
+                out bundlePath,
+                out bundleError))
+            {
+                Log("INFO", "Pre-change safety bundle created: " + bundlePath);
+            }
+            else
+            {
+                Log("WARN", "Pre-change safety bundle could not be created: " + bundleError);
+            }
+        }
+
         private void OfflineDomainJoinWorkflow()
         {
             if (!EnsureElevatedForGui("odj-apply"))
@@ -1156,6 +1182,13 @@ namespace DomainMembershipCheckRepair
 
                 joinedDomain = join.Name;
 
+                using (RecoverySnapshotScope snapshot = new RecoverySnapshotScope(
+                    "repair-trust",
+                    joinedDomain,
+                    dcBox == null ? String.Empty : dcBox.Text,
+                    null,
+                    null))
+                {
                 int miiValue;
                 if (HealthDiagnosticsService.HasMachineIdentityIsolationEnabled(out miiValue) && miiValue == 2)
                 {
@@ -1175,6 +1208,12 @@ namespace DomainMembershipCheckRepair
 
                     if (miiChoice == DialogResult.Yes)
                     {
+                        CreatePreChangeBundle(
+                            "mii-disable",
+                            joinedDomain,
+                            null,
+                            null);
+
                         string miiDetails;
                         if (!HealthDiagnosticsService.DisableMachineIdentityIsolationLocally(out miiDetails))
                         {
@@ -1241,6 +1280,7 @@ namespace DomainMembershipCheckRepair
 
                 if (answer == DialogResult.Yes)
                     JoinCurrentNameWorkflowInternal(targetDomain);
+                }
             }
             finally
             {
@@ -1292,6 +1332,13 @@ namespace DomainMembershipCheckRepair
                 return;
 
             string currentName = Environment.MachineName;
+            using (RecoverySnapshotScope snapshot = new RecoverySnapshotScope(
+                "join-rejoin",
+                targetDomain,
+                dcBox == null ? String.Empty : dcBox.Text,
+                user,
+                password))
+            {
             Log("INFO", "Attempting Join/Rejoin with the current computer name '" + currentName + "'.");
 
             int status = NativeMethods.JoinDomain(targetDomain, user, password, false);
@@ -1362,10 +1409,18 @@ namespace DomainMembershipCheckRepair
                 "Domain join failed",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
+            }
         }
 
         private void SafeFixesAndRetryJoin(string computerName, string user, string password, string targetDomain)
         {
+            using (RecoverySnapshotScope snapshot = new RecoverySnapshotScope(
+                "safe-fixes-retry",
+                targetDomain,
+                dcBox == null ? String.Empty : dcBox.Text,
+                user,
+                password))
+            {
             Log("INFO", "Running non-destructive Safe Fixes before retrying Join/Rejoin with the same computer name.");
             SafeRecoveryResult safe = SafeRecoveryService.Run(targetDomain);
             foreach (string step in safe.Steps)
@@ -1388,6 +1443,7 @@ namespace DomainMembershipCheckRepair
                 SafeRecoveryService.ToText(safe) + "\r\n\r\n" +
                 "Join/Rejoin error: " + NativeMethods.FormatError(status) + "\r\n\r\n" +
                 "No AD computer object was deleted. Use Advanced Diagnostics / Recovery Plan before considering Delete + Recreate.");
+            }
         }
 
         private string ResolveDomainForOperation(string targetDomain, string user)
