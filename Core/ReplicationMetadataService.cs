@@ -145,7 +145,7 @@ namespace DomainMembershipCheckRepair
         private static string Quote(string value)
         {
             string text = value ?? String.Empty;
-            return """ + text.Replace(""", "\"") + """;
+            return "\"" + text.Replace("\"", "\\\"") + "\"";
         }
 
         private static string First(string value, string fallback)
