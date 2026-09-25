@@ -15,6 +15,7 @@ namespace DomainMembershipCheckRepair
             TestLdapEscaping();
             TestSuggestedNames();
             TestDirectoryServerNormalization();
+            TestDnToDnsConversion();
             TestElevationActions();
             TestGuiResumeOptions();
             TestNetSetupErrorMapping();
@@ -81,6 +82,24 @@ namespace DomainMembershipCheckRepair
             AssertEqual("dc01.example.com", DomainValidation.NormalizeDirectoryServer("LDAP://dc01.example.com/"), "LDAP URL normalization");
         }
 
+
+        private static void TestDnToDnsConversion()
+        {
+            AssertEqual(
+                "yosh.ac.il",
+                DomainValidation.DnToDns("DC=yosh,DC=ac,DC=il"),
+                "DN to DNS conversion");
+
+            AssertEqual(
+                "example.com",
+                DomainValidation.DnToDns("OU=Computers,DC=example,DC=com"),
+                "DN to DNS ignores non-DC components");
+
+            AssertEqual(
+                String.Empty,
+                DomainValidation.DnToDns(String.Empty),
+                "empty DN converts to empty DNS");
+        }
 
         private static void TestElevationActions()
         {
