@@ -40,6 +40,12 @@
     <Compile Include="..\Core\NetSetupLogAnalyzer.cs">
       <Link>NetSetupLogAnalyzer.cs</Link>
     </Compile>
+    <Compile Include="..\Models.cs">
+      <Link>Models.cs</Link>
+    </Compile>
+    <Compile Include="..\Core\HardeningDiagnosticsService.cs">
+      <Link>HardeningDiagnosticsService.cs</Link>
+    </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
