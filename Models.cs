@@ -81,6 +81,7 @@ namespace DomainMembershipCheckRepair
     {
         Cancel = 0,
         DeleteAndRetry = 1,
-        RenameAndJoin = 2
+        RenameAndJoin = 2,
+        SafeFixesAndRetry = 3
     }
 }
