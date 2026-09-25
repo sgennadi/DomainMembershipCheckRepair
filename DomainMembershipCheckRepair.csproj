@@ -76,6 +76,7 @@
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.DirectoryServices" />
+    <Reference Include="System.DirectoryServices.Protocols" />
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Management" />
@@ -102,6 +103,14 @@
     <Compile Include="Core\ResumeService.cs" />
     <Compile Include="Core\CyberArkDiagnosticsService.cs" />
     <Compile Include="Core\OfflineDomainJoinService.cs" />
+    <Compile Include="Core\SiteSubnetDiagnosticsService.cs" />
+    <Compile Include="Core\ProtocolDiagnosticsService.cs" />
+    <Compile Include="Core\HardeningDiagnosticsService.cs" />
+    <Compile Include="Core\JoinPermissionsAnalyzer.cs" />
+    <Compile Include="Core\HybridEntraDiagnosticsService.cs" />
+    <Compile Include="Core\PolicySourceAnalyzer.cs" />
+    <Compile Include="Core\SelfTestService.cs" />
+    <Compile Include="Core\RecoverySnapshotService.cs" />
     <Compile Include="Core\AdvancedDiagnosticsService.cs" />
     <Compile Include="Core\AdvancedSupportBundleService.cs" />
     <Compile Include="Core\AdDirectoryService.cs" />
