@@ -235,33 +235,10 @@ namespace DomainMembershipCheckRepair
 
         private static string RunProcess(string file, string args, int timeoutMs)
         {
-            try
-            {
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = file;
-                psi.Arguments = args;
-                psi.UseShellExecute = false;
-                psi.RedirectStandardOutput = true;
-                psi.RedirectStandardError = true;
-                psi.CreateNoWindow = true;
-
-                using (Process process = Process.Start(psi))
-                {
-                    if (process == null)
-                        return String.Empty;
-                    string stdout = process.StandardOutput.ReadToEnd();
-                    string stderr = process.StandardError.ReadToEnd();
-                    if (!process.WaitForExit(timeoutMs))
-                    {
-                        try { process.Kill(); } catch { }
-                    }
-                    return stdout + Environment.NewLine + stderr;
-                }
-            }
-            catch
-            {
-                return String.Empty;
-            }
+            CommandResult result = ProcessRunner.Run(file, args, timeoutMs);
+            if (!String.IsNullOrWhiteSpace(result.Error))
+                return result.Error;
+            return result.CombinedOutput;
         }
 
         private static void DetectInconsistency(DcMatrixResult result)
