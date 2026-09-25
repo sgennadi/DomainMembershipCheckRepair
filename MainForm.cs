@@ -1015,27 +1015,35 @@ namespace DomainMembershipCheckRepair
                 if (confirm != DialogResult.Yes)
                     return;
 
-                string output;
-                int code = OfflineDomainJoinService.ApplyBlob(open.FileName, out output);
-                Log(code == 0 ? "SUCCESS" : "ERROR", "Offline Domain Join returned " + code + ". " + output);
+                string targetDomain = domainBox == null ? String.Empty : domainBox.Text;
+                CreatePreChangeBundle("offline-domain-join", targetDomain, null, null);
 
-                if (code != 0)
+                using (RecoverySnapshotScope snapshot = new RecoverySnapshotScope(
+                    "offline-domain-join",
+                    targetDomain,
+                    dcBox == null ? String.Empty : dcBox.Text,
+                    null,
+                    null))
                 {
-                    ReportDialog.ShowReport(this, "Offline Domain Join failed", output);
-                    return;
+                    string output;
+                    int code = OfflineDomainJoinService.ApplyBlob(open.FileName, out output);
+                    Log(code == 0 ? "SUCCESS" : "ERROR", "Offline Domain Join returned " + code + ". " + output);
+
+                    if (code != 0)
+                    {
+                        ReportDialog.ShowReport(this, "Offline Domain Join failed", output);
+                        return;
+                    }
+
+                    string resumeError;
+                    ResumeService.RegisterPostRebootCheck(targetDomain, out resumeError);
+                    if (!String.IsNullOrWhiteSpace(resumeError))
+                        Log("WARN", "Unable to register post-reboot check: " + resumeError);
+
+                    AskRestart("Offline Domain Join was applied successfully.");
                 }
-
-                string resumeError;
-                ResumeService.RegisterPostRebootCheck(
-                    domainBox == null ? String.Empty : domainBox.Text,
-                    out resumeError);
-                if (!String.IsNullOrWhiteSpace(resumeError))
-                    Log("WARN", "Unable to register post-reboot check: " + resumeError);
-
-                AskRestart("Offline Domain Join was applied successfully.");
             }
         }
-
 
         private void SafeFixesWorkflow()
         {
@@ -1062,11 +1070,20 @@ namespace DomainMembershipCheckRepair
             try
             {
                 string domain = domainBox == null ? String.Empty : (domainBox.Text ?? String.Empty).Trim();
-                SafeRecoveryResult result = SafeRecoveryService.Run(domain);
-                Log(result.Success ? "SUCCESS" : "WARN",
-                    result.Success ? "Safe recovery actions completed." : "Safe recovery actions completed with one or more failures.");
-                ReportDialog.ShowReport(this, "Safe Fixes", SafeRecoveryService.ToText(result));
-                RefreshStatus(false);
+
+                using (RecoverySnapshotScope snapshot = new RecoverySnapshotScope(
+                    "safe-fixes",
+                    domain,
+                    dcBox == null ? String.Empty : dcBox.Text,
+                    null,
+                    null))
+                {
+                    SafeRecoveryResult result = SafeRecoveryService.Run(domain);
+                    Log(result.Success ? "SUCCESS" : "WARN",
+                        result.Success ? "Safe recovery actions completed." : "Safe recovery actions completed with one or more failures.");
+                    ReportDialog.ShowReport(this, "Safe Fixes", SafeRecoveryService.ToText(result));
+                    RefreshStatus(false);
+                }
             }
             catch (Exception ex)
             {
