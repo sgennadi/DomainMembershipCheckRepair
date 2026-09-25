@@ -111,6 +111,8 @@
     <Compile Include="Core\PolicySourceAnalyzer.cs" />
     <Compile Include="Core\SelfTestService.cs" />
     <Compile Include="Core\RecoverySnapshotService.cs" />
+    <Compile Include="Core\DeleteSafetyAnalyzer.cs" />
+    <Compile Include="Core\SafetyBundleService.cs" />
     <Compile Include="Core\AdvancedDiagnosticsService.cs" />
     <Compile Include="Core\AdvancedSupportBundleService.cs" />
     <Compile Include="Core\AdDirectoryService.cs" />
