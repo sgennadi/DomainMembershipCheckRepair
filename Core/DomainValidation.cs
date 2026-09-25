@@ -122,6 +122,36 @@ namespace DomainMembershipCheckRepair
             return baseName + suffix;
         }
 
+        internal static string DnToDns(string distinguishedName)
+        {
+            if (String.IsNullOrWhiteSpace(distinguishedName))
+                return String.Empty;
+
+            string[] parts = distinguishedName.Split(',');
+            StringBuilder dns = new StringBuilder();
+
+            foreach (string rawPart in parts)
+            {
+                string part = (rawPart ?? String.Empty).Trim();
+                if (!part.StartsWith("DC=", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                string label = part.Substring(3).Trim();
+                if (label.Length == 0)
+                    continue;
+
+                label = label.Replace(@"\\,", ",")
+                             .Replace(@"\\=", "=")
+                             .Replace(@"\\\\", @"\\");
+
+                if (dns.Length > 0)
+                    dns.Append('.');
+                dns.Append(label);
+            }
+
+            return dns.ToString();
+        }
+
         internal static string NormalizeDirectoryServer(string value)
         {
             if (String.IsNullOrWhiteSpace(value))
