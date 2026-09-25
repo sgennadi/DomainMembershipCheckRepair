@@ -17,49 +17,81 @@ namespace DomainMembershipCheckRepair
 
             if (snapshot == null)
             {
-                steps.Add("Run diagnostics first.");
+                AddStep(steps, "Run diagnostics first.");
                 return steps;
             }
 
             if (snapshot.PendingRename)
-                steps.Add("1. Restart Windows first because a computer rename is pending.");
+                AddStep(steps, "Restart Windows first because a computer rename is pending.");
 
             if (snapshot.Health != null &&
                 snapshot.Health.MachineIdentityIsolationConfigured == 2 &&
                 snapshot.Health.MachineIdentityIsolationSupportedByDfl == false)
-                steps.Add("2. Disable unsupported Machine Identity Isolation enforcement through the authoritative policy source, restart, then re-test.");
+            {
+                AddStep(
+                    steps,
+                    "Disable unsupported Machine Identity Isolation enforcement through the authoritative policy source, restart, then re-test.");
+            }
 
             if (dns != null && dns.Findings.Count > 0)
-                steps.Add("3. Correct AD DNS/DC Locator issues before changing the computer account.");
+                AddStep(steps, "Correct AD DNS/DC Locator and local host-record issues before changing the computer account.");
 
-            if (snapshot.Health != null && snapshot.Health.DcTimeSkewSeconds.HasValue &&
+            if (snapshot.Health != null &&
+                snapshot.Health.DcTimeSkewSeconds.HasValue &&
                 Math.Abs(snapshot.Health.DcTimeSkewSeconds.Value) >= 300.0)
-                steps.Add("4. Correct client/DC time synchronization before Kerberos-based repair.");
+            {
+                AddStep(steps, "Correct client/DC time synchronization before Kerberos-based repair.");
+            }
 
             if (snapshot.Health != null && snapshot.Health.NetlogonRunning == false)
-                steps.Add("5. Restore the Netlogon service to Running and re-test DC discovery.");
+                AddStep(steps, "Restore the Netlogon service to Running and re-test DC discovery.");
 
-            if (dcMatrix != null && dcMatrix.Notes.Count > 0)
-                steps.Add("6. Resolve cross-DC inconsistency/replication before deleting or recreating the computer object.");
+            if (dcMatrix != null && HasDcMatrixRisk(dcMatrix))
+            {
+                AddStep(
+                    steps,
+                    "Resolve DC writability, synchronization or cross-DC replication inconsistency before deleting/recreating the computer object.");
+            }
 
             if (snapshot.SecureChannelApplicable && !snapshot.SecureChannelHealthy)
-                steps.Add("7. Attempt native secure-channel repair after DNS/time/MII prerequisites are healthy.");
+            {
+                AddStep(
+                    steps,
+                    "Run Safe Fixes (DNS cache flush, time resync, Netlogon restart and forced DC rediscovery), then re-check trust.");
+                AddStep(
+                    steps,
+                    "Attempt native secure-channel repair after DNS/time/MII/DC prerequisites are healthy.");
+            }
 
             if (netSetup != null && ContainsFinding(netSetup, "reuse"))
-                steps.Add("8. Analyze existing computer-account owner and permissions; account reuse hardening may be blocking rejoin.");
+            {
+                AddStep(
+                    steps,
+                    "Analyze the existing computer-account owner and permissions; account-reuse hardening may be blocking rejoin.");
+            }
 
             if (account != null && account.LookupSucceeded && account.Exists)
             {
-                steps.Add("9. Reuse/repair the existing computer account when safe. Review owner=" +
-                    First(account.Owner, "(unknown)") + ", pwdLastSet=" + First(account.PwdLastSet, "(unknown)") +
+                AddStep(
+                    steps,
+                    "Prefer reusing/repairing the existing computer account when safe. Review owner=" +
+                    First(account.Owner, "(unknown)") +
+                    ", pwdLastSet=" + First(account.PwdLastSet, "(unknown)") +
+                    ", SPNs=" + account.ServicePrincipalNameCount +
                     ", children=" + account.ChildObjectCount + ".");
             }
 
             if (snapshot.SecureChannelApplicable && !snapshot.SecureChannelHealthy)
-                steps.Add("10. If secure-channel repair fails, perform Join/Rejoin with the current name using verified domain credentials.");
+            {
+                AddStep(
+                    steps,
+                    "If secure-channel repair still fails, perform Join/Rejoin with the current computer name using verified domain credentials.");
+            }
 
-            steps.Add("11. Use Rename + Join when the current name cannot safely be reused.");
-            steps.Add("12. Delete + Recreate the AD computer object only as a last resort after checking owner, child objects, replication and recovery data.");
+            AddStep(steps, "Use Rename + Join when the current computer name cannot safely be reused.");
+            AddStep(
+                steps,
+                "Delete + Recreate the AD computer object only as a last resort after checking owner, child objects, replication and recovery data.");
 
             return steps;
         }
@@ -69,21 +101,52 @@ namespace DomainMembershipCheckRepair
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("Recommended Recovery Plan");
             sb.AppendLine("=========================");
+
             if (steps == null || steps.Count == 0)
             {
                 sb.AppendLine("No recovery action is currently recommended.");
                 return sb.ToString();
             }
+
             foreach (string step in steps)
                 sb.AppendLine(step);
+
             return sb.ToString();
+        }
+
+        private static void AddStep(List<string> steps, string text)
+        {
+            steps.Add((steps.Count + 1) + ". " + text);
+        }
+
+        private static bool HasDcMatrixRisk(DcMatrixResult matrix)
+        {
+            if (matrix == null)
+                return false;
+
+            if (matrix.Notes.Count > 0)
+                return true;
+
+            foreach (DcMatrixEntry entry in matrix.Entries)
+            {
+                if (!entry.RootDseOk ||
+                    entry.IsReadOnly == true ||
+                    entry.IsSynchronized == false ||
+                    entry.Ports.IndexOf("FAIL", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return true;
+            }
+
+            return false;
         }
 
         private static bool ContainsFinding(NetSetupAnalysis a, string term)
         {
             foreach (string value in a.Findings)
+            {
                 if ((value ?? String.Empty).IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0)
                     return true;
+            }
+
             return false;
         }
 
