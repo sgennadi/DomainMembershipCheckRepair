@@ -73,6 +73,17 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force unsigned | Out-Null
           New-Item -ItemType Directory -Force release-configs | Out-Null
+          $configs = @(
+            ".\bin\Release\x86\DomainMembershipCheckRepair.exe.config",
+            ".\bin\Release\x64\DomainMembershipCheckRepair.exe.config",
+            ".\bin\Release\ARM64\DomainMembershipCheckRepair.exe.config"
+          )
+          foreach ($config in $configs) {
+            if (-not (Test-Path $config)) { throw "Required DPI config is missing: $config" }
+            $configText = Get-Content $config -Raw
+            if ($configText -notmatch 'PerMonitorV2') { throw "PerMonitorV2 is missing from: $config" }
+          }
+
           Copy-Item .\bin\Release\x86\DomainMembershipCheckRepair.exe .\unsigned\DomainMembershipCheckRepair-x86.exe
           Copy-Item .\bin\Release\x64\DomainMembershipCheckRepair.exe .\unsigned\DomainMembershipCheckRepair-x64.exe
           Copy-Item .\bin\Release\ARM64\DomainMembershipCheckRepair.exe .\unsigned\DomainMembershipCheckRepair-arm64.exe
@@ -202,7 +213,7 @@ jobs:
           Full changelog: https://github.com/sgennadi/DomainMembershipCheckRepair/commits/$env:GITHUB_REF_NAME
           "@ | Set-Content -Encoding utf8 .\release-files\RELEASE_NOTES.md
 
-      - name: Attest final release executables
+      - name: Attest final release files
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
           subject-checksums: release-files/SHA256SUMS.txt
