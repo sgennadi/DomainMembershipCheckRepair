@@ -294,9 +294,9 @@ namespace DomainMembershipCheckRepair
             if (!String.IsNullOrWhiteSpace(result.Action))
             {
                 string action = result.Action.Trim().ToLowerInvariant();
-                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "mii-disable" && action != "detect" && action != "ad-check" && action != "diagnose" && action != "export-diagnostics" && action != "advanced" && action != "netsetup" && action != "dc-matrix" && action != "recovery-plan" && action != "support-bundle" && action != "cyberark" && action != "safe-fixes" && action != "odj-apply" && action != "odj-provision")
+                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "mii-disable" && action != "detect" && action != "ad-check" && action != "diagnose" && action != "export-diagnostics" && action != "advanced" && action != "netsetup" && action != "dc-matrix" && action != "site-subnet" && action != "protocols" && action != "hardening" && action != "join-permissions" && action != "hybrid-entra" && action != "policy-source" && action != "self-test" && action != "recovery-plan" && action != "support-bundle" && action != "cyberark" && action != "safe-fixes" && action != "odj-apply" && action != "odj-provision")
                 {
-                    error = "Unknown action '" + result.Action + "'. Use status, check, repair, join, rename, restart, mii-disable, detect, ad-check, diagnose, export-diagnostics, advanced, netsetup, dc-matrix, recovery-plan, support-bundle, cyberark, safe-fixes, odj-apply, or odj-provision.";
+                    error = "Unknown action '" + result.Action + "'. Use status, check, repair, join, rename, restart, mii-disable, detect, ad-check, diagnose, export-diagnostics, advanced, netsetup, dc-matrix, site-subnet, protocols, hardening, join-permissions, hybrid-entra, policy-source, self-test, recovery-plan, support-bundle, cyberark, safe-fixes, odj-apply, or odj-provision.";
                     return result;
                 }
                 result.Action = action;
@@ -376,6 +376,13 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("  --cli --action advanced");
             Console.WriteLine("  --cli --action netsetup");
             Console.WriteLine("  --cli --action dc-matrix");
+            Console.WriteLine("  --cli --action site-subnet");
+            Console.WriteLine("  --cli --action protocols");
+            Console.WriteLine("  --cli --action hardening");
+            Console.WriteLine("  --cli --action join-permissions");
+            Console.WriteLine("  --cli --action hybrid-entra");
+            Console.WriteLine("  --cli --action policy-source");
+            Console.WriteLine("  --cli --action self-test");
             Console.WriteLine("  --cli --action recovery-plan");
             Console.WriteLine("  --cli --action support-bundle");
             Console.WriteLine("  --cli --action cyberark");
@@ -540,6 +547,13 @@ namespace DomainMembershipCheckRepair
                 case "advanced": return AdvancedDiagnostics();
                 case "netsetup": return AnalyzeNetSetup();
                 case "dc-matrix": return DcMatrix();
+                case "site-subnet": return SiteSubnet();
+                case "protocols": return ProtocolDiagnostics();
+                case "hardening": return HardeningDiagnostics();
+                case "join-permissions": return JoinPermissions();
+                case "hybrid-entra": return HybridEntra();
+                case "policy-source": return PolicySources();
+                case "self-test": return SelfTest();
                 case "recovery-plan": return RecoveryPlan();
                 case "support-bundle": return SupportBundle();
                 case "cyberark": return CyberArkHealth();
@@ -800,6 +814,144 @@ namespace DomainMembershipCheckRepair
                 password);
             Console.WriteLine(DcMatrixService.ToText(matrix));
             return matrix.Entries.Count > 0 ? 0 : 1;
+        }
+
+        private static int SiteSubnet()
+        {
+            string domain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
+            if (String.IsNullOrWhiteSpace(domain))
+                return 3;
+
+            DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(domain, options.PreferredDc);
+            string user;
+            string password;
+            GetOptionalCredentials(out user, out password);
+
+            SiteSubnetDiagnosticsResult result = SiteSubnetDiagnosticsService.Analyze(
+                snapshot.TargetDomain,
+                snapshot.DiscoveredDc,
+                user,
+                password);
+            Console.WriteLine(SiteSubnetDiagnosticsService.ToText(result));
+            return 0;
+        }
+
+        private static int ProtocolDiagnostics()
+        {
+            string domain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
+            if (String.IsNullOrWhiteSpace(domain))
+                return 3;
+
+            DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(domain, options.PreferredDc);
+            string user;
+            string password;
+            GetOptionalCredentials(out user, out password);
+
+            ProtocolDiagnosticsResult result = ProtocolDiagnosticsService.Analyze(
+                snapshot.TargetDomain,
+                snapshot.DiscoveredDc,
+                user,
+                password);
+            Console.WriteLine(ProtocolDiagnosticsService.ToText(result));
+
+            foreach (ProtocolCheckResult check in result.Checks)
+            {
+                if (String.Equals(check.Status, "FAILED", StringComparison.OrdinalIgnoreCase))
+                    return 1;
+            }
+            return 0;
+        }
+
+        private static int HardeningDiagnostics()
+        {
+            AdComputerAccountInfo account = null;
+            string user;
+            string password;
+            GetOptionalCredentials(out user, out password);
+
+            if (!String.IsNullOrWhiteSpace(user) && password != null)
+            {
+                string domain = ResolveConfiguredOrDetectedDomain(user, true);
+                if (!String.IsNullOrWhiteSpace(domain))
+                {
+                    account = AdDirectoryService.FindComputerAccount(
+                        Environment.MachineName,
+                        user,
+                        password,
+                        domain,
+                        options.PreferredDc,
+                        logger.Log);
+                }
+            }
+
+            HardeningDiagnosticsResult result =
+                HardeningDiagnosticsService.Analyze(account);
+            Console.WriteLine(HardeningDiagnosticsService.ToText(result));
+            return 0;
+        }
+
+        private static int JoinPermissions()
+        {
+            string user;
+            string password;
+            if (!GetCredentials(out user, out password))
+                return 7;
+
+            string domain = ResolveConfiguredOrDetectedDomain(user, true);
+            if (String.IsNullOrWhiteSpace(domain))
+                return 3;
+
+            DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
+                domain,
+                options.PreferredDc);
+
+            AdComputerAccountInfo account = AdDirectoryService.FindComputerAccount(
+                String.IsNullOrWhiteSpace(options.ComputerName)
+                    ? Environment.MachineName
+                    : options.ComputerName,
+                user,
+                password,
+                snapshot.TargetDomain,
+                snapshot.DiscoveredDc,
+                logger.Log);
+
+            JoinPermissionsResult result = JoinPermissionsAnalyzer.Analyze(
+                snapshot.TargetDomain,
+                snapshot.DiscoveredDc,
+                String.IsNullOrWhiteSpace(options.ComputerName)
+                    ? Environment.MachineName
+                    : options.ComputerName,
+                user,
+                password,
+                account);
+
+            Console.WriteLine(JoinPermissionsAnalyzer.ToText(result));
+            return 0;
+        }
+
+        private static int HybridEntra()
+        {
+            HybridEntraDiagnosticsResult result =
+                HybridEntraDiagnosticsService.Analyze();
+            Console.WriteLine(HybridEntraDiagnosticsService.ToText(result));
+            return 0;
+        }
+
+        private static int PolicySources()
+        {
+            PolicySourceDiagnosticsResult result =
+                PolicySourceAnalyzer.Analyze();
+            Console.WriteLine(PolicySourceAnalyzer.ToText(result));
+            return 0;
+        }
+
+        private static int SelfTest()
+        {
+            SelfTestResult result = SelfTestService.Run(
+                options.Domain,
+                options.PreferredDc);
+            Console.WriteLine(SelfTestService.ToText(result));
+            return result.HasFailure ? 1 : 0;
         }
 
         private static int RecoveryPlan()
