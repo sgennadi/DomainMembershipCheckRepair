@@ -19,6 +19,9 @@ namespace DomainMembershipCheckRepair
         internal JoinPermissionsResult JoinPermissions;
         internal HybridEntraDiagnosticsResult HybridEntra;
         internal PolicySourceDiagnosticsResult PolicySources;
+        internal ReplicationMetadataResult ReplicationMetadata;
+        internal SpnCollisionResult SpnCollisions;
+        internal SmbKerberosAuthResult SmbKerberos;
         internal SelfTestResult SelfTest;
         internal MachinePasswordAnalysis MachinePassword;
         internal List<RootCauseFinding> RootCauses;
@@ -41,6 +44,9 @@ namespace DomainMembershipCheckRepair
                 ? result.Snapshot.TargetDomain
                 : domain;
             string discoveredDc = result.Snapshot.DiscoveredDc;
+            string effectiveComputerName = String.IsNullOrWhiteSpace(computerName)
+                ? Environment.MachineName
+                : computerName;
 
             result.NetSetup = NetSetupLogAnalyzer.Analyze(DiagnosticsService.NetSetupLogPath);
             result.Dns = DnsDiagnosticsService.Analyze(effectiveDomain);
@@ -77,6 +83,28 @@ namespace DomainMembershipCheckRepair
             }
 
             result.Hardening = HardeningDiagnosticsService.Analyze(result.Account);
+
+            string objectDn = result.Account != null &&
+                              result.Account.LookupSucceeded &&
+                              result.Account.Exists
+                ? result.Account.DistinguishedName
+                : String.Empty;
+
+            result.ReplicationMetadata = ReplicationMetadataService.Analyze(
+                effectiveDomain,
+                discoveredDc,
+                objectDn);
+
+            result.SpnCollisions = SpnCollisionAnalyzer.Analyze(
+                effectiveDomain,
+                discoveredDc,
+                effectiveComputerName,
+                user,
+                password);
+
+            result.SmbKerberos = SmbKerberosAuthAnalyzer.Analyze(
+                effectiveDomain,
+                discoveredDc);
 
             result.JoinPermissions = JoinPermissionsAnalyzer.Analyze(
                 effectiveDomain,
@@ -151,6 +179,12 @@ namespace DomainMembershipCheckRepair
             sb.AppendLine(HybridEntraDiagnosticsService.ToText(r.HybridEntra));
             sb.AppendLine();
             sb.AppendLine(PolicySourceAnalyzer.ToText(r.PolicySources));
+            sb.AppendLine();
+            sb.AppendLine(ReplicationMetadataService.ToText(r.ReplicationMetadata));
+            sb.AppendLine();
+            sb.AppendLine(SpnCollisionAnalyzer.ToText(r.SpnCollisions));
+            sb.AppendLine();
+            sb.AppendLine(SmbKerberosAuthAnalyzer.ToText(r.SmbKerberos));
             sb.AppendLine();
             sb.AppendLine(SelfTestService.ToText(r.SelfTest));
             sb.AppendLine();
