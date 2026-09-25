@@ -38,6 +38,8 @@ namespace DomainMembershipCheckRepair
             TestSystemBinary(r, "nslookup.exe");
             TestSystemBinary(r, "sc.exe");
             TestSystemBinary(r, "net.exe");
+            TestOptionalSystemBinary(r, "repadmin.exe", "Optional RSAT AD DS replication diagnostics");
+            TestDnToDnsConversion(r);
             TestTemporaryWrite(r);
             TestRegistryRead(r);
             TestWmi(r);
@@ -119,6 +121,34 @@ namespace DomainMembershipCheckRepair
                 "Windows tool " + name,
                 File.Exists(path) ? "PASS" : "FAIL",
                 File.Exists(path) ? path : "Not found in System32.");
+        }
+
+        private static void TestOptionalSystemBinary(
+            SelfTestResult r,
+            string name,
+            string purpose)
+        {
+            string path = Path.Combine(Environment.SystemDirectory, name);
+            Add(
+                r,
+                "Windows tool " + name,
+                File.Exists(path) ? "PASS" : "WARN",
+                File.Exists(path)
+                    ? path
+                    : "Not found in System32. " + purpose + " will be unavailable.");
+        }
+
+        private static void TestDnToDnsConversion(SelfTestResult r)
+        {
+            const string source = "DC=yosh,DC=ac,DC=il";
+            const string expected = "yosh.ac.il";
+            string actual = DomainValidation.DnToDns(source);
+
+            Add(
+                r,
+                "AD DN to DNS conversion",
+                String.Equals(actual, expected, StringComparison.OrdinalIgnoreCase) ? "PASS" : "FAIL",
+                source + " -> " + actual);
         }
 
         private static void TestTemporaryWrite(SelfTestResult r)
