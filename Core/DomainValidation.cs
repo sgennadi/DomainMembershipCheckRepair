@@ -152,6 +152,15 @@ namespace DomainMembershipCheckRepair
             return dns.ToString();
         }
 
+        internal static string SelectDirectoryServer(string preferred, string discovered)
+        {
+            string configured = NormalizeDirectoryServer(preferred);
+            if (!String.IsNullOrWhiteSpace(configured))
+                return configured;
+
+            return NormalizeDirectoryServer(discovered);
+        }
+
         internal static string NormalizeDirectoryServer(string value)
         {
             if (String.IsNullOrWhiteSpace(value))
