@@ -81,6 +81,7 @@
     <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Management" />
     <Reference Include="System.ServiceProcess" />
+    <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.cs" />
@@ -118,6 +119,13 @@
     <Compile Include="Core\ReplicationMetadataService.cs" />
     <Compile Include="Core\SpnCollisionAnalyzer.cs" />
     <Compile Include="Core\SmbKerberosAuthAnalyzer.cs" />
+    <Compile Include="Core\KerberosDeepAnalyzer.cs" />
+    <Compile Include="Core\LdapCompatibilityAnalyzer.cs" />
+    <Compile Include="Core\ReplicationTimelineAnalyzer.cs" />
+    <Compile Include="Core\IdentityConsistencyAnalyzer.cs" />
+    <Compile Include="Core\RpcEndpointMapperAnalyzer.cs" />
+    <Compile Include="Core\SmartNextActionService.cs" />
+    <Compile Include="Core\TransactionJournalService.cs" />
     <Compile Include="Core\DeleteSafetyAnalyzer.cs" />
     <Compile Include="Core\SafetyBundleService.cs" />
     <Compile Include="Core\AdvancedDiagnosticsService.cs" />
