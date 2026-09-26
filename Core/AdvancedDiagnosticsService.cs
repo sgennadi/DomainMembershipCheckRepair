@@ -124,6 +124,8 @@ namespace DomainMembershipCheckRepair
             result.RpcEndpoints = RpcEndpointMapperAnalyzer.Analyze(
                 effectiveDomain,
                 effectiveDc,
+                user,
+                password,
                 cancellationToken,
                 progress);
 
