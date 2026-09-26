@@ -15,6 +15,7 @@ namespace DomainMembershipCheckRepair
             TestLdapEscaping();
             TestSuggestedNames();
             TestDirectoryServerNormalization();
+            TestDirectoryServerSelection();
             TestDnToDnsConversion();
             TestElevationActions();
             TestGuiResumeOptions();
@@ -85,6 +86,19 @@ namespace DomainMembershipCheckRepair
             AssertEqual("dc01.example.com", DomainValidation.NormalizeDirectoryServer("LDAP://dc01.example.com/"), "LDAP URL normalization");
         }
 
+
+        private static void TestDirectoryServerSelection()
+        {
+            AssertEqual(
+                "dc01.example.com",
+                DomainValidation.SelectDirectoryServer(@"\\dc01.example.com", @"\\dc02.example.com"),
+                "explicit preferred DC wins over discovery");
+
+            AssertEqual(
+                "dc02.example.com",
+                DomainValidation.SelectDirectoryServer(String.Empty, @"\\dc02.example.com"),
+                "discovered DC used when preferred DC is empty");
+        }
 
         private static void TestDnToDnsConversion()
         {
