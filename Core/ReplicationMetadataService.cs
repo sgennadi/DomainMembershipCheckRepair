@@ -4,6 +4,7 @@ using System.DirectoryServices;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace DomainMembershipCheckRepair
 {
@@ -40,12 +41,30 @@ namespace DomainMembershipCheckRepair
             string user,
             string password)
         {
+            return Analyze(
+                domain,
+                dc,
+                objectDn,
+                user,
+                password,
+                CancellationToken.None);
+        }
+
+        internal static ReplicationMetadataResult Analyze(
+            string domain,
+            string dc,
+            string objectDn,
+            string user,
+            string password,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             ReplicationMetadataResult r = new ReplicationMetadataResult();
             r.Domain = domain ?? String.Empty;
             r.Dc = DomainValidation.NormalizeDirectoryServer(dc);
             r.ObjectDn = objectDn ?? String.Empty;
 
-            ReadLdapFallback(r, user, password);
+            ReadLdapFallback(r, user, password, cancellationToken);
 
             string repadmin = Path.Combine(Environment.SystemDirectory, "repadmin.exe");
             r.RepadminAvailable = File.Exists(repadmin);
@@ -58,12 +77,15 @@ namespace DomainMembershipCheckRepair
                 return r;
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
             CommandResult summary = NetworkCredentialProcessRunner.Run(
                 repadmin,
                 BuildReplSummaryArguments(r.Dc),
                 30000,
                 user,
-                password);
+                password,
+                cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             r.ReplSummary = FormatCommand(summary);
 
             CommandResult meta = null;
@@ -75,7 +97,9 @@ namespace DomainMembershipCheckRepair
                     "/showobjmeta " + Quote(r.Dc) + " " + Quote(r.ObjectDn),
                     30000,
                     user,
-                    password);
+                    password,
+                    cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
                 r.ObjectMetadata = FormatCommand(meta);
 
                 attr = NetworkCredentialProcessRunner.Run(
@@ -84,7 +108,9 @@ namespace DomainMembershipCheckRepair
                     " /atts:objectGUID,pwdLastSet,whenChanged,uSNChanged,servicePrincipalName",
                     30000,
                     user,
-                    password);
+                    password,
+                    cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
                 r.ObjectAttributes = FormatCommand(attr);
             }
             else
@@ -197,8 +223,10 @@ namespace DomainMembershipCheckRepair
         private static void ReadLdapFallback(
             ReplicationMetadataResult r,
             string user,
-            string password)
+            string password,
+            CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (r == null || String.IsNullOrWhiteSpace(r.Dc))
                 return;
 
@@ -209,6 +237,7 @@ namespace DomainMembershipCheckRepair
                 StringBuilder dcState = new StringBuilder();
                 using (DirectoryEntry rootDse = CreateEntry("LDAP://" + r.Dc + "/RootDSE", user, password))
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     dcState.AppendLine("dnsHostName:          " + ReadProperty(rootDse, "dnsHostName"));
                     dcState.AppendLine("defaultNamingContext: " + ReadProperty(rootDse, "defaultNamingContext"));
                     dcState.AppendLine("isSynchronized:       " + ReadProperty(rootDse, "isSynchronized"));
@@ -225,12 +254,15 @@ namespace DomainMembershipCheckRepair
                     return;
                 }
 
+                cancellationToken.ThrowIfCancellationRequested();
                 using (DirectoryEntry objectEntry = CreateEntry(
                     "LDAP://" + r.Dc + "/" + r.ObjectDn,
                     user,
                     password))
                 using (DirectorySearcher searcher = new DirectorySearcher(objectEntry))
                 {
+                    searcher.ClientTimeout = TimeSpan.FromSeconds(8);
+                    searcher.ServerTimeLimit = TimeSpan.FromSeconds(8);
                     searcher.SearchScope = SearchScope.Base;
                     searcher.Filter = "(objectClass=*)";
                     string[] properties = new string[]
@@ -375,6 +407,8 @@ namespace DomainMembershipCheckRepair
                 return String.Empty;
 
             StringBuilder sb = new StringBuilder();
+            if (r.Cancelled)
+                sb.AppendLine("[Cancelled]");
             if (r.TimedOut)
                 sb.AppendLine("[Timed out]");
             if (!String.IsNullOrWhiteSpace(r.Error))
