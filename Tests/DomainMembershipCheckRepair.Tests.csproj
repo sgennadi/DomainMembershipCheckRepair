@@ -55,6 +55,15 @@
     <Compile Include="..\Core\ProcessRunner.cs">
       <Link>ProcessRunner.cs</Link>
     </Compile>
+    <Compile Include="..\Core\NetworkCredentialProcessRunner.cs">
+      <Link>NetworkCredentialProcessRunner.cs</Link>
+    </Compile>
+    <Compile Include="..\Core\JsonReportSerializer.cs">
+      <Link>JsonReportSerializer.cs</Link>
+    </Compile>
+    <Compile Include="..\Core\DiagnosticExitCodes.cs">
+      <Link>DiagnosticExitCodes.cs</Link>
+    </Compile>
     <Compile Include="..\Core\ReplicationMetadataService.cs">
       <Link>ReplicationMetadataService.cs</Link>
     </Compile>
