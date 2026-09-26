@@ -9,6 +9,8 @@ namespace DomainMembershipCheckRepair
     {
         internal bool Allowed = true;
         internal DcMatrixResult DcMatrix;
+        internal ReplicationTimelineResult ReplicationTimeline;
+        internal IdentityConsistencyResult IdentityConsistency;
         internal readonly List<string> BlockingReasons = new List<string>();
         internal readonly List<string> Warnings = new List<string>();
     }
@@ -79,6 +81,41 @@ namespace DomainMembershipCheckRepair
             {
                 Block(r, "No DC Matrix entries were available. Cross-DC state cannot be verified.");
                 return r;
+            }
+
+            r.ReplicationTimeline = ReplicationTimelineAnalyzer.Analyze(
+                r.DcMatrix,
+                account.DistinguishedName,
+                user,
+                password,
+                System.Threading.CancellationToken.None,
+                null);
+
+            foreach (string finding in r.ReplicationTimeline.Findings)
+            {
+                if ((finding ?? String.Empty).StartsWith("HIGH:", StringComparison.OrdinalIgnoreCase))
+                    Block(r, "Replication timeline is inconsistent: " + finding);
+            }
+
+            string expectedFqdn = !String.IsNullOrWhiteSpace(account.DnsHostName)
+                ? account.DnsHostName
+                : (!String.IsNullOrWhiteSpace(domain) && domain.IndexOf('.') > 0
+                    ? computerName + "." + domain
+                    : String.Empty);
+
+            r.IdentityConsistency = IdentityConsistencyAnalyzer.Analyze(
+                domain,
+                preferredDc,
+                computerName,
+                expectedFqdn,
+                user,
+                password,
+                System.Threading.CancellationToken.None);
+
+            foreach (string finding in r.IdentityConsistency.Findings)
+            {
+                if ((finding ?? String.Empty).StartsWith("HIGH:", StringComparison.OrdinalIgnoreCase))
+                    Block(r, "Computer identity consistency is unsafe: " + finding);
             }
 
             bool writableHealthyDc = false;
@@ -174,6 +211,18 @@ namespace DomainMembershipCheckRepair
             {
                 sb.AppendLine();
                 sb.AppendLine(DcMatrixService.ToText(r.DcMatrix));
+            }
+
+            if (r.ReplicationTimeline != null)
+            {
+                sb.AppendLine();
+                sb.AppendLine(ReplicationTimelineAnalyzer.ToText(r.ReplicationTimeline));
+            }
+
+            if (r.IdentityConsistency != null)
+            {
+                sb.AppendLine();
+                sb.AppendLine(IdentityConsistencyAnalyzer.ToText(r.IdentityConsistency));
             }
 
             return sb.ToString();
