@@ -57,8 +57,12 @@ $actions = @(
     "replication-timeline",
     "spn-collisions",
     "smb-kerberos",
+    "ad-recycle-bin",
+    "ad-deleted",
     "next-action",
-    "advanced"
+    "advanced",
+    "history",
+    "history-compare"
 )
 
 $allowedDiagnosticExitCodes = @(0, 20, 21, 22, 23)
