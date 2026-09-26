@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.DirectoryServices;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -9,9 +10,13 @@ namespace DomainMembershipCheckRepair
     internal sealed class ReplicationMetadataResult
     {
         internal bool RepadminAvailable;
+        internal bool LdapFallbackAttempted;
+        internal bool LdapFallbackSucceeded;
         internal string Domain = String.Empty;
         internal string Dc = String.Empty;
         internal string ObjectDn = String.Empty;
+        internal string LdapDcState = String.Empty;
+        internal string LdapObjectMetadata = String.Empty;
         internal string ReplSummary = String.Empty;
         internal string ObjectMetadata = String.Empty;
         internal string ObjectAttributes = String.Empty;
@@ -25,41 +30,66 @@ namespace DomainMembershipCheckRepair
             string dc,
             string objectDn)
         {
+            return Analyze(domain, dc, objectDn, String.Empty, null);
+        }
+
+        internal static ReplicationMetadataResult Analyze(
+            string domain,
+            string dc,
+            string objectDn,
+            string user,
+            string password)
+        {
             ReplicationMetadataResult r = new ReplicationMetadataResult();
             r.Domain = domain ?? String.Empty;
             r.Dc = DomainValidation.NormalizeDirectoryServer(dc);
             r.ObjectDn = objectDn ?? String.Empty;
 
+            ReadLdapFallback(r, user, password);
+
             string repadmin = Path.Combine(Environment.SystemDirectory, "repadmin.exe");
             r.RepadminAvailable = File.Exists(repadmin);
             if (!r.RepadminAvailable)
             {
-                r.Findings.Add("repadmin.exe is not installed on this computer. Install RSAT AD DS tools for replication metadata.");
+                if (r.LdapFallbackSucceeded)
+                    r.Findings.Add("INFO: repadmin.exe is not installed; LDAP replication metadata fallback was used.");
+                else
+                    r.Findings.Add("CHECK: repadmin.exe is not installed and LDAP replication metadata fallback was not available.");
                 return r;
             }
 
-            CommandResult summary = ProcessRunner.Run(repadmin, BuildReplSummaryArguments(r.Dc), 30000);
+            CommandResult summary = NetworkCredentialProcessRunner.Run(
+                repadmin,
+                BuildReplSummaryArguments(r.Dc),
+                30000,
+                user,
+                password);
             r.ReplSummary = FormatCommand(summary);
 
             CommandResult meta = null;
             CommandResult attr = null;
             if (!String.IsNullOrWhiteSpace(r.Dc) && !String.IsNullOrWhiteSpace(r.ObjectDn))
             {
-                meta = ProcessRunner.Run(
+                meta = NetworkCredentialProcessRunner.Run(
                     repadmin,
                     "/showobjmeta " + Quote(r.Dc) + " " + Quote(r.ObjectDn),
-                    30000);
+                    30000,
+                    user,
+                    password);
                 r.ObjectMetadata = FormatCommand(meta);
 
-                attr = ProcessRunner.Run(
+                attr = NetworkCredentialProcessRunner.Run(
                     repadmin,
-                    "/showattr " + Quote(r.Dc) + " " + Quote(r.ObjectDn) + " /atts:objectGUID,pwdLastSet,whenChanged,servicePrincipalName",
-                    30000);
+                    "/showattr " + Quote(r.Dc) + " " + Quote(r.ObjectDn) +
+                    " /atts:objectGUID,pwdLastSet,whenChanged,uSNChanged,servicePrincipalName",
+                    30000,
+                    user,
+                    password);
                 r.ObjectAttributes = FormatCommand(attr);
             }
             else
             {
-                r.Findings.Add("Object metadata was not requested because the DC or object DN is unavailable.");
+                r.Findings.Add("CHECK: repadmin object metadata was not requested because the DC or object DN is unavailable.");
             }
 
             string summaryDiagnostic = CommandDiagnosticText(summary);
@@ -73,28 +103,33 @@ namespace DomainMembershipCheckRepair
             }
             else if (CommandFailed(summary))
             {
-                r.Findings.Add("CHECK: repadmin /replsummary did not complete successfully; replication health could not be verified.");
+                r.Findings.Add("CHECK: repadmin /replsummary did not complete successfully; LDAP fallback remains available when its section succeeded.");
             }
 
             if (meta != null && CommandFailed(meta))
             {
                 string metaDiagnostic = CommandDiagnosticText(meta);
                 if (IsAccessDenied(metaDiagnostic))
-                    r.Findings.Add("INFO: object replication metadata could not be read because the current security context does not have permission.");
+                    r.Findings.Add("INFO: repadmin object metadata could not be read because the current security context does not have permission.");
                 else
-                    r.Findings.Add("CHECK: object replication metadata could not be read cleanly from the selected DC.");
+                    r.Findings.Add("CHECK: repadmin object replication metadata could not be read cleanly from the selected DC.");
             }
 
             if (attr != null && CommandFailed(attr))
             {
                 string attrDiagnostic = CommandDiagnosticText(attr);
                 if (IsAccessDenied(attrDiagnostic))
-                    r.Findings.Add("INFO: replicated object attributes could not be read because the current security context does not have permission.");
+                    r.Findings.Add("INFO: repadmin replicated object attributes could not be read because the current security context does not have permission.");
                 else
-                    r.Findings.Add("CHECK: replicated object attributes could not be read cleanly from the selected DC.");
+                    r.Findings.Add("CHECK: repadmin replicated object attributes could not be read cleanly from the selected DC.");
             }
 
             return r;
+        }
+
+        internal static bool HasAnyCapability(ReplicationMetadataResult result)
+        {
+            return result != null && (result.RepadminAvailable || result.LdapFallbackSucceeded);
         }
 
         internal static string ToText(ReplicationMetadataResult r)
@@ -103,9 +138,26 @@ namespace DomainMembershipCheckRepair
             sb.AppendLine("AD Replication Metadata Analyzer");
             sb.AppendLine("================================");
             sb.AppendLine("repadmin available: " + (r.RepadminAvailable ? "Yes" : "No"));
+            sb.AppendLine("LDAP fallback:      " + (r.LdapFallbackSucceeded ? "Available" : (r.LdapFallbackAttempted ? "Failed" : "Not attempted")));
             sb.AppendLine("Domain:             " + First(r.Domain, "(none)"));
             sb.AppendLine("DC:                 " + First(r.Dc, "(none)"));
             sb.AppendLine("Object DN:          " + First(r.ObjectDn, "(none)"));
+
+            if (!String.IsNullOrWhiteSpace(r.LdapDcState))
+            {
+                sb.AppendLine();
+                sb.AppendLine("LDAP DC replication state");
+                sb.AppendLine("-------------------------");
+                sb.AppendLine(r.LdapDcState);
+            }
+
+            if (!String.IsNullOrWhiteSpace(r.LdapObjectMetadata))
+            {
+                sb.AppendLine();
+                sb.AppendLine("LDAP object replication metadata");
+                sb.AppendLine("--------------------------------");
+                sb.AppendLine(r.LdapObjectMetadata);
+            }
 
             if (!String.IsNullOrWhiteSpace(r.ReplSummary))
             {
@@ -140,6 +192,181 @@ namespace DomainMembershipCheckRepair
             }
 
             return sb.ToString();
+        }
+
+        private static void ReadLdapFallback(
+            ReplicationMetadataResult r,
+            string user,
+            string password)
+        {
+            if (r == null || String.IsNullOrWhiteSpace(r.Dc))
+                return;
+
+            r.LdapFallbackAttempted = true;
+
+            try
+            {
+                StringBuilder dcState = new StringBuilder();
+                using (DirectoryEntry rootDse = CreateEntry("LDAP://" + r.Dc + "/RootDSE", user, password))
+                {
+                    dcState.AppendLine("dnsHostName:          " + ReadProperty(rootDse, "dnsHostName"));
+                    dcState.AppendLine("defaultNamingContext: " + ReadProperty(rootDse, "defaultNamingContext"));
+                    dcState.AppendLine("isSynchronized:       " + ReadProperty(rootDse, "isSynchronized"));
+                    dcState.AppendLine("highestCommittedUSN:  " + ReadProperty(rootDse, "highestCommittedUSN"));
+                    dcState.AppendLine("dsServiceName:        " + ReadProperty(rootDse, "dsServiceName"));
+                }
+
+                r.LdapDcState = dcState.ToString().Trim();
+                r.LdapFallbackSucceeded = true;
+
+                if (String.IsNullOrWhiteSpace(r.ObjectDn))
+                {
+                    r.Findings.Add("CHECK: LDAP DC replication state is available, but computer-object replication metadata could not be read because the object DN is unavailable.");
+                    return;
+                }
+
+                using (DirectoryEntry objectEntry = CreateEntry(
+                    "LDAP://" + r.Dc + "/" + r.ObjectDn,
+                    user,
+                    password))
+                using (DirectorySearcher searcher = new DirectorySearcher(objectEntry))
+                {
+                    searcher.SearchScope = SearchScope.Base;
+                    searcher.Filter = "(objectClass=*)";
+                    string[] properties = new string[]
+                    {
+                        "objectGUID",
+                        "pwdLastSet",
+                        "whenChanged",
+                        "uSNChanged",
+                        "servicePrincipalName",
+                        "msDS-ReplAttributeMetaData",
+                        "msDS-ReplValueMetaData"
+                    };
+
+                    foreach (string property in properties)
+                        searcher.PropertiesToLoad.Add(property);
+
+                    SearchResult result = searcher.FindOne();
+                    if (result == null)
+                    {
+                        r.Findings.Add("CHECK: LDAP fallback could not locate the selected computer object on the selected DC.");
+                        return;
+                    }
+
+                    StringBuilder metadata = new StringBuilder();
+                    metadata.AppendLine("objectGUID:                 " + FormatGuid(result, "objectGUID"));
+                    metadata.AppendLine("pwdLastSet:                 " + FirstProperty(result, "pwdLastSet"));
+                    metadata.AppendLine("whenChanged:                " + FirstProperty(result, "whenChanged"));
+                    metadata.AppendLine("uSNChanged:                 " + FirstProperty(result, "uSNChanged"));
+                    metadata.AppendLine("servicePrincipalName count: " + PropertyCount(result, "servicePrincipalName"));
+                    AppendMulti(metadata, result, "msDS-ReplAttributeMetaData", 40);
+                    AppendMulti(metadata, result, "msDS-ReplValueMetaData", 20);
+                    r.LdapObjectMetadata = metadata.ToString().Trim();
+                }
+            }
+            catch (Exception ex)
+            {
+                if (IsAccessDenied(ex.Message))
+                    r.Findings.Add("INFO: LDAP replication metadata fallback was denied for the current security context: " + ex.Message);
+                else
+                    r.Findings.Add("CHECK: LDAP replication metadata fallback failed: " + ex.Message);
+            }
+        }
+
+        private static DirectoryEntry CreateEntry(string path, string user, string password)
+        {
+            if (!String.IsNullOrWhiteSpace(user) && password != null)
+                return new DirectoryEntry(path, user, password, AuthenticationTypes.Secure);
+            return new DirectoryEntry(path);
+        }
+
+        private static string ReadProperty(DirectoryEntry entry, string name)
+        {
+            try
+            {
+                object value = entry.Properties[name].Value;
+                return value == null ? "(not returned)" : Convert.ToString(value);
+            }
+            catch
+            {
+                return "(not returned)";
+            }
+        }
+
+        private static string FirstProperty(SearchResult result, string name)
+        {
+            try
+            {
+                if (result.Properties.Contains(name) && result.Properties[name].Count > 0)
+                    return Convert.ToString(result.Properties[name][0]) ?? "(empty)";
+            }
+            catch
+            {
+            }
+            return "(not returned)";
+        }
+
+        private static int PropertyCount(SearchResult result, string name)
+        {
+            try
+            {
+                return result.Properties.Contains(name) ? result.Properties[name].Count : 0;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private static string FormatGuid(SearchResult result, string name)
+        {
+            try
+            {
+                if (result.Properties.Contains(name) && result.Properties[name].Count > 0)
+                {
+                    byte[] value = result.Properties[name][0] as byte[];
+                    if (value != null && value.Length == 16)
+                        return new Guid(value).ToString();
+                }
+            }
+            catch
+            {
+            }
+            return "(not returned)";
+        }
+
+        private static void AppendMulti(
+            StringBuilder sb,
+            SearchResult result,
+            string name,
+            int maxValues)
+        {
+            sb.AppendLine(name + ":");
+            try
+            {
+                if (!result.Properties.Contains(name) || result.Properties[name].Count == 0)
+                {
+                    sb.AppendLine("  (not returned)");
+                    return;
+                }
+
+                int count = 0;
+                foreach (object value in result.Properties[name])
+                {
+                    if (count >= maxValues)
+                    {
+                        sb.AppendLine("  ... additional values omitted ...");
+                        break;
+                    }
+                    sb.AppendLine("  " + (Convert.ToString(value) ?? String.Empty));
+                    count++;
+                }
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine("  (unable to read: " + ex.Message + ")");
+            }
         }
 
         private static string FormatCommand(CommandResult r)
@@ -202,6 +429,7 @@ namespace DomainMembershipCheckRepair
             return value.Contains("access is denied") ||
                    value.Contains("access was denied") ||
                    value.Contains("replication access was denied") ||
+                   value.Contains("unauthorized") ||
                    value.Contains("8453") ||
                    value.Contains("0x2105");
         }
