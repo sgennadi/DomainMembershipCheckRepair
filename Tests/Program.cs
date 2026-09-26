@@ -389,6 +389,13 @@ namespace DomainMembershipCheckRepair
                     new string[] { "INFO: optional policy evidence present" },
                     true),
                 "INFO-only finding remains diagnostic success");
+
+            AssertEqualInt(
+                DiagnosticExitCodes.AccessDenied,
+                DiagnosticExitCodes.FromFindings(
+                    new string[] { "INFO: current security context does not have permission." },
+                    true),
+                "explicit no-permission wording returns diagnostic access-denied");
         }
 
         private static void TestSpnStateFingerprint()
