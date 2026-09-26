@@ -1004,24 +1004,23 @@ namespace DomainMembershipCheckRepair
                 : options.ComputerName;
             string objectDn = String.Empty;
 
-            if (!String.IsNullOrWhiteSpace(user) && password != null)
-            {
-                AdComputerAccountInfo account = AdDirectoryService.FindComputerAccount(
-                    computerName,
-                    user,
-                    password,
-                    snapshot.TargetDomain,
-                    effectiveDc,
-                    logger.Log);
+            AdComputerAccountInfo account = AdDirectoryService.FindComputerAccount(
+                computerName,
+                user,
+                password,
+                snapshot.TargetDomain,
+                effectiveDc,
+                logger.Log);
 
-                if (account != null && account.LookupSucceeded && account.Exists)
-                    objectDn = account.DistinguishedName;
-            }
+            if (account != null && account.LookupSucceeded && account.Exists)
+                objectDn = account.DistinguishedName;
 
             ReplicationMetadataResult result = ReplicationMetadataService.Analyze(
                 snapshot.TargetDomain,
                 effectiveDc,
-                objectDn);
+                objectDn,
+                user,
+                password);
 
             Console.WriteLine(ReplicationMetadataService.ToText(result));
 
@@ -1098,9 +1097,15 @@ namespace DomainMembershipCheckRepair
                 options.PreferredDc,
                 snapshot.DiscoveredDc);
 
+            string user;
+            string password;
+            GetOptionalCredentials(out user, out password);
+
             SmbKerberosAuthResult result = SmbKerberosAuthAnalyzer.Analyze(
                 snapshot.TargetDomain,
-                effectiveDc);
+                effectiveDc,
+                user,
+                password);
 
             Console.WriteLine(SmbKerberosAuthAnalyzer.ToText(result));
             return String.Equals(result.KerberosCifsStatus, "OK", StringComparison.OrdinalIgnoreCase)
