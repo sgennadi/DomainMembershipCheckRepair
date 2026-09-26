@@ -80,8 +80,7 @@ namespace DomainMembershipCheckRepair
                 entry.TimeSkew = QueryTimeSkew(entry.Host);
                 ReadRootDse(entry, user, password);
 
-                if (!String.IsNullOrWhiteSpace(user) && password != null &&
-                    !String.IsNullOrWhiteSpace(computerName))
+                if (!String.IsNullOrWhiteSpace(computerName))
                 {
                     AdComputerAccountInfo account = AdDirectoryService.FindComputerAccount(
                         computerName,
