@@ -1456,10 +1456,10 @@ namespace DomainMembershipCheckRepair
             if (!EnsureElevatedForGui("rollback-local"))
                 return;
 
-            string path = TransactionJournalService.GetLatestJournalPath();
+            string path = TransactionJournalService.GetLatestRollbackableJournalPath();
             if (String.IsNullOrWhiteSpace(path))
             {
-                MessageBox.Show(this, "No transaction journal was found.", "Rollback Local", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, "No transaction journal with reversible local changes was found.", "Rollback Local", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
