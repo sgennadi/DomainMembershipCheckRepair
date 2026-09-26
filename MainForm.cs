@@ -935,7 +935,7 @@ namespace DomainMembershipCheckRepair
                 "Advanced Diagnostics",
                 delegate(System.Threading.CancellationToken token, Action<string> progress)
                 {
-                    return AdvancedDiagnosticsService.Analyze(
+                    AdvancedDiagnosticsResult result = AdvancedDiagnosticsService.Analyze(
                         inputs.Domain,
                         inputs.PreferredDc,
                         inputs.ComputerName,
@@ -943,10 +943,26 @@ namespace DomainMembershipCheckRepair
                         inputs.Password,
                         token,
                         progress);
+
+                    token.ThrowIfCancellationRequested();
+                    progress("Saving diagnostic history");
+                    string historyPath;
+                    string historyError;
+                    if (DiagnosticHistoryService.TrySave(result, out historyPath, out historyError))
+                        result.HistoryPath = historyPath;
+                    else
+                        result.HistoryError = historyError;
+
+                    return result;
                 },
                 delegate(AdvancedDiagnosticsResult result)
                 {
                     lastDiagnosticsSnapshot = result.Snapshot;
+                    if (!String.IsNullOrWhiteSpace(result.HistoryPath))
+                        Log("INFO", "Advanced diagnostic history saved: " + result.HistoryPath);
+                    else if (!String.IsNullOrWhiteSpace(result.HistoryError))
+                        Log("WARN", "Advanced diagnostic history was not saved: " + result.HistoryError);
+
                     ReportDialog.ShowReport(
                         this,
                         "Advanced Diagnostics",
