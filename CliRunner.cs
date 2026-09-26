@@ -968,165 +968,220 @@ namespace DomainMembershipCheckRepair
                 user,
                 password);
 
-            Console.WriteLine(AdvancedDiagnosticsService.ToText(result));
-            return result.Snapshot == null ? 1 : result.Snapshot.ResultCode;
+            int exitCode = ExitFromAdvanced(result);
+            return WriteDiagnosticResult(
+                "advanced",
+                result,
+                AdvancedDiagnosticsService.ToText(result),
+                exitCode);
         }
 
         private static int AnalyzeNetSetup()
         {
             NetSetupAnalysis analysis = NetSetupLogAnalyzer.Analyze(DiagnosticsService.NetSetupLogPath);
-            Console.WriteLine(NetSetupLogAnalyzer.ToText(analysis));
-            return analysis.Present ? 0 : 1;
+            int exitCode = !analysis.Present
+                ? DiagnosticExitCodes.NotTested
+                : DiagnosticExitCodes.FromReportText(NetSetupLogAnalyzer.ToText(analysis), true);
+
+            return WriteDiagnosticResult(
+                "netsetup",
+                analysis,
+                NetSetupLogAnalyzer.ToText(analysis),
+                exitCode);
         }
 
         private static int DcMatrix()
         {
-            string domain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
-            if (String.IsNullOrWhiteSpace(domain))
-                return 3;
+            string domain = (options.Domain ?? String.Empty).Trim();
+            if (String.IsNullOrWhiteSpace(domain) &&
+                String.IsNullOrWhiteSpace(options.PreferredDc))
+            {
+                domain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
+                if (String.IsNullOrWhiteSpace(domain))
+                    return 3;
+            }
 
             DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(domain, options.PreferredDc);
+            string effectiveDc = DomainValidation.SelectDirectoryServer(
+                options.PreferredDc,
+                snapshot.DiscoveredDc);
+
             string user;
             string password;
             GetOptionalCredentials(out user, out password);
 
             DcMatrixResult matrix = DcMatrixService.Analyze(
                 snapshot.TargetDomain,
-                snapshot.DiscoveredDc,
+                effectiveDc,
                 String.IsNullOrWhiteSpace(options.ComputerName) ? Environment.MachineName : options.ComputerName,
                 user,
                 password);
-            Console.WriteLine(DcMatrixService.ToText(matrix));
-            return matrix.Entries.Count > 0 ? 0 : 1;
+
+            int exitCode = ExitFromMatrix(matrix);
+            return WriteDiagnosticResult(
+                "dc-matrix",
+                matrix,
+                DcMatrixService.ToText(matrix),
+                exitCode);
         }
 
         private static int SiteSubnet()
         {
-            string domain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
-            if (String.IsNullOrWhiteSpace(domain))
-                return 3;
+            string domain = (options.Domain ?? String.Empty).Trim();
+            if (String.IsNullOrWhiteSpace(domain) &&
+                String.IsNullOrWhiteSpace(options.PreferredDc))
+            {
+                domain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
+                if (String.IsNullOrWhiteSpace(domain))
+                    return 3;
+            }
 
             DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(domain, options.PreferredDc);
+            string effectiveDc = DomainValidation.SelectDirectoryServer(
+                options.PreferredDc,
+                snapshot.DiscoveredDc);
+
             string user;
             string password;
             GetOptionalCredentials(out user, out password);
 
             SiteSubnetDiagnosticsResult result = SiteSubnetDiagnosticsService.Analyze(
                 snapshot.TargetDomain,
-                snapshot.DiscoveredDc,
+                effectiveDc,
                 user,
                 password);
-            Console.WriteLine(SiteSubnetDiagnosticsService.ToText(result));
-            return 0;
+
+            string report = SiteSubnetDiagnosticsService.ToText(result);
+            int exitCode = DiagnosticExitCodes.FromReportText(report, true);
+            return WriteDiagnosticResult("site-subnet", result, report, exitCode);
         }
 
         private static int ProtocolDiagnostics()
         {
-            string domain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
-            if (String.IsNullOrWhiteSpace(domain))
-                return 3;
+            string domain = (options.Domain ?? String.Empty).Trim();
+            if (String.IsNullOrWhiteSpace(domain) &&
+                String.IsNullOrWhiteSpace(options.PreferredDc))
+            {
+                domain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
+                if (String.IsNullOrWhiteSpace(domain))
+                    return 3;
+            }
 
             DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(domain, options.PreferredDc);
+            string effectiveDc = DomainValidation.SelectDirectoryServer(
+                options.PreferredDc,
+                snapshot.DiscoveredDc);
+
             string user;
             string password;
             GetOptionalCredentials(out user, out password);
 
             ProtocolDiagnosticsResult result = ProtocolDiagnosticsService.Analyze(
                 snapshot.TargetDomain,
-                snapshot.DiscoveredDc,
+                effectiveDc,
                 user,
                 password);
-            Console.WriteLine(ProtocolDiagnosticsService.ToText(result));
 
-            foreach (ProtocolCheckResult check in result.Checks)
-            {
-                if (String.Equals(check.Status, "FAILED", StringComparison.OrdinalIgnoreCase))
-                    return 1;
-            }
-            return 0;
+            return WriteDiagnosticResult(
+                "protocols",
+                result,
+                ProtocolDiagnosticsService.ToText(result),
+                ExitFromProtocols(result));
         }
 
         private static int HardeningDiagnostics()
         {
-            AdComputerAccountInfo account = null;
             string user;
             string password;
             GetOptionalCredentials(out user, out password);
 
-            if (!String.IsNullOrWhiteSpace(user) && password != null)
+            string domain = (options.Domain ?? String.Empty).Trim();
+            if (String.IsNullOrWhiteSpace(domain))
+                domain = ResolveConfiguredOrDetectedDomain(user, false);
+
+            AdComputerAccountInfo account = null;
+            if (!String.IsNullOrWhiteSpace(domain) || !String.IsNullOrWhiteSpace(options.PreferredDc))
             {
-                string domain = ResolveConfiguredOrDetectedDomain(user, true);
-                if (!String.IsNullOrWhiteSpace(domain))
-                {
-                    account = AdDirectoryService.FindComputerAccount(
-                        Environment.MachineName,
-                        user,
-                        password,
-                        domain,
-                        options.PreferredDc,
-                        logger.Log);
-                }
+                account = AdDirectoryService.FindComputerAccount(
+                    String.IsNullOrWhiteSpace(options.ComputerName) ? Environment.MachineName : options.ComputerName,
+                    user,
+                    password,
+                    domain,
+                    options.PreferredDc,
+                    logger.Log);
             }
 
-            HardeningDiagnosticsResult result =
-                HardeningDiagnosticsService.Analyze(account);
-            Console.WriteLine(HardeningDiagnosticsService.ToText(result));
-            return 0;
+            HardeningDiagnosticsResult result = HardeningDiagnosticsService.Analyze(account);
+            string report = HardeningDiagnosticsService.ToText(result);
+            int exitCode = DiagnosticExitCodes.FromReportText(report, true);
+            return WriteDiagnosticResult("hardening", result, report, exitCode);
         }
 
         private static int JoinPermissions()
         {
             string user;
             string password;
-            if (!GetCredentials(out user, out password))
-                return 7;
+            GetOptionalCredentials(out user, out password);
 
-            string domain = ResolveConfiguredOrDetectedDomain(user, true);
+            string domain = (options.Domain ?? String.Empty).Trim();
             if (String.IsNullOrWhiteSpace(domain))
+                domain = ResolveConfiguredOrDetectedDomain(user, true);
+            if (String.IsNullOrWhiteSpace(domain) &&
+                String.IsNullOrWhiteSpace(options.PreferredDc))
                 return 3;
 
             DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
                 domain,
                 options.PreferredDc);
 
+            string effectiveDc = DomainValidation.SelectDirectoryServer(
+                options.PreferredDc,
+                snapshot.DiscoveredDc);
+
+            string computerName = String.IsNullOrWhiteSpace(options.ComputerName)
+                ? Environment.MachineName
+                : options.ComputerName;
+
             AdComputerAccountInfo account = AdDirectoryService.FindComputerAccount(
-                String.IsNullOrWhiteSpace(options.ComputerName)
-                    ? Environment.MachineName
-                    : options.ComputerName,
+                computerName,
                 user,
                 password,
                 snapshot.TargetDomain,
-                snapshot.DiscoveredDc,
+                effectiveDc,
                 logger.Log);
 
             JoinPermissionsResult result = JoinPermissionsAnalyzer.Analyze(
                 snapshot.TargetDomain,
-                snapshot.DiscoveredDc,
-                String.IsNullOrWhiteSpace(options.ComputerName)
-                    ? Environment.MachineName
-                    : options.ComputerName,
+                effectiveDc,
+                computerName,
                 user,
                 password,
                 account);
 
-            Console.WriteLine(JoinPermissionsAnalyzer.ToText(result));
-            return 0;
+            string report = JoinPermissionsAnalyzer.ToText(result);
+            int exitCode = DiagnosticExitCodes.FromFindings(
+                result.Findings,
+                !String.IsNullOrWhiteSpace(result.Dc));
+
+            return WriteDiagnosticResult("join-permissions", result, report, exitCode);
         }
 
         private static int HybridEntra()
         {
             HybridEntraDiagnosticsResult result =
                 HybridEntraDiagnosticsService.Analyze();
-            Console.WriteLine(HybridEntraDiagnosticsService.ToText(result));
-            return 0;
+            string report = HybridEntraDiagnosticsService.ToText(result);
+            int exitCode = DiagnosticExitCodes.FromReportText(report, true);
+            return WriteDiagnosticResult("hybrid-entra", result, report, exitCode);
         }
 
         private static int PolicySources()
         {
             PolicySourceDiagnosticsResult result =
                 PolicySourceAnalyzer.Analyze();
-            Console.WriteLine(PolicySourceAnalyzer.ToText(result));
-            return 0;
+            string report = PolicySourceAnalyzer.ToText(result);
+            int exitCode = DiagnosticExitCodes.FromReportText(report, true);
+            return WriteDiagnosticResult("policy-source", result, report, exitCode);
         }
 
         private static int ReplicationMetadata()
