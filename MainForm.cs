@@ -805,161 +805,145 @@ namespace DomainMembershipCheckRepair
 
         private void AdvancedDiagnosticsWorkflow()
         {
-            SetBusy(true);
-            try
-            {
-                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
-                string password = passwordBox == null ? null : passwordBox.Text;
-                if (String.IsNullOrWhiteSpace(user) || String.IsNullOrEmpty(password))
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
+
+            RunBackgroundDiagnostic(
+                "Advanced Diagnostics",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
                 {
-                    user = String.Empty;
-                    password = null;
-                }
-
-                AdvancedDiagnosticsResult result = AdvancedDiagnosticsService.Analyze(
-                    domainBox == null ? String.Empty : domainBox.Text,
-                    dcBox == null ? String.Empty : dcBox.Text,
-                    Environment.MachineName,
-                    user,
-                    password);
-
-                lastDiagnosticsSnapshot = result.Snapshot;
-                ReportDialog.ShowReport(this, "Advanced Diagnostics", AdvancedDiagnosticsService.ToText(result));
-            }
-            catch (Exception ex)
-            {
-                Log("ERROR", "Advanced diagnostics failed: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "Advanced diagnostics failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                SetBusy(false);
-            }
+                    return AdvancedDiagnosticsService.Analyze(
+                        inputs.Domain,
+                        inputs.PreferredDc,
+                        inputs.ComputerName,
+                        inputs.User,
+                        inputs.Password,
+                        token,
+                        progress);
+                },
+                delegate(AdvancedDiagnosticsResult result)
+                {
+                    lastDiagnosticsSnapshot = result.Snapshot;
+                    ReportDialog.ShowReport(
+                        this,
+                        "Advanced Diagnostics",
+                        AdvancedDiagnosticsService.ToText(result));
+                });
         }
 
         private void RecoveryPlanWorkflow()
         {
-            SetBusy(true);
-            try
-            {
-                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
-                string password = passwordBox == null ? null : passwordBox.Text;
-                if (String.IsNullOrWhiteSpace(user) || String.IsNullOrEmpty(password))
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
+
+            RunBackgroundDiagnostic(
+                "Recovery Plan",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
                 {
-                    user = String.Empty;
-                    password = null;
-                }
-
-                AdvancedDiagnosticsResult result = AdvancedDiagnosticsService.Analyze(
-                    domainBox == null ? String.Empty : domainBox.Text,
-                    dcBox == null ? String.Empty : dcBox.Text,
-                    Environment.MachineName,
-                    user,
-                    password);
-
-                ReportDialog.ShowReport(this, "Recovery Plan", RecoveryPlanService.ToText(result.RecoveryPlan));
-            }
-            catch (Exception ex)
-            {
-                Log("ERROR", "Recovery plan failed: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "Recovery plan failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                SetBusy(false);
-            }
+                    return AdvancedDiagnosticsService.Analyze(
+                        inputs.Domain,
+                        inputs.PreferredDc,
+                        inputs.ComputerName,
+                        inputs.User,
+                        inputs.Password,
+                        token,
+                        progress);
+                },
+                delegate(AdvancedDiagnosticsResult result)
+                {
+                    ReportDialog.ShowReport(
+                        this,
+                        "Recovery Plan",
+                        RecoveryPlanService.ToText(result.RecoveryPlan));
+                });
         }
 
         private void DcMatrixWorkflow()
         {
-            SetBusy(true);
-            try
-            {
-                string targetDomain;
-                if (!TryGetTargetDomain(out targetDomain))
-                    return;
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
 
-                DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(targetDomain, dcBox == null ? String.Empty : dcBox.Text);
-                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
-                string password = passwordBox == null ? null : passwordBox.Text;
-                if (String.IsNullOrWhiteSpace(user) || String.IsNullOrEmpty(password))
+            RunBackgroundDiagnostic(
+                "Domain Controller Matrix",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
                 {
-                    user = String.Empty;
-                    password = null;
-                }
+                    progress("DC Matrix: resolving domain and preferred DC");
+                    DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
+                        inputs.Domain,
+                        inputs.PreferredDc);
 
-                DcMatrixResult matrix = DcMatrixService.Analyze(
-                    snapshot.TargetDomain,
-                    snapshot.DiscoveredDc,
-                    Environment.MachineName,
-                    user,
-                    password);
-                ReportDialog.ShowReport(this, "Domain Controller Matrix", DcMatrixService.ToText(matrix));
-            }
-            catch (Exception ex)
-            {
-                Log("ERROR", "DC Matrix failed: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "DC Matrix failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                SetBusy(false);
-            }
+                    string effectiveDc = DomainValidation.SelectDirectoryServer(
+                        inputs.PreferredDc,
+                        snapshot.DiscoveredDc);
+
+                    token.ThrowIfCancellationRequested();
+                    return DcMatrixService.Analyze(
+                        snapshot.TargetDomain,
+                        effectiveDc,
+                        inputs.ComputerName,
+                        inputs.User,
+                        inputs.Password,
+                        token,
+                        progress);
+                },
+                delegate(DcMatrixResult matrix)
+                {
+                    ReportDialog.ShowReport(
+                        this,
+                        "Domain Controller Matrix",
+                        DcMatrixService.ToText(matrix));
+                });
         }
 
         private void SupportBundleWorkflow()
         {
-            SetBusy(true);
-            try
+            string outputPath;
+            using (SaveFileDialog save = new SaveFileDialog())
             {
-                using (SaveFileDialog save = new SaveFileDialog())
+                save.Title = "Export advanced support bundle";
+                save.Filter = "ZIP archive (*.zip)|*.zip|All files (*.*)|*.*";
+                save.FileName = "DomainMembershipSupport-" + Environment.MachineName + "-" +
+                    DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".zip";
+                save.AddExtension = true;
+                save.DefaultExt = "zip";
+
+                if (save.ShowDialog(this) != DialogResult.OK)
+                    return;
+
+                outputPath = save.FileName;
+            }
+
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
+            bool includeApplicationLog = fileLogBox != null && fileLogBox.Checked;
+
+            RunBackgroundDiagnostic(
+                "Support Bundle",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
                 {
-                    save.Title = "Export advanced support bundle";
-                    save.Filter = "ZIP archive (*.zip)|*.zip|All files (*.*)|*.*";
-                    save.FileName = "DomainMembershipSupport-" + Environment.MachineName + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".zip";
-                    save.AddExtension = true;
-                    save.DefaultExt = "zip";
-                    if (save.ShowDialog(this) != DialogResult.OK)
-                        return;
-
-                    string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
-                    string password = passwordBox == null ? null : passwordBox.Text;
-                    if (String.IsNullOrWhiteSpace(user) || String.IsNullOrEmpty(password))
-                    {
-                        user = String.Empty;
-                        password = null;
-                    }
-
                     AdvancedDiagnosticsResult result = AdvancedDiagnosticsService.Analyze(
-                        domainBox == null ? String.Empty : domainBox.Text,
-                        dcBox == null ? String.Empty : dcBox.Text,
-                        Environment.MachineName,
-                        user,
-                        password);
+                        inputs.Domain,
+                        inputs.PreferredDc,
+                        inputs.ComputerName,
+                        inputs.User,
+                        inputs.Password,
+                        token,
+                        progress);
 
-                    string archive = AdvancedSupportBundleService.Export(
+                    token.ThrowIfCancellationRequested();
+                    progress("Creating support bundle ZIP");
+                    return AdvancedSupportBundleService.Export(
                         result,
-                        save.FileName,
-                        fileLogBox != null && fileLogBox.Checked);
-
+                        outputPath,
+                        includeApplicationLog);
+                },
+                delegate(string archive)
+                {
                     Log("SUCCESS", "Advanced support bundle exported: " + archive);
                     MessageBox.Show(
                         this,
-                        "Support bundle created:\r\n\r\n" + archive + "\r\n\r\nReview Windows logs and command output before sharing.",
+                        "Support bundle created:\r\n\r\n" + archive +
+                        "\r\n\r\nReview Windows logs and command output before sharing.",
                         "Support bundle",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information);
-                }
-            }
-            catch (Exception ex)
-            {
-                Log("ERROR", "Support bundle failed: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "Support bundle failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                SetBusy(false);
-            }
+                });
         }
 
         private void SelfTestWorkflow()
