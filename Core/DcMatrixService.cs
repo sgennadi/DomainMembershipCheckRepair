@@ -27,6 +27,9 @@ namespace DomainMembershipCheckRepair
         internal string ComputerObjectGuid = String.Empty;
         internal string ComputerPwdLastSet = String.Empty;
         internal string ComputerWhenChanged = String.Empty;
+        internal int SpnCollisionCount;
+        internal string SpnStateFingerprint = String.Empty;
+        internal string SpnStateSummary = String.Empty;
     }
 
     internal sealed class DcMatrixResult
@@ -101,6 +104,24 @@ namespace DomainMembershipCheckRepair
                     }
                 }
 
+                if (entry.RootDseOk && !String.IsNullOrWhiteSpace(computerName))
+                {
+                    SpnCollisionResult spn = SpnCollisionAnalyzer.Analyze(
+                        result.Domain,
+                        entry.Host,
+                        computerName,
+                        user,
+                        password);
+
+                    entry.SpnCollisionCount = SpnCollisionAnalyzer.CountCollisions(spn);
+                    entry.SpnStateFingerprint = SpnCollisionAnalyzer.BuildStateFingerprint(spn);
+                    entry.SpnStateSummary = spn.Entries.Count + " expected SPNs checked; collisions=" +
+                        entry.SpnCollisionCount;
+
+                    if (entry.SpnCollisionCount > 0)
+                        result.Notes.Add("SPN collision detected on " + entry.Host + "; review the per-DC SPN state before trust repair.");
+                }
+
                 result.Entries.Add(entry);
             }
 
@@ -157,6 +178,9 @@ namespace DomainMembershipCheckRepair
                         sb.AppendLine("  whenChanged: " + First(e.ComputerWhenChanged, "(not returned)"));
                     }
                 }
+
+                if (!String.IsNullOrWhiteSpace(e.SpnStateSummary))
+                    sb.AppendLine("  SPN state:   " + e.SpnStateSummary);
 
                 sb.AppendLine();
             }
@@ -324,8 +348,12 @@ namespace DomainMembershipCheckRepair
         {
             string firstGuid = null;
             string firstPwd = null;
+            string firstWhenChanged = null;
+            string firstSpnState = null;
+            string firstSpnDc = null;
             bool sawFound = false;
             bool sawMissing = false;
+            bool spnStateDiffers = false;
 
             foreach (DcMatrixEntry e in result.Entries)
             {
@@ -339,11 +367,14 @@ namespace DomainMembershipCheckRepair
                     {
                         firstGuid = e.ComputerObjectGuid;
                         firstPwd = e.ComputerPwdLastSet;
+                        firstWhenChanged = e.ComputerWhenChanged;
                     }
                     else if ((!String.IsNullOrWhiteSpace(e.ComputerObjectGuid) &&
                               !String.Equals(firstGuid, e.ComputerObjectGuid, StringComparison.OrdinalIgnoreCase)) ||
                              (!String.IsNullOrWhiteSpace(e.ComputerPwdLastSet) &&
-                              !String.Equals(firstPwd, e.ComputerPwdLastSet, StringComparison.OrdinalIgnoreCase)))
+                              !String.Equals(firstPwd, e.ComputerPwdLastSet, StringComparison.OrdinalIgnoreCase)) ||
+                             (!String.IsNullOrWhiteSpace(e.ComputerWhenChanged) &&
+                              !String.Equals(firstWhenChanged, e.ComputerWhenChanged, StringComparison.OrdinalIgnoreCase)))
                     {
                         result.Notes.Add("Computer-account metadata differs between DCs; AD replication or stale state should be investigated before destructive recovery.");
                         break;
@@ -357,6 +388,31 @@ namespace DomainMembershipCheckRepair
 
             if (sawFound && sawMissing)
                 result.Notes.Add("The computer account is visible on some DCs but missing on others. This strongly suggests replication inconsistency or a recent delete/create operation.");
+
+            foreach (DcMatrixEntry e in result.Entries)
+            {
+                if (String.IsNullOrWhiteSpace(e.SpnStateFingerprint))
+                    continue;
+
+                if (firstSpnState == null)
+                {
+                    firstSpnState = e.SpnStateFingerprint;
+                    firstSpnDc = e.Host;
+                    continue;
+                }
+
+                if (!String.Equals(firstSpnState, e.SpnStateFingerprint, StringComparison.Ordinal))
+                {
+                    spnStateDiffers = true;
+                    result.Notes.Add(
+                        "Expected SPN visibility differs between DCs (" + firstSpnDc + " vs " + e.Host +
+                        "). This can indicate replication latency, stale objects, or a duplicate SPN visible only on some DCs.");
+                    break;
+                }
+            }
+
+            if (spnStateDiffers)
+                result.Notes.Add("Cross-DC SPN state is inconsistent; avoid destructive recovery until AD replication converges.");
         }
 
         private static bool ContainsIgnoreCase(List<string> values, string value)
