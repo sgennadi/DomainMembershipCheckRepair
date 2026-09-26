@@ -26,6 +26,10 @@ namespace DomainMembershipCheckRepair
             TestReplicationSummaryParsing();
             TestExpectedSpns();
             TestSmbKerberosMismatchClassification();
+            TestNetworkCredentialParsing();
+            TestJsonReporting();
+            TestDiagnosticExitCodes();
+            TestSpnStateFingerprint();
 
             if (failures == 0)
             {
@@ -286,6 +290,102 @@ namespace DomainMembershipCheckRepair
             AssertFalse(
                 SmbKerberosAuthAnalyzer.HasKerberosSmbMismatch("OK", "OK"),
                 "healthy Kerberos is not mismatch");
+        }
+
+        private static void TestNetworkCredentialParsing()
+        {
+            string user;
+            string domain;
+
+            AssertTrue(
+                NetworkCredentialProcessRunner.TrySplitUser(@"EXAMPLE\admin", out user, out domain),
+                "DOMAIN\\user parses for net-only credentials");
+            AssertEqual("admin", user, "net-only DOMAIN user account");
+            AssertEqual("EXAMPLE", domain, "net-only DOMAIN name");
+
+            AssertTrue(
+                NetworkCredentialProcessRunner.TrySplitUser("admin@example.com", out user, out domain),
+                "UPN parses for net-only credentials");
+            AssertEqual("admin@example.com", user, "net-only UPN account");
+            AssertNull(domain, "UPN uses null logon domain");
+
+            AssertFalse(
+                NetworkCredentialProcessRunner.TrySplitUser("admin", out user, out domain),
+                "short user rejected for net-only credentials");
+        }
+
+        private static void TestJsonReporting()
+        {
+            Dictionary<string, object> payload = new Dictionary<string, object>();
+            payload["message"] = "line1\n\"quoted\"";
+            payload["ok"] = true;
+            payload["count"] = 2;
+
+            string json = JsonReportSerializer.SerializeAction(
+                "test-action",
+                DiagnosticExitCodes.Partial,
+                payload);
+
+            AssertTrue(json.StartsWith("{", StringComparison.Ordinal), "JSON envelope starts with object");
+            AssertTrue(json.IndexOf("\"action\":\"test-action\"", StringComparison.Ordinal) >= 0, "JSON action serialized");
+            AssertTrue(json.IndexOf("\"exitCode\":23", StringComparison.Ordinal) >= 0, "JSON diagnostic exit serialized");
+            AssertTrue(json.IndexOf("line1\\n\\\"quoted\\\"", StringComparison.Ordinal) >= 0, "JSON escaping serialized");
+        }
+
+        private static void TestDiagnosticExitCodes()
+        {
+            AssertEqualInt(
+                DiagnosticExitCodes.NotTested,
+                DiagnosticExitCodes.FromFindings(new string[0], false),
+                "missing capability returns diagnostic not-tested");
+
+            AssertEqualInt(
+                DiagnosticExitCodes.FindingDetected,
+                DiagnosticExitCodes.FromFindings(
+                    new string[] { "HIGH: duplicate SPN detected" },
+                    true),
+                "HIGH finding returns diagnostic finding");
+
+            AssertEqualInt(
+                DiagnosticExitCodes.AccessDenied,
+                DiagnosticExitCodes.FromFindings(
+                    new string[] { "INFO: access denied for replication query" },
+                    true),
+                "access denied returns diagnostic access-denied");
+
+            AssertEqualInt(
+                DiagnosticExitCodes.Partial,
+                DiagnosticExitCodes.FromFindings(
+                    new string[] { "CHECK: optional data unavailable" },
+                    true),
+                "CHECK finding returns diagnostic partial");
+
+            AssertEqualInt(
+                DiagnosticExitCodes.Success,
+                DiagnosticExitCodes.FromFindings(new string[0], true),
+                "no findings returns diagnostic success");
+        }
+
+        private static void TestSpnStateFingerprint()
+        {
+            SpnCollisionResult first = new SpnCollisionResult();
+            SpnCollisionEntry a = new SpnCollisionEntry();
+            a.Spn = "HOST/PC01";
+            a.DistinguishedNames.Add("CN=PC01,OU=A,DC=example,DC=com");
+            a.DistinguishedNames.Add("CN=PC01-OLD,OU=B,DC=example,DC=com");
+            first.Entries.Add(a);
+
+            SpnCollisionResult second = new SpnCollisionResult();
+            SpnCollisionEntry b = new SpnCollisionEntry();
+            b.Spn = "host/pc01";
+            b.DistinguishedNames.Add("CN=PC01-OLD,OU=B,DC=example,DC=com");
+            b.DistinguishedNames.Add("CN=PC01,OU=A,DC=example,DC=com");
+            second.Entries.Add(b);
+
+            AssertEqual(
+                SpnCollisionAnalyzer.BuildStateFingerprint(first),
+                SpnCollisionAnalyzer.BuildStateFingerprint(second),
+                "SPN state fingerprint ignores case and DN ordering");
         }
 
         private static void TestUiLayoutMath()
