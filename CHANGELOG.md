@@ -27,6 +27,11 @@
 - Added SMB/Kerberos analyzer with explicit CIFS ticket acquisition, SMB access testing and NTLM/signing policy context.
 - Integrated replication/SPN/SMB analyzers into Advanced Diagnostics, Support Bundle, CLI and the Advanced GUI tab.
 - Fed replication/SPN/SMB evidence into prioritized root-cause findings and the ordered Recovery Plan.
+- Hardened replication diagnostics so `repadmin` Access Denied / 8453 is reported as insufficient diagnostic permission instead of a false HIGH replication-health failure.
+- Expanded SPN collision analysis to explicit CIFS registrations in addition to HOST, RestrictedKrbHost and TERMSRV.
+- Prevented SMB/Kerberos fallback warnings when Kerberos was not actually tested.
+- Added Preferred-DC fallback throughout Advanced Diagnostics and allowed replication/SPN/SMB CLI analyzers to run on standalone systems with `--dc` even when domain discovery is unavailable.
+- Added regression tests for replication access-denied classification, CIFS SPN generation/deduplication and SMB/Kerberos mismatch classification.
 - Extended Self Test with DN-to-DNS conversion validation and optional `repadmin.exe` availability reporting.
 - Fixed Advanced GUI busy-state handling so all diagnostic buttons are disabled during an active operation.
 - Added optional internal code-signing documentation and helper scripts for AD CS or managed-endpoint self-signed trust while SignPath onboarding is pending.
