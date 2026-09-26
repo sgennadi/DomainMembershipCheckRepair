@@ -175,12 +175,47 @@ namespace DomainMembershipCheckRepair
 
         internal static bool DisableMachineIdentityIsolationLocally(out string details)
         {
+            return DisableMachineIdentityIsolationLocally(null, out details);
+        }
+
+        internal static bool DisableMachineIdentityIsolationLocally(
+            TransactionJournal journal,
+            out string details)
+        {
             List<string> changes = new List<string>();
+
+            int? policyBefore = TransactionJournalService.ReadLocalMachineDword(MiiPolicyPath, MiiValueName);
+            int? lsaBefore = TransactionJournalService.ReadLocalMachineDword(MiiLsaPath, MiiValueName);
 
             try
             {
                 SetDwordIfPresent(MiiPolicyPath, MiiValueName, 0, changes);
                 SetDwordIfPresent(MiiLsaPath, MiiValueName, 0, changes);
+
+                int? policyAfter = TransactionJournalService.ReadLocalMachineDword(MiiPolicyPath, MiiValueName);
+                int? lsaAfter = TransactionJournalService.ReadLocalMachineDword(MiiLsaPath, MiiValueName);
+
+                if (policyBefore != policyAfter)
+                {
+                    TransactionJournalService.RecordRegistryDwordChange(
+                        journal,
+                        @"HKLM\" + MiiPolicyPath,
+                        MiiValueName,
+                        policyBefore,
+                        policyAfter,
+                        true);
+                }
+
+                if (lsaBefore != lsaAfter)
+                {
+                    TransactionJournalService.RecordRegistryDwordChange(
+                        journal,
+                        @"HKLM\" + MiiLsaPath,
+                        MiiValueName,
+                        lsaBefore,
+                        lsaAfter,
+                        true);
+                }
 
                 if (changes.Count == 0)
                 {
