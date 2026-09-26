@@ -746,68 +746,81 @@ namespace DomainMembershipCheckRepair
 
         private void DiagnosticsWorkflow()
         {
-            SetBusy(true);
-            try
-            {
-                DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
-                    (domainBox.Text ?? String.Empty).Trim(),
-                    dcBox == null ? String.Empty : dcBox.Text);
-                lastDiagnosticsSnapshot = snapshot;
-                Log("INFO", "Diagnostics completed. " + BuildInfo.RuntimeSummary);
-                ReportDialog.ShowReport(this, "Diagnostics", DiagnosticsService.ToText(snapshot));
-            }
-            catch (Exception ex)
-            {
-                Log("ERROR", "Diagnostics failed: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "Diagnostics failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                SetBusy(false);
-            }
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
+
+            RunBackgroundDiagnostic(
+                "Diagnostics",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
+                {
+                    progress("Diagnostics: capturing Windows, domain and DC health");
+                    token.ThrowIfCancellationRequested();
+                    DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
+                        inputs.Domain,
+                        inputs.PreferredDc);
+                    token.ThrowIfCancellationRequested();
+                    return snapshot;
+                },
+                delegate(DiagnosticsSnapshot snapshot)
+                {
+                    lastDiagnosticsSnapshot = snapshot;
+                    Log("INFO", "Diagnostics completed. " + BuildInfo.RuntimeSummary);
+                    ReportDialog.ShowReport(
+                        this,
+                        "Diagnostics",
+                        DiagnosticsService.ToText(snapshot));
+                });
         }
 
         private void ExportDiagnosticsWorkflow()
         {
-            SetBusy(true);
-            try
+            string outputPath;
+            using (SaveFileDialog save = new SaveFileDialog())
             {
-                DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
-                    (domainBox.Text ?? String.Empty).Trim(),
-                    dcBox == null ? String.Empty : dcBox.Text);
+                save.Title = "Export diagnostics";
+                save.Filter = "ZIP archive (*.zip)|*.zip|All files (*.*)|*.*";
+                save.FileName = Path.GetFileName(DiagnosticsService.GetDefaultArchivePath());
+                save.AddExtension = true;
+                save.DefaultExt = "zip";
 
-                using (SaveFileDialog save = new SaveFileDialog())
+                if (save.ShowDialog(this) != DialogResult.OK)
+                    return;
+
+                outputPath = save.FileName;
+            }
+
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
+            bool includeApplicationLog = fileLogBox != null && fileLogBox.Checked;
+
+            RunBackgroundDiagnostic(
+                "Export Diagnostics",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
                 {
-                    save.Title = "Export diagnostics";
-                    save.Filter = "ZIP archive (*.zip)|*.zip|All files (*.*)|*.*";
-                    save.FileName = Path.GetFileName(DiagnosticsService.GetDefaultArchivePath());
-                    save.AddExtension = true;
-                    save.DefaultExt = "zip";
+                    progress("Export Diagnostics: capturing current state");
+                    DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
+                        inputs.Domain,
+                        inputs.PreferredDc);
+                    token.ThrowIfCancellationRequested();
 
-                    if (save.ShowDialog(this) != DialogResult.OK)
-                        return;
-
-                    string archive = DiagnosticsService.ExportPackage(snapshot, save.FileName, fileLogBox != null && fileLogBox.Checked);
+                    progress("Export Diagnostics: creating ZIP archive");
+                    string archive = DiagnosticsService.ExportPackage(
+                        snapshot,
+                        outputPath,
+                        includeApplicationLog);
+                    token.ThrowIfCancellationRequested();
+                    return archive;
+                },
+                delegate(string archive)
+                {
                     Log("SUCCESS", "Diagnostics package exported: " + archive);
-                    MessageBox.Show(this,
-                        "Diagnostics package created successfully:\r\n\r\n" + archive + "\r\n\r\n" +
-                        "The application log is included only when file logging is enabled. Review logs before sharing them.",
+                    MessageBox.Show(
+                        this,
+                        "Diagnostics package created successfully:\r\n\r\n" + archive +
+                        "\r\n\r\nThe application log is included only when file logging is enabled. Review logs before sharing them.",
                         "Diagnostics exported",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information);
-                }
-            }
-            catch (Exception ex)
-            {
-                Log("ERROR", "Diagnostics export failed: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "Diagnostics export failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                SetBusy(false);
-            }
+                });
         }
-
 
         private void AdvancedDiagnosticsWorkflow()
         {
