@@ -1409,7 +1409,9 @@ namespace DomainMembershipCheckRepair
                     null,
                     null))
                 {
-                    SafeRecoveryResult result = SafeRecoveryService.Run(domain);
+                    TransactionJournal journal = TransactionJournalService.Begin("safe-fixes");
+                    SafeRecoveryResult result = SafeRecoveryService.Run(domain, journal);
+                    journal.Complete();
                     Log(result.Success ? "SUCCESS" : "WARN",
                         result.Success ? "Safe recovery actions completed." : "Safe recovery actions completed with one or more failures.");
                     ReportDialog.ShowReport(this, "Safe Fixes", SafeRecoveryService.ToText(result));
@@ -1562,14 +1564,18 @@ namespace DomainMembershipCheckRepair
                             null,
                             null);
 
+                        TransactionJournal journal = TransactionJournalService.Begin("mii-disable");
                         string miiDetails;
-                        if (!HealthDiagnosticsService.DisableMachineIdentityIsolationLocally(out miiDetails))
+                        if (!HealthDiagnosticsService.DisableMachineIdentityIsolationLocally(journal, out miiDetails))
                         {
+                            TransactionJournalService.RecordNote(journal, "MII", "Disable operation failed: " + miiDetails);
+                            journal.Complete();
                             Log("ERROR", miiDetails);
                             MessageBox.Show(this, miiDetails, "Unable to change MII", MessageBoxButtons.OK, MessageBoxIcon.Error);
                             return;
                         }
 
+                        journal.Complete();
                         Log("SUCCESS", miiDetails);
                         string resumeError;
                         ResumeService.RegisterPostRebootCheck(joinedDomain, out resumeError);
@@ -1770,7 +1776,9 @@ namespace DomainMembershipCheckRepair
                 password))
             {
             Log("INFO", "Running non-destructive Safe Fixes before retrying Join/Rejoin with the same computer name.");
-            SafeRecoveryResult safe = SafeRecoveryService.Run(targetDomain);
+            TransactionJournal journal = TransactionJournalService.Begin("safe-fixes-retry");
+            SafeRecoveryResult safe = SafeRecoveryService.Run(targetDomain, journal);
+            journal.Complete();
             foreach (string step in safe.Steps)
                 Log(step.StartsWith("OK:", StringComparison.OrdinalIgnoreCase) ? "INFO" : "WARN", step);
 
@@ -1906,11 +1914,19 @@ namespace DomainMembershipCheckRepair
                     user,
                     password))
                 {
+                TransactionJournal renameJournal = TransactionJournalService.Begin("rename-and-join");
+                TransactionJournalService.RecordNote(
+                    renameJournal,
+                    "Computer rename",
+                    "Pending rename requested from " + currentName + " to " + newName +
+                    ". Domain join/rename is audited but not automatically rolled back from the journal.");
+
                 Log("INFO", "Setting pending computer name to '" + newName + "'.");
                 int renameError;
                 if (!NativeMethods.SetPendingComputerName(newName, out renameError))
                 {
                     Log("ERROR", "SetComputerNameEx failed: " + NativeMethods.FormatError(renameError));
+                    renameJournal.Complete();
                     MessageBox.Show(this,
                         "Unable to set the new computer name.\r\n\r\n" + NativeMethods.FormatError(renameError),
                         "Rename failed",
@@ -1924,6 +1940,8 @@ namespace DomainMembershipCheckRepair
 
                 if (joinStatus == NativeMethods.NERR_Success)
                 {
+                    TransactionJournalService.RecordNote(renameJournal, "Domain join", "Rename + domain join succeeded; restart required.");
+                    renameJournal.Complete();
                     Log("SUCCESS", "Rename + domain join succeeded. New name after reboot: " + newName);
                     AskRestart("Rename and domain join completed successfully.\r\n\r\nNew computer name after restart: " + newName);
                     return;
@@ -1934,10 +1952,14 @@ namespace DomainMembershipCheckRepair
                 int rollbackError;
                 bool rollbackOk = NativeMethods.SetPendingComputerName(currentName, out rollbackError);
                 if (rollbackOk)
+                {
+                    TransactionJournalService.RecordNote(renameJournal, "Computer rename", "Join failed and pending computer name was rolled back to " + currentName + ".");
                     Log("INFO", "Pending computer name was rolled back to '" + currentName + "'.");
+                }
                 else
                     Log("WARN", "Unable to roll back the pending computer name: " + NativeMethods.FormatError(rollbackError));
 
+                renameJournal.Complete();
                 MessageBox.Show(this,
                     "Rename + domain join failed.\r\n\r\nError: " + NativeMethods.FormatError(joinStatus) + "\r\n\r\nCheck C:\\Windows\\Debug\\NetSetup.log",
                     "Domain join failed",
