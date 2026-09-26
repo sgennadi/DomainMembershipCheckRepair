@@ -64,8 +64,7 @@ namespace DomainMembershipCheckRepair
             r.SmbStatus = Status(smb);
             r.SmbDetails = Collapse(smb == null ? String.Empty : smb.CombinedOutput, 500);
 
-            if (!String.Equals(r.KerberosCifsStatus, "OK", StringComparison.OrdinalIgnoreCase) &&
-                String.Equals(r.SmbStatus, "OK", StringComparison.OrdinalIgnoreCase))
+            if (HasKerberosSmbMismatch(r.KerberosCifsStatus, r.SmbStatus))
             {
                 r.Findings.Add(
                     "CHECK: SMB access succeeded while an explicit CIFS Kerberos ticket request failed. " +
@@ -119,6 +118,13 @@ namespace DomainMembershipCheckRepair
             }
 
             return sb.ToString();
+        }
+
+        internal static bool HasKerberosSmbMismatch(string kerberosStatus, string smbStatus)
+        {
+            return !String.IsNullOrWhiteSpace(kerberosStatus) &&
+                   kerberosStatus.StartsWith("FAILED", StringComparison.OrdinalIgnoreCase) &&
+                   String.Equals(smbStatus, "OK", StringComparison.OrdinalIgnoreCase);
         }
 
         private static int? ReadDword(string path, string name)
