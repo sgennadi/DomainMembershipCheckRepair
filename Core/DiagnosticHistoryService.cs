@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
-using System.Security.AccessControl;
-using System.Security.Principal;
 using System.Text;
 
 namespace DomainMembershipCheckRepair
@@ -965,64 +963,16 @@ namespace DomainMembershipCheckRepair
         {
             string path = GetFolderPath();
             Directory.CreateDirectory(path);
-            HardenFolder(path);
             return path;
         }
 
-        private static string GetFolderPath()
+        internal static string GetFolderPath()
         {
             return Path.Combine(
                 Environment.GetFolderPath(
-                    Environment.SpecialFolder.CommonApplicationData),
+                    Environment.SpecialFolder.LocalApplicationData),
                 "DomainMembershipCheckRepair",
                 "History");
-        }
-
-        private static void HardenFolder(string path)
-        {
-            try
-            {
-                DirectorySecurity security =
-                    new DirectorySecurity();
-                security.SetAccessRuleProtection(true, false);
-
-                InheritanceFlags inheritance =
-                    InheritanceFlags.ContainerInherit |
-                    InheritanceFlags.ObjectInherit;
-
-                security.AddAccessRule(new FileSystemAccessRule(
-                    new SecurityIdentifier(
-                        WellKnownSidType.LocalSystemSid,
-                        null),
-                    FileSystemRights.FullControl,
-                    inheritance,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
-
-                security.AddAccessRule(new FileSystemAccessRule(
-                    new SecurityIdentifier(
-                        WellKnownSidType.BuiltinAdministratorsSid,
-                        null),
-                    FileSystemRights.FullControl,
-                    inheritance,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
-
-                security.AddAccessRule(new FileSystemAccessRule(
-                    new SecurityIdentifier(
-                        WellKnownSidType.BuiltinUsersSid,
-                        null),
-                    FileSystemRights.ReadAndExecute |
-                    FileSystemRights.Read,
-                    inheritance,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
-
-                Directory.SetAccessControl(path, security);
-            }
-            catch
-            {
-            }
         }
 
         private static void Prune(string folder, int keep)
