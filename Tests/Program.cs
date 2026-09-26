@@ -198,6 +198,9 @@ namespace DomainMembershipCheckRepair
                 "Source DSA          largest delta    fails/total %%   error\r\n" +
                 " DC01                    05m:10s    2 /   5   40   1722\r\n";
 
+            string accessDenied =
+                "DsReplicaGetInfo() failed with status 8453 (0x2105): Replication access was denied.\r\n";
+
             AssertFalse(
                 ReplicationMetadataService.HasReplicationFailures(healthy),
                 "repadmin healthy summary is not a failure");
@@ -205,6 +208,14 @@ namespace DomainMembershipCheckRepair
             AssertTrue(
                 ReplicationMetadataService.HasReplicationFailures(failed),
                 "repadmin non-zero failure count detected");
+
+            AssertFalse(
+                ReplicationMetadataService.HasReplicationFailures(accessDenied),
+                "repadmin access denied is not a replication health failure");
+
+            AssertTrue(
+                ReplicationMetadataService.IsAccessDenied(accessDenied),
+                "repadmin replication access denied is recognized");
         }
 
         private static void TestUiLayoutMath()
