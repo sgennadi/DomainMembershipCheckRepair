@@ -45,6 +45,7 @@ namespace DomainMembershipCheckRepair
             TestWmi(r);
             TestEventLogApi(r);
             TestDpiConfig(r);
+            TestTransactionStorage(r);
 
             string targetDomain = (domain ?? String.Empty).Trim();
             if (!String.IsNullOrWhiteSpace(targetDomain))
@@ -64,6 +65,15 @@ namespace DomainMembershipCheckRepair
             }
 
             string dc = DomainValidation.NormalizeDirectoryServer(preferredDc);
+            if (String.IsNullOrWhiteSpace(dc) && !String.IsNullOrWhiteSpace(targetDomain))
+            {
+                DomainDiscoveryResult discovered = NativeMethods.DiscoverDomain(targetDomain, false);
+                if (discovered.Success)
+                    dc = DomainValidation.NormalizeDirectoryServer(discovered.DomainControllerName);
+            }
+
+            TestKerberosTgt(r, targetDomain);
+
             if (!String.IsNullOrWhiteSpace(dc))
             {
                 try
@@ -83,6 +93,10 @@ namespace DomainMembershipCheckRepair
                 {
                     Add(r, "LDAP RootDSE API", "WARN", ex.Message);
                 }
+
+                TestLdapCompatibility(r, targetDomain, dc);
+                TestRpcDiagnostics(r, targetDomain, dc);
+                TestReplicationMetadataAccess(r, targetDomain, dc);
             }
             else
             {
@@ -272,6 +286,223 @@ namespace DomainMembershipCheckRepair
             {
                 Add(r, "Per-Monitor DPI config", "WARN", ex.Message);
             }
+        }
+
+        private static void TestKerberosTgt(SelfTestResult r, string targetDomain)
+        {
+            if (String.IsNullOrWhiteSpace(targetDomain))
+            {
+                Add(r, "Kerberos TGT", "SKIP", "No target domain was supplied.");
+                return;
+            }
+
+            CommandResult result = ProcessRunner.Run("klist.exe", "tgt", 8000);
+            if (result == null || !result.Started)
+            {
+                Add(r, "Kerberos TGT", "WARN", "klist.exe could not be started.");
+                return;
+            }
+
+            if (result.ExitCode == 0 && !result.TimedOut)
+            {
+                Add(r, "Kerberos TGT", "PASS", Collapse(result.CombinedOutput, 420));
+                return;
+            }
+
+            Add(
+                r,
+                "Kerberos TGT",
+                "WARN",
+                result.TimedOut
+                    ? "klist tgt timed out."
+                    : Collapse(result.CombinedOutput + " " + result.Error, 420));
+        }
+
+        private static void TestLdapCompatibility(
+            SelfTestResult r,
+            string targetDomain,
+            string dc)
+        {
+            try
+            {
+                LdapCompatibilityResult result = LdapCompatibilityAnalyzer.Analyze(
+                    targetDomain,
+                    dc,
+                    String.Empty,
+                    null,
+                    System.Threading.CancellationToken.None,
+                    null);
+
+                string[] names = new string[]
+                {
+                    "LDAP 389 / Negotiate + signing",
+                    "LDAP 389 / StartTLS + Negotiate",
+                    "LDAPS 636 / TLS certificate + hostname",
+                    "LDAPS 636 / Negotiate"
+                };
+
+                foreach (string name in names)
+                {
+                    LdapCompatibilityCheck check = FindLdapCheck(result, name);
+                    if (check == null)
+                    {
+                        Add(r, "LDAP self-test: " + name, "WARN", "Check was not returned.");
+                        continue;
+                    }
+
+                    Add(
+                        r,
+                        "LDAP self-test: " + name,
+                        String.Equals(check.Status, "OK", StringComparison.OrdinalIgnoreCase) ? "PASS" : "WARN",
+                        check.Status + (String.IsNullOrWhiteSpace(check.Details) ? String.Empty : " - " + check.Details));
+                }
+            }
+            catch (Exception ex)
+            {
+                Add(r, "LDAP compatibility API", "WARN", ex.Message);
+            }
+        }
+
+        private static LdapCompatibilityCheck FindLdapCheck(
+            LdapCompatibilityResult result,
+            string name)
+        {
+            if (result == null)
+                return null;
+
+            foreach (LdapCompatibilityCheck check in result.Checks)
+            {
+                if (String.Equals(check.Name, name, StringComparison.OrdinalIgnoreCase))
+                    return check;
+            }
+
+            return null;
+        }
+
+        private static void TestRpcDiagnostics(
+            SelfTestResult r,
+            string targetDomain,
+            string dc)
+        {
+            try
+            {
+                RpcEndpointMapperResult result = RpcEndpointMapperAnalyzer.Analyze(
+                    targetDomain,
+                    dc,
+                    System.Threading.CancellationToken.None,
+                    null);
+
+                Add(
+                    r,
+                    "RPC Endpoint Mapper API",
+                    result.EndpointMapperReachable && result.EnumerationSucceeded ? "PASS" : "WARN",
+                    "TCP135=" + result.EndpointMapperReachable +
+                    ", enumeration=" + result.EnumerationSucceeded +
+                    ", endpoints=" + result.Endpoints.Count);
+
+                foreach (RpcInterfaceProbe probe in result.InterfaceProbes)
+                {
+                    string status =
+                        String.Equals(probe.FunctionalStatus, "OK", StringComparison.OrdinalIgnoreCase) ||
+                        probe.FunctionalStatus.IndexOf("ACCESS DENIED", StringComparison.OrdinalIgnoreCase) >= 0
+                            ? "PASS"
+                            : "WARN";
+
+                    Add(
+                        r,
+                        "RPC " + probe.Name,
+                        status,
+                        (probe.Registered ? "registered" : "not seen") +
+                        "; functional=" + probe.FunctionalStatus +
+                        (String.IsNullOrWhiteSpace(probe.FunctionalDetails)
+                            ? String.Empty
+                            : "; " + probe.FunctionalDetails));
+                }
+            }
+            catch (Exception ex)
+            {
+                Add(r, "RPC functional diagnostics", "WARN", ex.Message);
+            }
+        }
+
+        private static void TestReplicationMetadataAccess(
+            SelfTestResult r,
+            string targetDomain,
+            string dc)
+        {
+            try
+            {
+                AdComputerAccountInfo account = AdDirectoryService.FindComputerAccount(
+                    Environment.MachineName,
+                    String.Empty,
+                    null,
+                    targetDomain,
+                    dc,
+                    null);
+
+                if (account == null || !account.LookupSucceeded || !account.Exists ||
+                    String.IsNullOrWhiteSpace(account.DistinguishedName))
+                {
+                    Add(
+                        r,
+                        "AD replication metadata attribute",
+                        "SKIP",
+                        "The local computer object was not available under the current security context.");
+                    return;
+                }
+
+                using (System.DirectoryServices.DirectoryEntry entry =
+                    new System.DirectoryServices.DirectoryEntry(
+                        "LDAP://" + dc + "/" + account.DistinguishedName))
+                using (System.DirectoryServices.DirectorySearcher searcher =
+                    new System.DirectoryServices.DirectorySearcher(entry))
+                {
+                    searcher.SearchScope = System.DirectoryServices.SearchScope.Base;
+                    searcher.Filter = "(objectClass=*)";
+                    searcher.ClientTimeout = TimeSpan.FromSeconds(8);
+                    searcher.ServerTimeLimit = TimeSpan.FromSeconds(8);
+                    searcher.PropertiesToLoad.Add("msDS-ReplAttributeMetaData");
+
+                    System.DirectoryServices.SearchResult found = searcher.FindOne();
+                    int count = found != null &&
+                                found.Properties.Contains("msDS-ReplAttributeMetaData")
+                        ? found.Properties["msDS-ReplAttributeMetaData"].Count
+                        : 0;
+
+                    Add(
+                        r,
+                        "AD replication metadata attribute",
+                        count > 0 ? "PASS" : "WARN",
+                        count > 0
+                            ? count + " metadata value(s) returned for " + account.DistinguishedName
+                            : "msDS-ReplAttributeMetaData was not returned.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Add(r, "AD replication metadata attribute", "WARN", ex.Message);
+            }
+        }
+
+        private static void TestTransactionStorage(SelfTestResult r)
+        {
+            string details;
+            bool ok = TransactionJournalService.CheckStorageSecurity(out details);
+            string status = details.IndexOf("does not exist yet", StringComparison.OrdinalIgnoreCase) >= 0
+                ? "SKIP"
+                : (ok ? "PASS" : "WARN");
+
+            Add(r, "Transaction journal ACL", status, details);
+        }
+
+        private static string Collapse(string value, int max)
+        {
+            string text = (value ?? String.Empty).Replace("\r", " ").Replace("\n", " ").Trim();
+            while (text.Contains("  "))
+                text = text.Replace("  ", " ");
+            if (text.Length > max)
+                text = text.Substring(0, max) + "...";
+            return text;
         }
 
         private static void Add(
