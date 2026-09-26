@@ -44,6 +44,9 @@ namespace DomainMembershipCheckRepair
                 ? result.Snapshot.TargetDomain
                 : domain;
             string discoveredDc = result.Snapshot.DiscoveredDc;
+            string effectiveDc = !String.IsNullOrWhiteSpace(discoveredDc)
+                ? discoveredDc
+                : DomainValidation.NormalizeDirectoryServer(preferredDc);
             string effectiveComputerName = String.IsNullOrWhiteSpace(computerName)
                 ? Environment.MachineName
                 : computerName;
@@ -52,19 +55,19 @@ namespace DomainMembershipCheckRepair
             result.Dns = DnsDiagnosticsService.Analyze(effectiveDomain);
             result.DcMatrix = DcMatrixService.Analyze(
                 effectiveDomain,
-                discoveredDc,
+                effectiveDc,
                 String.IsNullOrWhiteSpace(computerName) ? Environment.MachineName : computerName,
                 user,
                 password);
             result.SiteSubnet = SiteSubnetDiagnosticsService.Analyze(
                 effectiveDomain,
-                discoveredDc,
+                effectiveDc,
                 user,
                 password);
 
             result.Protocols = ProtocolDiagnosticsService.Analyze(
                 effectiveDomain,
-                discoveredDc,
+                effectiveDc,
                 user,
                 password);
 
@@ -92,23 +95,23 @@ namespace DomainMembershipCheckRepair
 
             result.ReplicationMetadata = ReplicationMetadataService.Analyze(
                 effectiveDomain,
-                discoveredDc,
+                effectiveDc,
                 objectDn);
 
             result.SpnCollisions = SpnCollisionAnalyzer.Analyze(
                 effectiveDomain,
-                discoveredDc,
+                effectiveDc,
                 effectiveComputerName,
                 user,
                 password);
 
             result.SmbKerberos = SmbKerberosAuthAnalyzer.Analyze(
                 effectiveDomain,
-                discoveredDc);
+                effectiveDc);
 
             result.JoinPermissions = JoinPermissionsAnalyzer.Analyze(
                 effectiveDomain,
-                discoveredDc,
+                effectiveDc,
                 String.IsNullOrWhiteSpace(computerName) ? Environment.MachineName : computerName,
                 user,
                 password,
