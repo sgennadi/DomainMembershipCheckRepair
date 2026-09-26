@@ -5,6 +5,7 @@ using System.DirectoryServices;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace DomainMembershipCheckRepair
 {
@@ -52,6 +53,26 @@ namespace DomainMembershipCheckRepair
             string user,
             string password)
         {
+            return Analyze(
+                domain,
+                fallbackDc,
+                computerName,
+                user,
+                password,
+                CancellationToken.None,
+                null);
+        }
+
+        internal static DcMatrixResult Analyze(
+            string domain,
+            string fallbackDc,
+            string computerName,
+            string user,
+            string password,
+            CancellationToken cancellationToken,
+            Action<string> progress)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             DcMatrixResult result = new DcMatrixResult();
             result.Domain = (domain ?? String.Empty).Trim();
 
@@ -68,6 +89,10 @@ namespace DomainMembershipCheckRepair
 
             foreach (string host in hosts)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (progress != null)
+                    progress("DC Matrix: " + host);
+
                 DcMatrixEntry entry = new DcMatrixEntry();
                 entry.Host = host.TrimEnd('.');
                 try
@@ -80,7 +105,7 @@ namespace DomainMembershipCheckRepair
                     entry.DnsResolved = false;
                 }
                 entry.Ports = ProbePorts(entry.Host);
-                entry.TimeSkew = QueryTimeSkew(entry.Host);
+                entry.TimeSkew = QueryTimeSkew(entry.Host, cancellationToken);
                 ReadRootDse(entry, user, password);
 
                 if (!String.IsNullOrWhiteSpace(computerName))
@@ -111,7 +136,8 @@ namespace DomainMembershipCheckRepair
                         entry.Host,
                         computerName,
                         user,
-                        password);
+                        password,
+                        cancellationToken);
 
                     entry.SpnCollisionCount = SpnCollisionAnalyzer.CountCollisions(spn);
                     entry.SpnStateFingerprint = SpnCollisionAnalyzer.BuildStateFingerprint(spn);
@@ -320,9 +346,13 @@ namespace DomainMembershipCheckRepair
             finally { if (client != null) client.Close(); }
         }
 
-        private static string QueryTimeSkew(string host)
+        private static string QueryTimeSkew(string host, CancellationToken cancellationToken)
         {
-            string output = RunProcess("w32tm.exe", "/stripchart /computer:" + host + " /dataonly /samples:1", 7000);
+            string output = RunProcess(
+                "w32tm.exe",
+                "/stripchart /computer:" + host + " /dataonly /samples:1",
+                7000,
+                cancellationToken);
             if (String.IsNullOrWhiteSpace(output))
                 return "(not available)";
 
@@ -338,7 +368,16 @@ namespace DomainMembershipCheckRepair
 
         private static string RunProcess(string file, string args, int timeoutMs)
         {
-            CommandResult result = ProcessRunner.Run(file, args, timeoutMs);
+            return RunProcess(file, args, timeoutMs, CancellationToken.None);
+        }
+
+        private static string RunProcess(
+            string file,
+            string args,
+            int timeoutMs,
+            CancellationToken cancellationToken)
+        {
+            CommandResult result = ProcessRunner.Run(file, args, timeoutMs, cancellationToken);
             if (!String.IsNullOrWhiteSpace(result.Error))
                 return result.Error;
             return result.CombinedOutput;
