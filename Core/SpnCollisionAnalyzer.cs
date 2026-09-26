@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.DirectoryServices;
 using System.Text;
+using System.Threading;
 
 namespace DomainMembershipCheckRepair
 {
@@ -30,6 +31,24 @@ namespace DomainMembershipCheckRepair
             string user,
             string password)
         {
+            return Analyze(
+                domain,
+                dc,
+                computerName,
+                user,
+                password,
+                CancellationToken.None);
+        }
+
+        internal static SpnCollisionResult Analyze(
+            string domain,
+            string dc,
+            string computerName,
+            string user,
+            string password,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             SpnCollisionResult r = new SpnCollisionResult();
             r.Domain = (domain ?? String.Empty).Trim();
             r.Dc = DomainValidation.NormalizeDirectoryServer(dc);
@@ -68,10 +87,14 @@ namespace DomainMembershipCheckRepair
 
                     string[] spns = BuildExpectedSpns(r.ComputerName, r.Fqdn);
 
+                    cancellationToken.ThrowIfCancellationRequested();
                     using (DirectoryEntry searchRoot = CreateEntry("LDAP://" + r.Dc + "/" + defaultNc, user, password))
                     {
                         foreach (string spn in spns)
-                            AnalyzeSpn(r, searchRoot, spn);
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            AnalyzeSpn(r, searchRoot, spn, cancellationToken);
+                        }
                     }
                 }
             }
@@ -176,8 +199,10 @@ namespace DomainMembershipCheckRepair
         private static void AnalyzeSpn(
             SpnCollisionResult result,
             DirectoryEntry root,
-            string spn)
+            string spn,
+            CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             SpnCollisionEntry entry = new SpnCollisionEntry();
             entry.Spn = spn;
 
@@ -186,6 +211,8 @@ namespace DomainMembershipCheckRepair
                 searcher.Filter = "(servicePrincipalName=" + DomainValidation.EscapeLdapFilterValue(spn) + ")";
                 searcher.SearchScope = SearchScope.Subtree;
                 searcher.PageSize = 200;
+                searcher.ClientTimeout = TimeSpan.FromSeconds(8);
+                searcher.ServerTimeLimit = TimeSpan.FromSeconds(8);
                 searcher.PropertiesToLoad.Add("distinguishedName");
 
                 using (SearchResultCollection matches = searcher.FindAll())
