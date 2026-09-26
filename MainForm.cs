@@ -1202,16 +1202,22 @@ namespace DomainMembershipCheckRepair
                         user,
                         password,
                         snapshot.TargetDomain,
-                        snapshot.DiscoveredDc,
+                        !String.IsNullOrWhiteSpace(snapshot.DiscoveredDc)
+                            ? snapshot.DiscoveredDc
+                            : DomainValidation.NormalizeDirectoryServer(preferredDc),
                         null);
 
                     if (account != null && account.LookupSucceeded && account.Exists)
                         objectDn = account.DistinguishedName;
                 }
 
+                string effectiveDc = !String.IsNullOrWhiteSpace(snapshot.DiscoveredDc)
+                    ? snapshot.DiscoveredDc
+                    : DomainValidation.NormalizeDirectoryServer(preferredDc);
+
                 ReplicationMetadataResult result = ReplicationMetadataService.Analyze(
                     snapshot.TargetDomain,
-                    snapshot.DiscoveredDc,
+                    effectiveDc,
                     objectDn);
 
                 ReportDialog.ShowReport(
