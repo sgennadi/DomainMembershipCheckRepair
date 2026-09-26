@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.DirectoryServices.Protocols;
 using System.Net;
+using System.Net.Security;
+using System.Net.Sockets;
+using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
@@ -54,7 +57,10 @@ namespace DomainMembershipCheckRepair
             Report(progress, "LDAP Compatibility: signed SASL bind on 389");
             result.Checks.Add(TestBind(result.Dc, 389, false, true, user, password, cancellationToken));
 
-            Report(progress, "LDAP Compatibility: LDAPS bind and certificate on 636");
+            Report(progress, "LDAP Compatibility: validating LDAPS TLS certificate and hostname");
+            result.Checks.Add(TestLdapsTls(result.Dc, cancellationToken));
+
+            Report(progress, "LDAP Compatibility: LDAPS authenticated bind on 636");
             result.Checks.Add(TestBind(result.Dc, 636, true, true, user, password, cancellationToken));
 
             Report(progress, "LDAP Compatibility: unsigned Negotiate probe on 389");
@@ -116,6 +122,101 @@ namespace DomainMembershipCheckRepair
             return "FAILED";
         }
 
+        private static LdapCompatibilityCheck TestLdapsTls(
+            string dc,
+            CancellationToken cancellationToken)
+        {
+            LdapCompatibilityCheck check = new LdapCompatibilityCheck();
+            check.Name = "LDAPS 636 / TLS certificate + hostname";
+            TcpClient client = null;
+            SslStream ssl = null;
+            X509Certificate2 capturedCertificate = null;
+            SslPolicyErrors validationErrors = SslPolicyErrors.None;
+
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                client = new TcpClient();
+
+                IAsyncResult connect = client.BeginConnect(dc, 636, null, null);
+                WaitWithCancellation(connect.AsyncWaitHandle, 8000, cancellationToken);
+                client.EndConnect(connect);
+
+                ssl = new SslStream(
+                    client.GetStream(),
+                    false,
+                    delegate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors errors)
+                    {
+                        validationErrors = errors;
+                        if (certificate != null)
+                            capturedCertificate = new X509Certificate2(certificate);
+                        return errors == SslPolicyErrors.None;
+                    });
+
+                IAsyncResult auth = ssl.BeginAuthenticateAsClient(dc, null, null);
+                WaitWithCancellation(auth.AsyncWaitHandle, 8000, cancellationToken);
+                ssl.EndAuthenticateAsClient(auth);
+
+                check.Status = "OK";
+                check.Details =
+                    "TLS handshake succeeded; certificate chain and server-name validation passed. " +
+                    "Protocol=" + ssl.SslProtocol +
+                    ", cipher=" + ssl.CipherAlgorithm + "/" + ssl.CipherStrength + ".";
+            }
+            catch (TimeoutException ex)
+            {
+                check.Status = "FAILED / TIMEOUT";
+                check.Details = ex.Message;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                check.Status = validationErrors == SslPolicyErrors.None
+                    ? ClassifyException(ex)
+                    : "FAILED / CERTIFICATE";
+                check.Details = validationErrors == SslPolicyErrors.None
+                    ? Collapse(ex.Message, 500)
+                    : "TLS certificate validation failed: " + validationErrors + ". " + Collapse(ex.Message, 360);
+            }
+            finally
+            {
+                if (capturedCertificate != null)
+                {
+                    check.CertificateSubject = capturedCertificate.Subject ?? String.Empty;
+                    check.CertificateIssuer = capturedCertificate.Issuer ?? String.Empty;
+                    check.CertificateNotAfter = capturedCertificate.NotAfter.ToString("yyyy-MM-dd HH:mm:ss");
+                    capturedCertificate.Dispose();
+                }
+
+                if (ssl != null)
+                    ssl.Dispose();
+                if (client != null)
+                    client.Close();
+            }
+
+            return check;
+        }
+
+        private static void WaitWithCancellation(
+            WaitHandle waitHandle,
+            int timeoutMs,
+            CancellationToken cancellationToken)
+        {
+            int elapsed = 0;
+            while (elapsed < timeoutMs)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (waitHandle.WaitOne(100))
+                    return;
+                elapsed += 100;
+            }
+
+            throw new TimeoutException("The TLS operation timed out.");
+        }
+
         private static LdapCompatibilityCheck TestBind(
             string dc,
             int port,
@@ -148,17 +249,8 @@ namespace DomainMembershipCheckRepair
                     connection.SessionOptions.Signing = signing;
                     connection.SessionOptions.Sealing = signing;
 
-                    X509Certificate certificate = null;
                     if (ssl)
-                    {
                         connection.SessionOptions.SecureSocketLayer = true;
-                        connection.SessionOptions.VerifyServerCertificate =
-                            delegate(LdapConnection c, X509Certificate cert)
-                            {
-                                certificate = cert;
-                                return true;
-                            };
-                    }
 
                     connection.Bind();
                     cancellationToken.ThrowIfCancellationRequested();
@@ -176,13 +268,7 @@ namespace DomainMembershipCheckRepair
                         ? "Authenticated LDAP bind and RootDSE query succeeded."
                         : "Authenticated LDAP bind succeeded.";
 
-                    if (certificate != null)
-                    {
-                        X509Certificate2 cert2 = new X509Certificate2(certificate);
-                        check.CertificateSubject = cert2.Subject ?? String.Empty;
-                        check.CertificateIssuer = cert2.Issuer ?? String.Empty;
-                        check.CertificateNotAfter = cert2.NotAfter.ToString("yyyy-MM-dd HH:mm:ss");
-                    }
+
                 }
             }
             catch (Exception ex)
@@ -212,14 +298,18 @@ namespace DomainMembershipCheckRepair
         private static void AnalyzeFindings(LdapCompatibilityResult result)
         {
             LdapCompatibilityCheck signed = Find(result, "LDAP 389 / Negotiate + signing");
+            LdapCompatibilityCheck tls = Find(result, "LDAPS 636 / TLS certificate + hostname");
             LdapCompatibilityCheck ldaps = Find(result, "LDAPS 636 / Negotiate");
             LdapCompatibilityCheck unsigned = Find(result, "LDAP 389 / Negotiate unsigned probe");
 
             if (signed != null && !String.Equals(signed.Status, "OK", StringComparison.OrdinalIgnoreCase))
                 result.Findings.Add("HIGH: Signed LDAP Negotiate bind to port 389 failed.");
 
+            if (tls != null && !String.Equals(tls.Status, "OK", StringComparison.OrdinalIgnoreCase))
+                result.Findings.Add("HIGH: LDAPS TLS certificate/hostname validation failed.");
+
             if (ldaps != null && !String.Equals(ldaps.Status, "OK", StringComparison.OrdinalIgnoreCase))
-                result.Findings.Add("CHECK: LDAPS 636 bind/certificate test failed.");
+                result.Findings.Add("CHECK: LDAPS 636 authenticated bind failed.");
 
             if (unsigned != null &&
                 unsigned.Status.IndexOf("SIGNING REQUIRED", StringComparison.OrdinalIgnoreCase) >= 0)
@@ -228,6 +318,7 @@ namespace DomainMembershipCheckRepair
             }
 
             if (signed != null && String.Equals(signed.Status, "OK", StringComparison.OrdinalIgnoreCase) &&
+                tls != null && String.Equals(tls.Status, "OK", StringComparison.OrdinalIgnoreCase) &&
                 ldaps != null && String.Equals(ldaps.Status, "OK", StringComparison.OrdinalIgnoreCase))
             {
                 result.Findings.Add("INFO: Signed LDAP and LDAPS authenticated binds both succeeded.");
