@@ -218,6 +218,11 @@ namespace DomainMembershipCheckRepair
             AssertTrue(
                 ReplicationMetadataService.IsAccessDenied(accessDenied),
                 "repadmin replication access denied is recognized");
+
+            AssertEqual(
+                "/replsummary \"dc01.example.com\"",
+                ReplicationMetadataService.BuildReplSummaryArguments(@"\\dc01.example.com"),
+                "repadmin summary targets preferred DC");
         }
 
         private static void TestExpectedSpns()
