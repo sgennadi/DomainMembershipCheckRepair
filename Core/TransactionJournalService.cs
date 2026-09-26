@@ -238,6 +238,13 @@ namespace DomainMembershipCheckRepair
 
             try
             {
+                string securityError;
+                if (!IsJournalSecurityTrusted(path, out securityError))
+                {
+                    report = "Rollback blocked because transaction journal security could not be trusted: " + securityError;
+                    return false;
+                }
+
                 string json = File.ReadAllText(path);
                 List<TransactionJournalEntry> entries = ParseEntries(json);
                 if (entries.Count == 0)
@@ -340,6 +347,64 @@ namespace DomainMembershipCheckRepair
             return false;
         }
 
+        private static bool IsJournalSecurityTrusted(string path, out string error)
+        {
+            error = String.Empty;
+            try
+            {
+                FileSecurity security = File.GetAccessControl(path);
+                AuthorizationRuleCollection rules = security.GetAccessRules(
+                    true,
+                    true,
+                    typeof(SecurityIdentifier));
+
+                SecurityIdentifier users = new SecurityIdentifier(
+                    WellKnownSidType.BuiltinUsersSid, null);
+                SecurityIdentifier authenticated = new SecurityIdentifier(
+                    WellKnownSidType.AuthenticatedUserSid, null);
+                SecurityIdentifier everyone = new SecurityIdentifier(
+                    WellKnownSidType.WorldSid, null);
+
+                foreach (FileSystemAccessRule rule in rules)
+                {
+                    if (rule.AccessControlType != AccessControlType.Allow)
+                        continue;
+
+                    SecurityIdentifier sid = rule.IdentityReference as SecurityIdentifier;
+                    if (sid == null)
+                        continue;
+
+                    bool broad = sid.Equals(users) ||
+                                 sid.Equals(authenticated) ||
+                                 sid.Equals(everyone);
+                    if (!broad)
+                        continue;
+
+                    FileSystemRights dangerous =
+                        FileSystemRights.Write |
+                        FileSystemRights.Modify |
+                        FileSystemRights.FullControl |
+                        FileSystemRights.WriteData |
+                        FileSystemRights.AppendData |
+                        FileSystemRights.ChangePermissions |
+                        FileSystemRights.TakeOwnership;
+
+                    if ((rule.FileSystemRights & dangerous) != 0)
+                    {
+                        error = "A broad user group has write-capable access to the journal file.";
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
         private static bool RestoreRegistry(TransactionJournalEntry entry, out string error)
         {
             error = String.Empty;
@@ -364,9 +429,22 @@ namespace DomainMembershipCheckRepair
                     }
 
                     if (String.Equals(entry.Before, "(missing)", StringComparison.OrdinalIgnoreCase))
+                    {
                         key.DeleteValue(valueName, false);
+                    }
                     else
-                        key.SetValue(valueName, Convert.ToInt32(entry.Before), RegistryValueKind.DWord);
+                    {
+                        int restoreValue;
+                        if (!Int32.TryParse(entry.Before, out restoreValue) ||
+                            restoreValue < 0 ||
+                            restoreValue > 2)
+                        {
+                            error = "Rollback value is outside the allowed MII range 0-2.";
+                            return false;
+                        }
+
+                        key.SetValue(valueName, restoreValue, RegistryValueKind.DWord);
+                    }
                 }
 
                 return true;
