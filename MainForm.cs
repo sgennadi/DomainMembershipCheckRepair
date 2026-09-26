@@ -1157,130 +1157,123 @@ namespace DomainMembershipCheckRepair
 
         private void ReplicationMetadataWorkflow()
         {
-            SetBusy(true);
-            try
-            {
-                string targetDomain = domainBox == null ? String.Empty : (domainBox.Text ?? String.Empty).Trim();
-                string preferredDc = dcBox == null ? String.Empty : (dcBox.Text ?? String.Empty).Trim();
-                DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(targetDomain, preferredDc);
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
 
-                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
-                string password = passwordBox == null ? null : passwordBox.Text;
-                string objectDn = String.Empty;
+            RunBackgroundDiagnostic(
+                "AD Replication Metadata",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
+                {
+                    progress("Replication: resolving domain controller and computer object");
+                    DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
+                        inputs.Domain,
+                        inputs.PreferredDc);
 
-                AdComputerAccountInfo account = AdDirectoryService.FindComputerAccount(
-                    Environment.MachineName,
-                    user,
-                    password,
-                    snapshot.TargetDomain,
-                    DomainValidation.SelectDirectoryServer(preferredDc, snapshot.DiscoveredDc),
-                    null);
+                    string effectiveDc = DomainValidation.SelectDirectoryServer(
+                        inputs.PreferredDc,
+                        snapshot.DiscoveredDc);
 
-                if (account != null && account.LookupSucceeded && account.Exists)
-                    objectDn = account.DistinguishedName;
+                    token.ThrowIfCancellationRequested();
+                    AdComputerAccountInfo account = AdDirectoryService.FindComputerAccount(
+                        inputs.ComputerName,
+                        inputs.User,
+                        inputs.Password,
+                        snapshot.TargetDomain,
+                        effectiveDc,
+                        null);
 
-                string effectiveDc = DomainValidation.SelectDirectoryServer(
-                    preferredDc,
-                    snapshot.DiscoveredDc);
+                    string objectDn = account != null && account.LookupSucceeded && account.Exists
+                        ? account.DistinguishedName
+                        : String.Empty;
 
-                ReplicationMetadataResult result = ReplicationMetadataService.Analyze(
-                    snapshot.TargetDomain,
-                    effectiveDc,
-                    objectDn,
-                    user,
-                    password);
-
-                ReportDialog.ShowReport(
-                    this,
-                    "AD Replication Metadata",
-                    ReplicationMetadataService.ToText(result));
-            }
-            catch (Exception ex)
-            {
-                Log("ERROR", "Replication metadata analysis failed: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "Replication metadata analysis failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                SetBusy(false);
-            }
+                    token.ThrowIfCancellationRequested();
+                    progress("Replication: reading LDAP/repadmin metadata");
+                    return ReplicationMetadataService.Analyze(
+                        snapshot.TargetDomain,
+                        effectiveDc,
+                        objectDn,
+                        inputs.User,
+                        inputs.Password,
+                        token);
+                },
+                delegate(ReplicationMetadataResult result)
+                {
+                    ReportDialog.ShowReport(
+                        this,
+                        "AD Replication Metadata",
+                        ReplicationMetadataService.ToText(result));
+                });
         }
 
         private void SpnCollisionsWorkflow()
         {
-            SetBusy(true);
-            try
-            {
-                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
-                string password = passwordBox == null ? null : passwordBox.Text;
-                if (String.IsNullOrWhiteSpace(user) || String.IsNullOrEmpty(password))
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
+
+            RunBackgroundDiagnostic(
+                "SPN Collision Analyzer",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
                 {
-                    user = String.Empty;
-                    password = null;
-                }
-
-                SpnCollisionResult result = SpnCollisionAnalyzer.Analyze(
-                    domainBox == null ? String.Empty : domainBox.Text,
-                    dcBox == null ? String.Empty : dcBox.Text,
-                    Environment.MachineName,
-                    user,
-                    password);
-
-                ReportDialog.ShowReport(
-                    this,
-                    "SPN Collision Analyzer",
-                    SpnCollisionAnalyzer.ToText(result));
-            }
-            catch (Exception ex)
-            {
-                Log("ERROR", "SPN collision analysis failed: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "SPN collision analysis failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                SetBusy(false);
-            }
+                    progress("SPN: searching the selected DC");
+                    return SpnCollisionAnalyzer.Analyze(
+                        inputs.Domain,
+                        inputs.PreferredDc,
+                        inputs.ComputerName,
+                        inputs.User,
+                        inputs.Password,
+                        token);
+                },
+                delegate(SpnCollisionResult result)
+                {
+                    ReportDialog.ShowReport(
+                        this,
+                        "SPN Collision Analyzer",
+                        SpnCollisionAnalyzer.ToText(result));
+                });
         }
 
         private void SmbKerberosWorkflow()
         {
-            SetBusy(true);
-            try
-            {
-                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
-                string password = passwordBox == null ? null : passwordBox.Text;
-                if (String.IsNullOrWhiteSpace(user) || String.IsNullOrEmpty(password))
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
+
+            RunBackgroundDiagnostic(
+                "SMB / Kerberos Authentication",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
                 {
-                    user = String.Empty;
-                    password = null;
-                }
-
-                SmbKerberosAuthResult result = SmbKerberosAuthAnalyzer.Analyze(
-                    domainBox == null ? String.Empty : domainBox.Text,
-                    dcBox == null ? String.Empty : dcBox.Text,
-                    user,
-                    password);
-
-                ReportDialog.ShowReport(
-                    this,
-                    "SMB / Kerberos Authentication",
-                    SmbKerberosAuthAnalyzer.ToText(result));
-            }
-            catch (Exception ex)
-            {
-                Log("ERROR", "SMB/Kerberos analysis failed: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "SMB/Kerberos analysis failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                SetBusy(false);
-            }
+                    progress("SMB/Kerberos: requesting CIFS ticket and testing SMB");
+                    return SmbKerberosAuthAnalyzer.Analyze(
+                        inputs.Domain,
+                        inputs.PreferredDc,
+                        inputs.User,
+                        inputs.Password,
+                        token);
+                },
+                delegate(SmbKerberosAuthResult result)
+                {
+                    ReportDialog.ShowReport(
+                        this,
+                        "SMB / Kerberos Authentication",
+                        SmbKerberosAuthAnalyzer.ToText(result));
+                });
         }
 
         private void CyberArkHealthWorkflow()
         {
-            CyberArkDiagnosticsResult result = CyberArkDiagnosticsService.Analyze();
-            ReportDialog.ShowReport(this, "CyberArk / EPM Health", CyberArkDiagnosticsService.ToText(result));
+            RunBackgroundDiagnostic(
+                "CyberArk / EPM Health",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
+                {
+                    progress("CyberArk/EPM: inspecting local policy and process state");
+                    token.ThrowIfCancellationRequested();
+                    CyberArkDiagnosticsResult result = CyberArkDiagnosticsService.Analyze();
+                    token.ThrowIfCancellationRequested();
+                    return result;
+                },
+                delegate(CyberArkDiagnosticsResult result)
+                {
+                    ReportDialog.ShowReport(
+                        this,
+                        "CyberArk / EPM Health",
+                        CyberArkDiagnosticsService.ToText(result));
+                });
         }
 
         private void CreatePreChangeBundle(
