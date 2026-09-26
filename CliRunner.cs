@@ -311,6 +311,7 @@ namespace DomainMembershipCheckRepair
             if (result.Json && (result.Action == "repair" || result.Action == "join" || result.Action == "rename" ||
                                 result.Action == "restart" || result.Action == "mii-disable" ||
                                 result.Action == "safe-fixes" ||
+                                result.Action == "rollback-local" ||
                                 result.Action == "odj-apply" || result.Action == "odj-provision"))
             {
                 error = "--json is supported for read-only/reporting actions only.";
@@ -386,6 +387,14 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("  --cli --action replication-metadata");
             Console.WriteLine("  --cli --action spn-collisions");
             Console.WriteLine("  --cli --action smb-kerberos");
+            Console.WriteLine("  --cli --action kerberos-deep");
+            Console.WriteLine("  --cli --action ldap-compatibility");
+            Console.WriteLine("  --cli --action rpc-endpoints");
+            Console.WriteLine("  --cli --action replication-timeline");
+            Console.WriteLine("  --cli --action identity-consistency");
+            Console.WriteLine("  --cli --action next-action");
+            Console.WriteLine("  --cli --action transactions");
+            Console.WriteLine("  --cli --action rollback-local");
             Console.WriteLine("  --cli --action self-test");
             Console.WriteLine("  --cli --action recovery-plan");
             Console.WriteLine("  --cli --action support-bundle");
@@ -573,6 +582,14 @@ namespace DomainMembershipCheckRepair
                     case "replication-metadata": return ReplicationMetadata();
                     case "spn-collisions": return SpnCollisions();
                     case "smb-kerberos": return SmbKerberos();
+                    case "kerberos-deep": return KerberosDeep();
+                    case "ldap-compatibility": return LdapCompatibility();
+                    case "rpc-endpoints": return RpcEndpoints();
+                    case "replication-timeline": return ReplicationTimeline();
+                    case "identity-consistency": return IdentityConsistency();
+                    case "next-action": return NextAction();
+                    case "transactions": return Transactions();
+                    case "rollback-local": return RollbackLocal();
                     case "self-test": return SelfTest();
                     case "recovery-plan": return RecoveryPlan();
                     case "support-bundle": return SupportBundle();
@@ -1325,6 +1342,160 @@ namespace DomainMembershipCheckRepair
                 result,
                 SmbKerberosAuthAnalyzer.ToText(result),
                 ExitFromSmbKerberos(result));
+        }
+
+        private static int KerberosDeep()
+        {
+            DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(options.Domain, options.PreferredDc);
+            string dc = DomainValidation.SelectDirectoryServer(options.PreferredDc, snapshot.DiscoveredDc);
+            string user;
+            string password;
+            GetOptionalCredentials(out user, out password);
+
+            KerberosDeepResult result = KerberosDeepAnalyzer.Analyze(
+                snapshot.TargetDomain, dc, user, password, CancellationToken.None, null);
+            int exitCode = DiagnosticExitCodes.FromFindings(result.Findings, result.Tickets.Count > 0);
+            return WriteDiagnosticResult("kerberos-deep", result, KerberosDeepAnalyzer.ToText(result), exitCode);
+        }
+
+        private static int LdapCompatibility()
+        {
+            DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(options.Domain, options.PreferredDc);
+            string dc = DomainValidation.SelectDirectoryServer(options.PreferredDc, snapshot.DiscoveredDc);
+            string user;
+            string password;
+            GetOptionalCredentials(out user, out password);
+
+            LdapCompatibilityResult result = LdapCompatibilityAnalyzer.Analyze(
+                snapshot.TargetDomain, dc, user, password, CancellationToken.None, null);
+            int exitCode = DiagnosticExitCodes.FromFindings(result.Findings, result.Checks.Count > 0);
+            return WriteDiagnosticResult("ldap-compatibility", result, LdapCompatibilityAnalyzer.ToText(result), exitCode);
+        }
+
+        private static int RpcEndpoints()
+        {
+            DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(options.Domain, options.PreferredDc);
+            string dc = DomainValidation.SelectDirectoryServer(options.PreferredDc, snapshot.DiscoveredDc);
+            RpcEndpointMapperResult result = RpcEndpointMapperAnalyzer.Analyze(
+                snapshot.TargetDomain, dc, CancellationToken.None, null);
+            int exitCode = DiagnosticExitCodes.FromFindings(
+                result.Findings, result.EndpointMapperReachable);
+            return WriteDiagnosticResult("rpc-endpoints", result, RpcEndpointMapperAnalyzer.ToText(result), exitCode);
+        }
+
+        private static int ReplicationTimeline()
+        {
+            DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(options.Domain, options.PreferredDc);
+            string dc = DomainValidation.SelectDirectoryServer(options.PreferredDc, snapshot.DiscoveredDc);
+            string user;
+            string password;
+            GetOptionalCredentials(out user, out password);
+
+            string computer = String.IsNullOrWhiteSpace(options.ComputerName)
+                ? Environment.MachineName
+                : options.ComputerName;
+
+            AdComputerAccountInfo account = AdDirectoryService.FindComputerAccount(
+                computer, user, password, snapshot.TargetDomain, dc, logger.Log);
+
+            DcMatrixResult matrix = DcMatrixService.Analyze(
+                snapshot.TargetDomain, dc, computer, user, password);
+
+            ReplicationTimelineResult result = ReplicationTimelineAnalyzer.Analyze(
+                matrix,
+                account != null && account.Exists ? account.DistinguishedName : String.Empty,
+                user,
+                password,
+                CancellationToken.None,
+                null);
+
+            int exitCode = DiagnosticExitCodes.FromFindings(result.Findings, result.Entries.Count > 0);
+            return WriteDiagnosticResult("replication-timeline", result, ReplicationTimelineAnalyzer.ToText(result), exitCode);
+        }
+
+        private static int IdentityConsistency()
+        {
+            DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(options.Domain, options.PreferredDc);
+            string dc = DomainValidation.SelectDirectoryServer(options.PreferredDc, snapshot.DiscoveredDc);
+            string user;
+            string password;
+            GetOptionalCredentials(out user, out password);
+
+            string computer = String.IsNullOrWhiteSpace(options.ComputerName)
+                ? Environment.MachineName
+                : options.ComputerName;
+
+            AdComputerAccountInfo account = AdDirectoryService.FindComputerAccount(
+                computer, user, password, snapshot.TargetDomain, dc, logger.Log);
+
+            string fqdn = account != null && account.Exists && !String.IsNullOrWhiteSpace(account.DnsHostName)
+                ? account.DnsHostName
+                : (!String.IsNullOrWhiteSpace(snapshot.PhysicalDnsDomain)
+                    ? computer + "." + snapshot.PhysicalDnsDomain
+                    : (!String.IsNullOrWhiteSpace(snapshot.TargetDomain)
+                        ? computer + "." + snapshot.TargetDomain
+                        : String.Empty));
+
+            IdentityConsistencyResult result = IdentityConsistencyAnalyzer.Analyze(
+                snapshot.TargetDomain, dc, computer, fqdn, user, password, CancellationToken.None);
+
+            int exitCode = DiagnosticExitCodes.FromFindings(result.Findings, result.Entries.Count > 0);
+            return WriteDiagnosticResult("identity-consistency", result, IdentityConsistencyAnalyzer.ToText(result), exitCode);
+        }
+
+        private static int NextAction()
+        {
+            string user;
+            string password;
+            GetOptionalCredentials(out user, out password);
+
+            AdvancedDiagnosticsResult advanced = AdvancedDiagnosticsService.Analyze(
+                options.Domain,
+                options.PreferredDc,
+                String.IsNullOrWhiteSpace(options.ComputerName) ? Environment.MachineName : options.ComputerName,
+                user,
+                password);
+
+            SmartNextActionResult result = advanced.NextAction;
+            int exitCode = result != null && result.BlockDestructiveRecovery
+                ? DiagnosticExitCodes.FindingDetected
+                : DiagnosticExitCodes.Success;
+            return WriteDiagnosticResult("next-action", result, SmartNextActionService.ToText(result), exitCode);
+        }
+
+        private static int Transactions()
+        {
+            string path = TransactionJournalService.GetLatestJournalPath();
+            Dictionary<string, object> payload = new Dictionary<string, object>();
+            payload["path"] = path;
+            payload["content"] = TransactionJournalService.ToText(path);
+
+            return WriteDiagnosticResult(
+                "transactions",
+                payload,
+                String.IsNullOrWhiteSpace(path)
+                    ? "No transaction journal was found."
+                    : "Latest transaction journal: " + path + Environment.NewLine + Environment.NewLine + TransactionJournalService.ToText(path),
+                String.IsNullOrWhiteSpace(path) ? DiagnosticExitCodes.NotTested : DiagnosticExitCodes.Success);
+        }
+
+        private static int RollbackLocal()
+        {
+            if (options.DryRun)
+            {
+                Console.WriteLine("DRY RUN: would restore reversible local registry/service changes from the latest transaction journal.");
+                return 0;
+            }
+
+            if (!AskYesNo(
+                "Rollback reversible LOCAL changes from the latest transaction journal? Domain join, AD deletion and other non-reversible actions will be skipped.",
+                false))
+                return 7;
+
+            string report;
+            bool ok = TransactionJournalService.RollbackLatest(out report);
+            Console.WriteLine(report);
+            return ok ? 0 : 1;
         }
 
         private static int SelfTest()
