@@ -23,6 +23,16 @@
 - Expanded DC Matrix with per-DC SPN visibility/collision state and cross-DC computer/SPN consistency detection.
 - Moved Advanced GUI diagnostics to background execution with live step status and cooperative Cancel support, including cancellation-aware external command runners.
 - Added `advanced-diagnostics.json` to Advanced Support Bundles and regression tests for JSON, diagnostic exit codes, net-only credential parsing and SPN state fingerprints.
+- Added Kerberos Deep Analyzer for TGT/HOST/LDAP/CIFS tickets, KDC bindings, ticket encryption, flags, lifetime and time-skew evidence.
+- Added real LDAP compatibility tests for signed LDAP 389, LDAPS authenticated bind and TLS certificate/hostname validation.
+- Added native RPC Endpoint Mapper enumeration and concrete dynamic RPC TCP reachability tests without requiring PortQry.
+- Added parsed cross-DC replication timeline analysis for pwdLastSet, servicePrincipalName, dNSHostName and userAccountControl metadata versions.
+- Added computer identity consistency analysis for duplicate/stale SAM, DNS host-name and HOST/CIFS SPN identity keys.
+- Added Smart Next Safe Action and integrated the new deep evidence into Root Cause analysis and Recovery Plan.
+- Added local transaction journals for Safe Fixes, MII and rename/join audit evidence plus explicit Rollback Local for reversible local changes.
+- Hardened transaction rollback with protected ProgramData ACLs and a fixed allowlist limited to MII DWORDs and Netlogon service state.
+- Added individual GUI/CLI actions and Support Bundle reports for Kerberos Deep, LDAP Compatibility, RPC Endpoints, Replication Timeline, Identity Consistency, Next Safe Action and Transactions.
+- Added regression tests for Kerberos parsing, LDAP failure classification, RPC endpoint parsing, identity LDAP filters, GUI/CLI rollback elevation and transaction rollback allowlists.
 
 ## 1.5.0
 
