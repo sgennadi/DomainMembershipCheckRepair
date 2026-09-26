@@ -991,9 +991,10 @@ namespace DomainMembershipCheckRepair
                 domain,
                 options.PreferredDc);
 
-            string effectiveDc = !String.IsNullOrWhiteSpace(snapshot.DiscoveredDc)
-                ? snapshot.DiscoveredDc
-                : DomainValidation.NormalizeDirectoryServer(options.PreferredDc);
+            string configuredDc = DomainValidation.NormalizeDirectoryServer(options.PreferredDc);
+            string effectiveDc = !String.IsNullOrWhiteSpace(configuredDc)
+                ? configuredDc
+                : snapshot.DiscoveredDc;
 
             string user;
             string password;
@@ -1052,9 +1053,10 @@ namespace DomainMembershipCheckRepair
                 domain,
                 options.PreferredDc);
 
-            string effectiveDc = !String.IsNullOrWhiteSpace(snapshot.DiscoveredDc)
-                ? snapshot.DiscoveredDc
-                : DomainValidation.NormalizeDirectoryServer(options.PreferredDc);
+            string configuredDc = DomainValidation.NormalizeDirectoryServer(options.PreferredDc);
+            string effectiveDc = !String.IsNullOrWhiteSpace(configuredDc)
+                ? configuredDc
+                : snapshot.DiscoveredDc;
 
             string user;
             string password;
@@ -1094,9 +1096,10 @@ namespace DomainMembershipCheckRepair
                 domain,
                 options.PreferredDc);
 
-            string effectiveDc = !String.IsNullOrWhiteSpace(snapshot.DiscoveredDc)
-                ? snapshot.DiscoveredDc
-                : DomainValidation.NormalizeDirectoryServer(options.PreferredDc);
+            string configuredDc = DomainValidation.NormalizeDirectoryServer(options.PreferredDc);
+            string effectiveDc = !String.IsNullOrWhiteSpace(configuredDc)
+                ? configuredDc
+                : snapshot.DiscoveredDc;
 
             SmbKerberosAuthResult result = SmbKerberosAuthAnalyzer.Analyze(
                 snapshot.TargetDomain,
