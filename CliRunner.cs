@@ -792,14 +792,167 @@ namespace DomainMembershipCheckRepair
                 return;
             }
 
-            Console.Write("Password for optional AD account analysis: ");
+            if (options.Json)
+                Console.Error.Write("Password for optional AD account analysis: ");
+            else
+                Console.Write("Password for optional AD account analysis: ");
+
             password = ReadPassword();
-            Console.WriteLine();
+
+            if (options.Json)
+                Console.Error.WriteLine();
+            else
+                Console.WriteLine();
             if (password == null || password.Length == 0)
             {
                 user = String.Empty;
                 password = null;
             }
+        }
+
+        private static int WriteDiagnosticResult(
+            string action,
+            object result,
+            string text,
+            int exitCode)
+        {
+            if (options.Json)
+                Console.WriteLine(JsonReportSerializer.SerializeAction(action, exitCode, result));
+            else
+                Console.WriteLine(text ?? String.Empty);
+            return exitCode;
+        }
+
+        private static int ExitFromAdvanced(AdvancedDiagnosticsResult result)
+        {
+            if (result == null || result.Snapshot == null)
+                return DiagnosticExitCodes.NotTested;
+
+            if (result.Snapshot.SecureChannelApplicable && !result.Snapshot.SecureChannelHealthy)
+                return DiagnosticExitCodes.FindingDetected;
+
+            if (result.RootCauses != null)
+            {
+                foreach (RootCauseFinding finding in result.RootCauses)
+                {
+                    if (String.Equals(finding.Severity, "HIGH", StringComparison.OrdinalIgnoreCase))
+                        return DiagnosticExitCodes.FindingDetected;
+                }
+            }
+
+            return DiagnosticExitCodes.FromReportText(
+                AdvancedDiagnosticsService.ToText(result),
+                true);
+        }
+
+        private static int ExitFromMatrix(DcMatrixResult result)
+        {
+            if (result == null || result.Entries.Count == 0)
+                return DiagnosticExitCodes.NotTested;
+
+            bool accessDenied = false;
+            bool partial = false;
+
+            foreach (DcMatrixEntry entry in result.Entries)
+            {
+                if ((entry.Ports ?? String.Empty).IndexOf("FAIL", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    entry.IsSynchronized == false ||
+                    entry.SpnCollisionCount > 0)
+                    return DiagnosticExitCodes.FindingDetected;
+
+                if (!entry.RootDseOk)
+                    partial = true;
+
+                if ((entry.LdapError ?? String.Empty).IndexOf("access denied", StringComparison.OrdinalIgnoreCase) >= 0)
+                    accessDenied = true;
+            }
+
+            foreach (string note in result.Notes)
+            {
+                string value = note ?? String.Empty;
+                if (value.IndexOf("replication inconsistency", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    value.IndexOf("SPN collision", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    value.IndexOf("SPN state is inconsistent", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    value.IndexOf("differs between DCs", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return DiagnosticExitCodes.FindingDetected;
+            }
+
+            if (accessDenied)
+                return DiagnosticExitCodes.AccessDenied;
+            return partial ? DiagnosticExitCodes.Partial : DiagnosticExitCodes.Success;
+        }
+
+        private static int ExitFromProtocols(ProtocolDiagnosticsResult result)
+        {
+            if (result == null || result.Checks.Count == 0)
+                return DiagnosticExitCodes.NotTested;
+
+            bool notTested = false;
+            bool denied = false;
+            bool tested = false;
+
+            foreach (ProtocolCheckResult check in result.Checks)
+            {
+                string status = check.Status ?? String.Empty;
+                if (status.StartsWith("FAILED", StringComparison.OrdinalIgnoreCase))
+                    return DiagnosticExitCodes.FindingDetected;
+                if (status.IndexOf("ACCESS DENIED", StringComparison.OrdinalIgnoreCase) >= 0)
+                    denied = true;
+                else if (status.IndexOf("NOT TESTED", StringComparison.OrdinalIgnoreCase) >= 0)
+                    notTested = true;
+                else
+                    tested = true;
+            }
+
+            if (denied)
+                return DiagnosticExitCodes.AccessDenied;
+            if (notTested)
+                return tested ? DiagnosticExitCodes.Partial : DiagnosticExitCodes.NotTested;
+            return DiagnosticExitCodes.Success;
+        }
+
+        private static int ExitFromSmbKerberos(SmbKerberosAuthResult result)
+        {
+            if (result == null || String.IsNullOrWhiteSpace(result.Dc))
+                return DiagnosticExitCodes.NotTested;
+
+            string kerberos = result.KerberosCifsStatus ?? String.Empty;
+            string smb = result.SmbStatus ?? String.Empty;
+
+            if (kerberos.StartsWith("FAILED", StringComparison.OrdinalIgnoreCase) ||
+                smb.StartsWith("FAILED", StringComparison.OrdinalIgnoreCase))
+                return DiagnosticExitCodes.FindingDetected;
+
+            if (kerberos.IndexOf("ACCESS DENIED", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                smb.IndexOf("ACCESS DENIED", StringComparison.OrdinalIgnoreCase) >= 0)
+                return DiagnosticExitCodes.AccessDenied;
+
+            if (kerberos.IndexOf("NOT TESTED", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                smb.IndexOf("NOT TESTED", StringComparison.OrdinalIgnoreCase) >= 0)
+                return DiagnosticExitCodes.NotTested;
+
+            if (kerberos.IndexOf("NOT TESTED", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                smb.IndexOf("NOT TESTED", StringComparison.OrdinalIgnoreCase) >= 0)
+                return DiagnosticExitCodes.Partial;
+
+            return DiagnosticExitCodes.FromFindings(result.Findings, true);
+        }
+
+        private static int ExitFromSelfTest(SelfTestResult result)
+        {
+            if (result == null)
+                return DiagnosticExitCodes.NotTested;
+            if (result.HasFailure)
+                return DiagnosticExitCodes.FindingDetected;
+
+            foreach (SelfTestItem item in result.Items)
+            {
+                if (String.Equals(item.Status, "WARN", StringComparison.OrdinalIgnoreCase) ||
+                    String.Equals(item.Status, "SKIP", StringComparison.OrdinalIgnoreCase))
+                    return DiagnosticExitCodes.Partial;
+            }
+
+            return DiagnosticExitCodes.Success;
         }
 
         private static int AdvancedDiagnostics()
