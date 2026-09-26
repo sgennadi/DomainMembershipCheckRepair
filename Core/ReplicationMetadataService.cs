@@ -38,7 +38,7 @@ namespace DomainMembershipCheckRepair
                 return r;
             }
 
-            CommandResult summary = ProcessRunner.Run(repadmin, "/replsummary", 30000);
+            CommandResult summary = ProcessRunner.Run(repadmin, BuildReplSummaryArguments(r.Dc), 30000);
             r.ReplSummary = FormatCommand(summary);
 
             CommandResult meta = null;
@@ -156,6 +156,14 @@ namespace DomainMembershipCheckRepair
                 sb.AppendLine("[Exit code] " + r.ExitCode);
             sb.Append(r.CombinedOutput ?? String.Empty);
             return sb.ToString().Trim();
+        }
+
+        internal static string BuildReplSummaryArguments(string dc)
+        {
+            string server = DomainValidation.NormalizeDirectoryServer(dc);
+            return String.IsNullOrWhiteSpace(server)
+                ? "/replsummary"
+                : "/replsummary " + Quote(server);
         }
 
         internal static bool HasReplicationFailures(string text)
