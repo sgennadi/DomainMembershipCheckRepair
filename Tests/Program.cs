@@ -36,6 +36,7 @@ namespace DomainMembershipCheckRepair
             TestRpcKnownInterfaces();
             TestIdentityConsistencyFilter();
             TestTransactionJournalParsing();
+            TestAdRecoveryHelpers();
 
             if (failures == 0)
             {
@@ -142,6 +143,7 @@ namespace DomainMembershipCheckRepair
             AssertTrue(ElevationHelper.RequiresElevation("odj-apply"), "odj-apply requires elevation");
             AssertTrue(ElevationHelper.RequiresElevation("safe-fixes"), "safe-fixes requires elevation");
             AssertTrue(ElevationHelper.RequiresElevation("rollback-local"), "rollback-local requires elevation");
+            AssertTrue(ElevationHelper.RequiresElevation("ad-restore"), "ad-restore requires elevation");
 
             AssertFalse(ElevationHelper.RequiresElevation("status"), "status does not require elevation");
             AssertFalse(ElevationHelper.RequiresElevation("check"), "check does not require elevation");
@@ -184,6 +186,11 @@ namespace DomainMembershipCheckRepair
                 new string[] { "--resume-action", "rollback-local", "--elevation-attempted" });
             AssertEqual("rollback-local", rollback.Action, "rollback GUI resume action");
             AssertTrue(rollback.ElevationAttempted, "rollback resume elevation marker");
+
+            GuiResumeOptions adRestore = ElevationHelper.ParseGuiResumeOptions(
+                new string[] { "--resume-action", "ad-restore", "--elevation-attempted" });
+            AssertEqual("ad-restore", adRestore.Action, "AD restore GUI resume action");
+            AssertTrue(adRestore.ElevationAttempted, "AD restore resume elevation marker");
         }
 
         private static void TestNetSetupErrorMapping()
@@ -576,6 +583,49 @@ namespace DomainMembershipCheckRepair
                     "ServiceState",
                     "WinDefend"),
                 "arbitrary service rollback target blocked");
+        }
+
+        private static void TestAdRecoveryHelpers()
+        {
+            AssertEqual(
+                "766ddcd8-acd0-445e-f3b9-a7f9b6744f2a",
+                AdRecycleBinRecoveryService.RecycleBinFeatureGuid,
+                "AD Recycle Bin feature GUID");
+
+            AssertEqual(
+                "(&(isDeleted=TRUE)(objectClass=computer)(sAMAccountName=PC01$))",
+                AdRecycleBinRecoveryService.BuildDeletedComputerFilter("PC01"),
+                "deleted computer LDAP filter");
+
+            string escapedFilter =
+                AdRecycleBinRecoveryService.BuildDeletedComputerFilter("PC*01");
+            AssertTrue(
+                escapedFilter.IndexOf(@"PC\2a01$", StringComparison.Ordinal) >= 0,
+                "deleted computer filter escapes LDAP metacharacters");
+
+            AssertEqual(
+                "CN=PC01,OU=Computers,DC=example,DC=com",
+                AdRecycleBinRecoveryService.BuildRestoreDn(
+                    "PC01",
+                    "CN=PC01",
+                    "OU=Computers,DC=example,DC=com"),
+                "restore DN uses last known RDN and parent");
+
+            AssertEqual(
+                @"CN=PC\2c01,OU=Computers,DC=example,DC=com",
+                AdRecycleBinRecoveryService.BuildRestoreDn(
+                    "PC,01",
+                    String.Empty,
+                    "OU=Computers,DC=example,DC=com"),
+                "restore DN fallback escapes DN component");
+
+            AssertEqual(
+                String.Empty,
+                AdRecycleBinRecoveryService.BuildRestoreDn(
+                    "PC01",
+                    "CN=PC01",
+                    String.Empty),
+                "restore DN requires last known parent");
         }
 
         private static void TestUiLayoutMath()
