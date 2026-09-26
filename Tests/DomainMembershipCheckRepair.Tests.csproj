@@ -31,6 +31,7 @@
     <Reference Include="System.DirectoryServices" />
     <Reference Include="System.DirectoryServices.Protocols" />
     <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.ServiceProcess" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
@@ -75,6 +76,21 @@
     </Compile>
     <Compile Include="..\Core\ProtocolDiagnosticsService.cs">
       <Link>ProtocolDiagnosticsService.cs</Link>
+    </Compile>
+    <Compile Include="..\Core\KerberosDeepAnalyzer.cs">
+      <Link>KerberosDeepAnalyzer.cs</Link>
+    </Compile>
+    <Compile Include="..\Core\LdapCompatibilityAnalyzer.cs">
+      <Link>LdapCompatibilityAnalyzer.cs</Link>
+    </Compile>
+    <Compile Include="..\Core\IdentityConsistencyAnalyzer.cs">
+      <Link>IdentityConsistencyAnalyzer.cs</Link>
+    </Compile>
+    <Compile Include="..\Core\RpcEndpointMapperAnalyzer.cs">
+      <Link>RpcEndpointMapperAnalyzer.cs</Link>
+    </Compile>
+    <Compile Include="..\Core\TransactionJournalService.cs">
+      <Link>TransactionJournalService.cs</Link>
     </Compile>
     <Compile Include="..\NativeMethods.cs">
       <Link>NativeMethods.cs</Link>
