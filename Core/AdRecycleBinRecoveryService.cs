@@ -216,9 +216,8 @@ namespace DomainMembershipCheckRepair
                     }
 
                     string deletedBase = "CN=Deleted Objects," + defaultNc;
-                    string sam = DomainValidation.EscapeLdapFilterValue(computerName.Trim() + "$");
                     string filter =
-                        "(&(isDeleted=TRUE)(objectClass=computer)(sAMAccountName=" + sam + "))";
+                        BuildDeletedComputerFilter(computerName);
 
                     SearchRequest request = new SearchRequest(
                         deletedBase,
@@ -271,12 +270,11 @@ namespace DomainMembershipCheckRepair
                     result.UserAccountControl = GetInt(best, "userAccountControl");
                     result.SupportedEncryptionTypes = GetInt(best, "msDS-SupportedEncryptionTypes");
 
-                    string rdn = result.LastKnownRdn;
-                    if (String.IsNullOrWhiteSpace(rdn))
-                        rdn = "CN=" + EscapeDnComponent(computerName.Trim());
-
-                    if (!String.IsNullOrWhiteSpace(result.LastKnownParent))
-                        result.RestoreDistinguishedName = rdn + "," + result.LastKnownParent;
+                    result.RestoreDistinguishedName =
+                        BuildRestoreDn(
+                            computerName,
+                            result.LastKnownRdn,
+                            result.LastKnownParent);
 
                     result.Restorable =
                         !result.Recycled &&
