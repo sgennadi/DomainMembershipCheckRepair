@@ -2406,6 +2406,33 @@ namespace DomainMembershipCheckRepair
                 user,
                 password);
 
+            string recoveryPackagePath;
+            string recoveryPackageError;
+            if (!AdRecycleBinRecoveryService.CreatePreDeleteRecoveryPackage(
+                account,
+                targetDomain,
+                dcBox == null ? String.Empty : dcBox.Text,
+                user,
+                password,
+                out recoveryPackagePath,
+                out recoveryPackageError))
+            {
+                Log(
+                    "ERROR",
+                    "AD deletion blocked because the pre-delete recovery package could not be created: " +
+                    recoveryPackageError);
+                MessageBox.Show(
+                    this,
+                    "The computer account was NOT deleted because its pre-delete AD recovery package could not be created.\r\n\r\n" +
+                    recoveryPackageError,
+                    "AD deletion blocked",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+                return;
+            }
+
+            Log("INFO", "Pre-delete AD recovery package created: " + recoveryPackagePath);
+
             using (RecoverySnapshotScope snapshot = new RecoverySnapshotScope(
                 "delete-and-recreate",
                 targetDomain,
@@ -2414,6 +2441,10 @@ namespace DomainMembershipCheckRepair
                 password))
             {
             TransactionJournal deleteJournal = TransactionJournalService.Begin("delete-and-recreate");
+            TransactionJournalService.RecordNote(
+                deleteJournal,
+                "AD recovery package",
+                "Pre-delete recovery metadata saved to " + recoveryPackagePath + ".");
             TransactionJournalService.RecordNote(
                 deleteJournal,
                 "Active Directory delete",
