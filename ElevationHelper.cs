@@ -74,7 +74,7 @@ namespace DomainMembershipCheckRepair
             }
 
             result.Action = (result.Action ?? String.Empty).Trim().ToLowerInvariant();
-            if (result.Action != "repair" && result.Action != "join" && result.Action != "restart" && result.Action != "odj-apply" && result.Action != "safe-fixes" && result.Action != "post-reboot-check")
+            if (result.Action != "repair" && result.Action != "join" && result.Action != "restart" && result.Action != "odj-apply" && result.Action != "safe-fixes" && result.Action != "rollback-local" && result.Action != "post-reboot-check")
                 result.Action = String.Empty;
 
             return result;
