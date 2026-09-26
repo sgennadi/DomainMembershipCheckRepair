@@ -126,6 +126,38 @@ namespace DomainMembershipCheckRepair
             return values.ToArray();
         }
 
+        internal static string BuildStateFingerprint(SpnCollisionResult result)
+        {
+            if (result == null || result.Entries.Count == 0)
+                return String.Empty;
+
+            List<string> states = new List<string>();
+            foreach (SpnCollisionEntry entry in result.Entries)
+            {
+                List<string> dns = new List<string>(entry.DistinguishedNames);
+                dns.Sort(StringComparer.OrdinalIgnoreCase);
+                states.Add((entry.Spn ?? String.Empty).ToLowerInvariant() + "=" +
+                           String.Join("|", dns.ToArray()).ToLowerInvariant());
+            }
+
+            states.Sort(StringComparer.OrdinalIgnoreCase);
+            return String.Join(";", states.ToArray());
+        }
+
+        internal static int CountCollisions(SpnCollisionResult result)
+        {
+            if (result == null)
+                return 0;
+
+            int count = 0;
+            foreach (SpnCollisionEntry entry in result.Entries)
+            {
+                if (entry.DistinguishedNames.Count > 1)
+                    count++;
+            }
+            return count;
+        }
+
         private static void AddSpn(List<string> values, string serviceClass, string host)
         {
             if (String.IsNullOrWhiteSpace(host))
