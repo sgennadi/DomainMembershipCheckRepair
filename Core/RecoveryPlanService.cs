@@ -18,6 +18,11 @@ namespace DomainMembershipCheckRepair
             HybridEntraDiagnosticsResult hybridEntra,
             PolicySourceDiagnosticsResult policySources,
             ReplicationMetadataResult replicationMetadata,
+            ReplicationTimelineResult replicationTimeline,
+            IdentityConsistencyResult identityConsistency,
+            LdapCompatibilityResult ldapCompatibility,
+            RpcEndpointMapperResult rpcEndpoints,
+            KerberosDeepResult kerberosDeep,
             SpnCollisionResult spnCollisions,
             SmbKerberosAuthResult smbKerberos,
             AdComputerAccountInfo account)
@@ -88,6 +93,41 @@ namespace DomainMembershipCheckRepair
                 AddStep(
                     steps,
                     "Resolve AD replication failures reported by the replication metadata analyzer before trust repair or destructive account recovery.");
+            }
+
+            if (replicationTimeline != null && HasHighFinding(replicationTimeline.Findings))
+            {
+                AddStep(
+                    steps,
+                    "Resolve per-DC replication timeline/version mismatches before trust repair or any destructive computer-object recovery.");
+            }
+
+            if (identityConsistency != null && HasHighFinding(identityConsistency.Findings))
+            {
+                AddStep(
+                    steps,
+                    "Resolve duplicate/stale computer identity keys (SAM, DNS host name or SPNs) and confirm the authoritative AD object.");
+            }
+
+            if (ldapCompatibility != null && HasHighFinding(ldapCompatibility.Findings))
+            {
+                AddStep(
+                    steps,
+                    "Resolve signed LDAP/LDAPS compatibility before retrying trust repair or Join/Rejoin.");
+            }
+
+            if (rpcEndpoints != null && HasHighFinding(rpcEndpoints.Findings))
+            {
+                AddStep(
+                    steps,
+                    "Fix RPC Endpoint Mapper or dynamic RPC TCP firewall/routing failures before domain recovery.");
+            }
+
+            if (kerberosDeep != null && HasHighFinding(kerberosDeep.Findings))
+            {
+                AddStep(
+                    steps,
+                    "Resolve Kerberos TGT/service-ticket acquisition failures before trust repair or Join/Rejoin.");
             }
 
             if (spnCollisions != null && HasHighFinding(spnCollisions.Findings))
