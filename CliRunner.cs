@@ -978,13 +978,22 @@ namespace DomainMembershipCheckRepair
 
         private static int ReplicationMetadata()
         {
-            string domain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
-            if (String.IsNullOrWhiteSpace(domain))
-                return 3;
+            string domain = (options.Domain ?? String.Empty).Trim();
+            if (String.IsNullOrWhiteSpace(domain) &&
+                String.IsNullOrWhiteSpace(options.PreferredDc))
+            {
+                domain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
+                if (String.IsNullOrWhiteSpace(domain))
+                    return 3;
+            }
 
             DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
                 domain,
                 options.PreferredDc);
+
+            string effectiveDc = !String.IsNullOrWhiteSpace(snapshot.DiscoveredDc)
+                ? snapshot.DiscoveredDc
+                : DomainValidation.NormalizeDirectoryServer(options.PreferredDc);
 
             string user;
             string password;
@@ -1002,7 +1011,7 @@ namespace DomainMembershipCheckRepair
                     user,
                     password,
                     snapshot.TargetDomain,
-                    snapshot.DiscoveredDc,
+                    effectiveDc,
                     logger.Log);
 
                 if (account != null && account.LookupSucceeded && account.Exists)
@@ -1011,22 +1020,41 @@ namespace DomainMembershipCheckRepair
 
             ReplicationMetadataResult result = ReplicationMetadataService.Analyze(
                 snapshot.TargetDomain,
-                snapshot.DiscoveredDc,
+                effectiveDc,
                 objectDn);
 
             Console.WriteLine(ReplicationMetadataService.ToText(result));
-            return result.RepadminAvailable ? 0 : 1;
+
+            if (!result.RepadminAvailable)
+                return 1;
+
+            foreach (string finding in result.Findings)
+            {
+                if (finding.StartsWith("HIGH:", StringComparison.OrdinalIgnoreCase))
+                    return 1;
+            }
+
+            return 0;
         }
 
         private static int SpnCollisions()
         {
-            string domain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
-            if (String.IsNullOrWhiteSpace(domain))
-                return 3;
+            string domain = (options.Domain ?? String.Empty).Trim();
+            if (String.IsNullOrWhiteSpace(domain) &&
+                String.IsNullOrWhiteSpace(options.PreferredDc))
+            {
+                domain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
+                if (String.IsNullOrWhiteSpace(domain))
+                    return 3;
+            }
 
             DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
                 domain,
                 options.PreferredDc);
+
+            string effectiveDc = !String.IsNullOrWhiteSpace(snapshot.DiscoveredDc)
+                ? snapshot.DiscoveredDc
+                : DomainValidation.NormalizeDirectoryServer(options.PreferredDc);
 
             string user;
             string password;
@@ -1034,7 +1062,7 @@ namespace DomainMembershipCheckRepair
 
             SpnCollisionResult result = SpnCollisionAnalyzer.Analyze(
                 snapshot.TargetDomain,
-                snapshot.DiscoveredDc,
+                effectiveDc,
                 String.IsNullOrWhiteSpace(options.ComputerName)
                     ? Environment.MachineName
                     : options.ComputerName,
@@ -1053,17 +1081,26 @@ namespace DomainMembershipCheckRepair
 
         private static int SmbKerberos()
         {
-            string domain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
-            if (String.IsNullOrWhiteSpace(domain))
-                return 3;
+            string domain = (options.Domain ?? String.Empty).Trim();
+            if (String.IsNullOrWhiteSpace(domain) &&
+                String.IsNullOrWhiteSpace(options.PreferredDc))
+            {
+                domain = ResolveConfiguredOrDetectedDomain(String.Empty, true);
+                if (String.IsNullOrWhiteSpace(domain))
+                    return 3;
+            }
 
             DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
                 domain,
                 options.PreferredDc);
 
+            string effectiveDc = !String.IsNullOrWhiteSpace(snapshot.DiscoveredDc)
+                ? snapshot.DiscoveredDc
+                : DomainValidation.NormalizeDirectoryServer(options.PreferredDc);
+
             SmbKerberosAuthResult result = SmbKerberosAuthAnalyzer.Analyze(
                 snapshot.TargetDomain,
-                snapshot.DiscoveredDc);
+                effectiveDc);
 
             Console.WriteLine(SmbKerberosAuthAnalyzer.ToText(result));
             return String.Equals(result.KerberosCifsStatus, "OK", StringComparison.OrdinalIgnoreCase)
