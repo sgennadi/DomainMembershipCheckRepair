@@ -17,14 +17,26 @@ namespace DomainMembershipCheckRepair
     {
         internal static SafeRecoveryResult Run(string domain)
         {
+            return Run(domain, null);
+        }
+
+        internal static SafeRecoveryResult Run(string domain, TransactionJournal journal)
+        {
             SafeRecoveryResult result = new SafeRecoveryResult();
 
             RunCommand(result, "Flush DNS resolver cache", "ipconfig.exe", "/flushdns", 10000);
+            TransactionJournalService.RecordNote(journal, "DNS resolver cache", "Flush DNS cache executed; no meaningful rollback exists.");
+
             RunCommand(result, "Request Windows Time resync", "w32tm.exe", "/resync /force", 15000);
-            RestartService(result, "Netlogon", 15000);
+            TransactionJournalService.RecordNote(journal, "Windows Time", "Time resync requested; no automatic rollback is performed.");
+
+            RestartService(result, "Netlogon", 15000, journal);
 
             if (!String.IsNullOrWhiteSpace(domain))
+            {
                 RunCommand(result, "Force DC locator rediscovery", "nltest.exe", "/dsgetdc:" + domain + " /force", 15000);
+                TransactionJournalService.RecordNote(journal, "DC Locator", "Forced DC rediscovery executed; no rollback is required.");
+            }
 
             return result;
         }
@@ -43,12 +55,17 @@ namespace DomainMembershipCheckRepair
             return sb.ToString();
         }
 
-        private static void RestartService(SafeRecoveryResult result, string serviceName, int timeoutMs)
+        private static void RestartService(
+            SafeRecoveryResult result,
+            string serviceName,
+            int timeoutMs,
+            TransactionJournal journal)
         {
             try
             {
                 using (ServiceController service = new ServiceController(serviceName))
                 {
+                    ServiceControllerStatus before = service.Status;
                     TimeSpan timeout = TimeSpan.FromMilliseconds(timeoutMs);
                     if (service.Status != ServiceControllerStatus.Stopped &&
                         service.Status != ServiceControllerStatus.StopPending)
@@ -59,6 +76,8 @@ namespace DomainMembershipCheckRepair
 
                     service.Start();
                     service.WaitForStatus(ServiceControllerStatus.Running, timeout);
+                    service.Refresh();
+                    TransactionJournalService.RecordServiceChange(journal, serviceName, before, service.Status);
                     result.Steps.Add("OK: Restart " + serviceName + " service.");
                 }
             }
