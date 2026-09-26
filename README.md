@@ -40,6 +40,13 @@ The release version has one source of truth: `VersionInfo.cs`. Assembly metadata
 - AD replication metadata diagnostics using `repadmin` when RSAT AD DS tools are available.
 - SPN collision detection for HOST/RestrictedKrbHost/TERMSRV registrations.
 - SMB/Kerberos authentication analysis with explicit CIFS ticket testing and NTLM/signing policy context.
+- Kerberos Deep Analyzer for TGT/HOST/LDAP/CIFS tickets, encryption, flags, ticket lifetime, KDC binding and time-skew evidence.
+- Real LDAP compatibility tests: signed SASL LDAP, authenticated LDAPS and TLS certificate/hostname validation.
+- Native RPC Endpoint Mapper enumeration with dynamic RPC TCP endpoint reachability tests.
+- Parsed per-DC replication timeline for pwdLastSet, servicePrincipalName, dNSHostName and userAccountControl.
+- Computer identity consistency search across sAMAccountName, dNSHostName and expected HOST/CIFS SPNs.
+- Smart Next Safe Action that highlights one immediate non-destructive next step and can block destructive recovery when evidence is unsafe.
+- Local transaction journal with allowlisted rollback for reversible MII/Netlogon changes.
 - Hybrid Microsoft Entra diagnostics.
 - Automatic pre/post recovery snapshots and pre-change safety bundles.
 - Destructive AD Delete Safety Gate with cross-DC/RODC/child-object/recent-change checks.
@@ -92,6 +99,14 @@ The GUI provides:
 - Replication Metadata
 - SPN Collisions
 - SMB / Kerberos
+- Kerberos Deep
+- LDAP Compatibility
+- RPC Endpoints
+- Replication Timeline
+- Identity Consistency
+- Next Safe Action
+- Transactions
+- Rollback Local
 - About
 
 The **Preferred DC** field is optional. It pins Active Directory LDAP lookup/deletion to that directory server. Windows still chooses the domain controller used by the native domain-join operation.
@@ -158,6 +173,14 @@ DomainMembershipCheckRepair.exe --cli --action policy-source
 DomainMembershipCheckRepair.exe --cli --action replication-metadata
 DomainMembershipCheckRepair.exe --cli --action spn-collisions
 DomainMembershipCheckRepair.exe --cli --action smb-kerberos
+DomainMembershipCheckRepair.exe --cli --action kerberos-deep
+DomainMembershipCheckRepair.exe --cli --action ldap-compatibility
+DomainMembershipCheckRepair.exe --cli --action rpc-endpoints
+DomainMembershipCheckRepair.exe --cli --action replication-timeline
+DomainMembershipCheckRepair.exe --cli --action identity-consistency
+DomainMembershipCheckRepair.exe --cli --action next-action
+DomainMembershipCheckRepair.exe --cli --action transactions
+DomainMembershipCheckRepair.exe --cli --action rollback-local
 DomainMembershipCheckRepair.exe --cli --action self-test
 DomainMembershipCheckRepair.exe --cli --action recovery-plan
 DomainMembershipCheckRepair.exe --cli --action support-bundle
@@ -216,12 +239,19 @@ DomainMembershipCheckRepair.exe --cli --action join-permissions --json
 DomainMembershipCheckRepair.exe --cli --action replication-metadata --json
 DomainMembershipCheckRepair.exe --cli --action spn-collisions --json
 DomainMembershipCheckRepair.exe --cli --action smb-kerberos --json
+DomainMembershipCheckRepair.exe --cli --action kerberos-deep --json
+DomainMembershipCheckRepair.exe --cli --action ldap-compatibility --json
+DomainMembershipCheckRepair.exe --cli --action rpc-endpoints --json
+DomainMembershipCheckRepair.exe --cli --action replication-timeline --json
+DomainMembershipCheckRepair.exe --cli --action identity-consistency --json
+DomainMembershipCheckRepair.exe --cli --action next-action --json
+DomainMembershipCheckRepair.exe --cli --action transactions --json
 DomainMembershipCheckRepair.exe --cli --action recovery-plan --json
 DomainMembershipCheckRepair.exe --cli --action self-test --json
 DomainMembershipCheckRepair.exe --cli --action ad-check --domain example.com --user EXAMPLE\admin --computer PC-042 --json
 ```
 
-The 1.6 enterprise actions use a common envelope containing `action`, `exitCode`, `exitMeaning` and `result`. This makes the utility easier to consume from RMM, SCCM, PDQ, Intune scripts and other automation. Mutating actions such as Repair, Join/Rejoin, MII disable, Safe Fixes and Offline Domain Join intentionally reject `--json`.
+The 1.6 enterprise actions use a common envelope containing `action`, `exitCode`, `exitMeaning` and `result`. This makes the utility easier to consume from RMM, SCCM, PDQ, Intune scripts and other automation. Mutating actions such as Repair, Join/Rejoin, MII disable, Safe Fixes, Rollback Local and Offline Domain Join intentionally reject `--json`.
 
 ### Preferred DC
 
@@ -333,7 +363,16 @@ Version 1.6.0 additionally includes:
 - replication Access Denied / 8453 classification as insufficient diagnostic permission instead of a false replication-health failure;
 - structured JSON for all read-only/reporting CLI actions and dedicated diagnostic exit codes;
 - background execution for Advanced GUI reports with live step status and cooperative Cancel support;
-- integration of replication/SPN/SMB findings into Root Cause analysis, Recovery Plan and the Advanced Support Bundle.
+- Kerberos Deep Analyzer for the current TGT plus HOST/LDAP/CIFS service tickets, including encryption type, ticket flags, lifetime, KDC binding and reported time skew;
+- real LDAP compatibility testing with signed SASL LDAP 389, LDAPS 636 authenticated bind, and an SslStream TLS handshake that validates both the certificate chain and DC hostname;
+- native RPC Endpoint Mapper enumeration through Rpcrt4.dll followed by concrete dynamic TCP endpoint reachability checks;
+- parsed `msDS-ReplAttributeMetaData` timeline across reachable DCs for `pwdLastSet`, `servicePrincipalName`, `dNSHostName` and `userAccountControl`;
+- computer identity consistency analysis for duplicate/stale `sAMAccountName`, `dNSHostName`, HOST and CIFS identity keys;
+- Smart Next Safe Action that selects one immediate safe technical step and marks when destructive recovery should be deferred;
+- local transaction journals under `%ProgramData%\DomainMembershipCheckRepair\Transactions` for reversible local recovery changes;
+- explicit Rollback Local support restricted to an allowlist of Machine Identity Isolation DWORDs and the Netlogon service; domain join, rename, AD deletion, DNS flush and time resync are never automatically reversed;
+- transaction folder ACL hardening for SYSTEM/Administrators with read access for Users, plus a second hard-coded rollback target allowlist to resist journal tampering;
+- integration of deep Kerberos/LDAP/RPC/identity/replication findings into Root Cause analysis, Recovery Plan and the Advanced Support Bundle.
 
 The Advanced GUI exposes Replication Metadata, SPN Collisions and SMB / Kerberos as individual reports. Long-running read-only diagnostics run off the UI thread; Cancel interrupts cancellation-aware external commands immediately and stops other analyzers after the current Windows/LDAP API call returns.
 
@@ -398,6 +437,13 @@ The bundle can include:
 
 - advanced diagnostics report
 - structured advanced diagnostics JSON
+- Kerberos Deep report
+- LDAP Compatibility report
+- RPC Endpoint Mapper report
+- Replication Timeline report
+- Identity Consistency report
+- Next Safe Action report
+- latest transaction journal when present
 - diagnostics JSON
 - NetSetup.log analysis and original NetSetup.log
 - Windows event timeline
@@ -518,6 +564,29 @@ Automatic detection uses, where applicable:
 3. physical DNS suffix validated by DC discovery;
 4. `USERDNSDOMAIN` validated by DC discovery;
 5. domain portion of entered credentials when credentials are required.
+
+### Transaction journal and Rollback Local
+
+Local mutating recovery actions create a transaction journal when there is something useful to record. The journal is intended for **local configuration rollback**, not for reversing Active Directory history.
+
+Currently reversible targets are deliberately restricted to:
+
+- `HKLM\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard\MachineIdentityIsolation`;
+- `HKLM\SYSTEM\CurrentControlSet\Control\Lsa\MachineIdentityIsolation`;
+- the previous Running/Stopped state of the `Netlogon` service.
+
+Other actions such as DNS cache flush, time resync, DC rediscovery, computer rename, domain join/rejoin and AD computer-object deletion may be recorded as audit notes but are **never automatically rolled back**.
+
+GUI: use **Transactions** to inspect the latest journal and **Rollback Local** to restore the most recent journal that contains an allowlisted reversible change.
+
+CLI:
+
+```text
+DomainMembershipCheckRepair.exe --cli --action transactions --json
+DomainMembershipCheckRepair.exe --cli --action rollback-local
+```
+
+`rollback-local` requires administrator elevation. The transaction directory is ACL-hardened, and the elevated rollback path independently enforces a fixed allowlist so editing a journal cannot request an arbitrary registry or service change.
 
 ## Credentials and privacy
 
