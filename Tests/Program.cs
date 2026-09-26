@@ -368,6 +368,27 @@ namespace DomainMembershipCheckRepair
                 DiagnosticExitCodes.Success,
                 DiagnosticExitCodes.FromFindings(new string[0], true),
                 "no findings returns diagnostic success");
+
+            AssertEqualInt(
+                DiagnosticExitCodes.AccessDenied,
+                DiagnosticExitCodes.FromFindings(
+                    new string[] { "INFO: LDAP access denied for current security context" },
+                    false),
+                "access denied wins over unavailable capability");
+
+            AssertEqualInt(
+                DiagnosticExitCodes.FindingDetected,
+                DiagnosticExitCodes.FromFindings(
+                    new string[] { "MEDIUM: hardening mismatch detected" },
+                    true),
+                "MEDIUM finding returns diagnostic finding");
+
+            AssertEqualInt(
+                DiagnosticExitCodes.Success,
+                DiagnosticExitCodes.FromFindings(
+                    new string[] { "INFO: optional policy evidence present" },
+                    true),
+                "INFO-only finding remains diagnostic success");
         }
 
         private static void TestSpnStateFingerprint()
