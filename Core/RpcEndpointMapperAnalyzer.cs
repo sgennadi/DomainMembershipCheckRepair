@@ -14,6 +14,7 @@ namespace DomainMembershipCheckRepair
         internal int VersionMinor;
         internal string Binding = String.Empty;
         internal int Port;
+        internal bool TcpTested;
         internal bool TcpReachable;
         internal string Annotation = String.Empty;
     }
@@ -92,6 +93,7 @@ namespace DomainMembershipCheckRepair
 
                 tested.Add(endpoint.Port);
                 Report(progress, "RPC: testing dynamic TCP " + endpoint.Port);
+                endpoint.TcpTested = true;
                 endpoint.TcpReachable = CanConnect(result.Dc, endpoint.Port, 1500, cancellationToken);
 
                 if (tested.Count >= 24)
@@ -102,7 +104,7 @@ namespace DomainMembershipCheckRepair
             int blockedCount = 0;
             foreach (RpcEndpointEntry endpoint in result.Endpoints)
             {
-                if (endpoint.Port <= 0 || endpoint.Port == 135)
+                if (endpoint.Port <= 0 || endpoint.Port == 135 || !endpoint.TcpTested)
                     continue;
                 dynamicCount++;
                 if (!endpoint.TcpReachable)
@@ -163,7 +165,9 @@ namespace DomainMembershipCheckRepair
                 sb.AppendLine(
                     endpoint.InterfaceId + " v" + endpoint.VersionMajor + "." + endpoint.VersionMinor +
                     " | TCP " + endpoint.Port + " | " +
-                    (endpoint.Port == 135 ? "Endpoint Mapper" : (endpoint.TcpReachable ? "OK" : "FAILED")));
+                    (endpoint.Port == 135
+                        ? "Endpoint Mapper"
+                        : (!endpoint.TcpTested ? "NOT TESTED" : (endpoint.TcpReachable ? "OK" : "FAILED"))));
                 sb.AppendLine("  " + endpoint.Binding);
                 if (!String.IsNullOrWhiteSpace(endpoint.Annotation))
                     sb.AppendLine("  " + endpoint.Annotation);
