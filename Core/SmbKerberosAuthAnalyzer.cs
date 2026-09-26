@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using Microsoft.Win32;
 
 namespace DomainMembershipCheckRepair
@@ -31,6 +32,22 @@ namespace DomainMembershipCheckRepair
             string user,
             string password)
         {
+            return Analyze(
+                domain,
+                dc,
+                user,
+                password,
+                CancellationToken.None);
+        }
+
+        internal static SmbKerberosAuthResult Analyze(
+            string domain,
+            string dc,
+            string user,
+            string password,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             SmbKerberosAuthResult r = new SmbKerberosAuthResult();
             r.Dc = DomainValidation.NormalizeDirectoryServer(dc);
 
@@ -62,8 +79,10 @@ namespace DomainMembershipCheckRepair
                 "get cifs/" + r.Dc,
                 10000,
                 user,
-                password);
+                password,
+                cancellationToken);
 
+            cancellationToken.ThrowIfCancellationRequested();
             r.KerberosCifsStatus = Status(kerberos);
             r.KerberosCifsDetails = Collapse(kerberos == null ? String.Empty : kerberos.CombinedOutput, 500);
 
@@ -72,8 +91,10 @@ namespace DomainMembershipCheckRepair
                 ProtocolDiagnosticsService.BuildRemoteNetViewArguments(r.Dc),
                 10000,
                 user,
-                password);
+                password,
+                cancellationToken);
 
+            cancellationToken.ThrowIfCancellationRequested();
             r.SmbStatus = Status(smb);
             r.SmbDetails = Collapse(smb == null ? String.Empty : smb.CombinedOutput, 500);
 
