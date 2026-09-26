@@ -81,6 +81,7 @@
     <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Management" />
     <Reference Include="System.ServiceProcess" />
+    <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
@@ -126,6 +127,8 @@
     <Compile Include="Core\RpcEndpointMapperAnalyzer.cs" />
     <Compile Include="Core\SmartNextActionService.cs" />
     <Compile Include="Core\TransactionJournalService.cs" />
+    <Compile Include="Core\AdRecycleBinRecoveryService.cs" />
+    <Compile Include="Core\DiagnosticHistoryService.cs" />
     <Compile Include="Core\DeleteSafetyAnalyzer.cs" />
     <Compile Include="Core\SafetyBundleService.cs" />
     <Compile Include="Core\AdvancedDiagnosticsService.cs" />
