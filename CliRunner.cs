@@ -777,13 +777,17 @@ namespace DomainMembershipCheckRepair
                 null,
                 null);
 
+            TransactionJournal journal = TransactionJournalService.Begin("mii-disable");
             string details;
-            if (!HealthDiagnosticsService.DisableMachineIdentityIsolationLocally(out details))
+            if (!HealthDiagnosticsService.DisableMachineIdentityIsolationLocally(journal, out details))
             {
+                TransactionJournalService.RecordNote(journal, "MII", "Disable operation failed: " + details);
+                journal.Complete();
                 logger.Log("ERROR", details);
                 return 1;
             }
 
+            journal.Complete();
             logger.Log("SUCCESS", details);
             string resumeError;
             ResumeService.RegisterPostRebootCheck(options.Domain, out resumeError);
@@ -1642,8 +1646,11 @@ namespace DomainMembershipCheckRepair
                 false))
                 return 7;
 
-            SafeRecoveryResult result = SafeRecoveryService.Run(domain);
+            TransactionJournal journal = TransactionJournalService.Begin("safe-fixes");
+            SafeRecoveryResult result = SafeRecoveryService.Run(domain, journal);
+            journal.Complete();
             Console.WriteLine(SafeRecoveryService.ToText(result));
+            Console.WriteLine("Transaction journal: " + journal.Path);
             return result.Success ? 0 : 1;
         }
 
@@ -1934,7 +1941,9 @@ namespace DomainMembershipCheckRepair
         private static int SafeFixesAndRetryJoin(string computerName, string user, string password, string targetDomain)
         {
             logger.Log("INFO", "Running non-destructive Safe Fixes before retrying Join/Rejoin with the same computer name.");
-            SafeRecoveryResult safe = SafeRecoveryService.Run(targetDomain);
+            TransactionJournal journal = TransactionJournalService.Begin("safe-fixes-retry");
+            SafeRecoveryResult safe = SafeRecoveryService.Run(targetDomain, journal);
+            journal.Complete();
 
             foreach (string step in safe.Steps)
                 logger.Log(step.StartsWith("OK:", StringComparison.OrdinalIgnoreCase) ? "INFO" : "WARN", step);
