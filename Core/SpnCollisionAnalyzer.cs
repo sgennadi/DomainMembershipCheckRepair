@@ -66,15 +66,7 @@ namespace DomainMembershipCheckRepair
                         ? r.ComputerName
                         : r.ComputerName + "." + suffix;
 
-                    string[] spns = new string[]
-                    {
-                        "HOST/" + r.ComputerName,
-                        "HOST/" + r.Fqdn,
-                        "RestrictedKrbHost/" + r.ComputerName,
-                        "RestrictedKrbHost/" + r.Fqdn,
-                        "TERMSRV/" + r.ComputerName,
-                        "TERMSRV/" + r.Fqdn
-                    };
+                    string[] spns = BuildExpectedSpns(r.ComputerName, r.Fqdn);
 
                     using (DirectoryEntry searchRoot = CreateEntry("LDAP://" + r.Dc + "/" + defaultNc, user, password))
                     {
@@ -118,6 +110,35 @@ namespace DomainMembershipCheckRepair
             }
 
             return sb.ToString();
+        }
+
+        internal static string[] BuildExpectedSpns(string computerName, string fqdn)
+        {
+            List<string> values = new List<string>();
+            AddSpn(values, "HOST", computerName);
+            AddSpn(values, "HOST", fqdn);
+            AddSpn(values, "RestrictedKrbHost", computerName);
+            AddSpn(values, "RestrictedKrbHost", fqdn);
+            AddSpn(values, "TERMSRV", computerName);
+            AddSpn(values, "TERMSRV", fqdn);
+            AddSpn(values, "CIFS", computerName);
+            AddSpn(values, "CIFS", fqdn);
+            return values.ToArray();
+        }
+
+        private static void AddSpn(List<string> values, string serviceClass, string host)
+        {
+            if (String.IsNullOrWhiteSpace(host))
+                return;
+
+            string candidate = serviceClass + "/" + host.Trim();
+            foreach (string existing in values)
+            {
+                if (String.Equals(existing, candidate, StringComparison.OrdinalIgnoreCase))
+                    return;
+            }
+
+            values.Add(candidate);
         }
 
         private static void AnalyzeSpn(
