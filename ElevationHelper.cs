@@ -45,7 +45,7 @@ namespace DomainMembershipCheckRepair
         internal static bool RequiresElevation(string action)
         {
             string value = (action ?? String.Empty).Trim().ToLowerInvariant();
-            return value == "repair" || value == "join" || value == "rename" || value == "restart" || value == "mii-disable" || value == "odj-apply" || value == "safe-fixes" || value == "rollback-local";
+            return value == "repair" || value == "join" || value == "rename" || value == "restart" || value == "mii-disable" || value == "odj-apply" || value == "safe-fixes" || value == "rollback-local" || value == "ad-restore";
         }
 
         internal static GuiResumeOptions ParseGuiResumeOptions(string[] args)
@@ -74,7 +74,7 @@ namespace DomainMembershipCheckRepair
             }
 
             result.Action = (result.Action ?? String.Empty).Trim().ToLowerInvariant();
-            if (result.Action != "repair" && result.Action != "join" && result.Action != "restart" && result.Action != "odj-apply" && result.Action != "safe-fixes" && result.Action != "rollback-local" && result.Action != "post-reboot-check")
+            if (result.Action != "repair" && result.Action != "join" && result.Action != "restart" && result.Action != "odj-apply" && result.Action != "safe-fixes" && result.Action != "rollback-local" && result.Action != "ad-restore" && result.Action != "post-reboot-check")
                 result.Action = String.Empty;
 
             return result;
