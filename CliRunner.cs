@@ -1210,7 +1210,6 @@ namespace DomainMembershipCheckRepair
             string computerName = String.IsNullOrWhiteSpace(options.ComputerName)
                 ? Environment.MachineName
                 : options.ComputerName;
-            string objectDn = String.Empty;
 
             AdComputerAccountInfo account = AdDirectoryService.FindComputerAccount(
                 computerName,
@@ -1220,8 +1219,9 @@ namespace DomainMembershipCheckRepair
                 effectiveDc,
                 logger.Log);
 
-            if (account != null && account.LookupSucceeded && account.Exists)
-                objectDn = account.DistinguishedName;
+            string objectDn = account != null && account.LookupSucceeded && account.Exists
+                ? account.DistinguishedName
+                : String.Empty;
 
             ReplicationMetadataResult result = ReplicationMetadataService.Analyze(
                 snapshot.TargetDomain,
@@ -1230,18 +1230,15 @@ namespace DomainMembershipCheckRepair
                 user,
                 password);
 
-            Console.WriteLine(ReplicationMetadataService.ToText(result));
+            int exitCode = DiagnosticExitCodes.FromFindings(
+                result.Findings,
+                ReplicationMetadataService.HasAnyCapability(result));
 
-            if (!result.RepadminAvailable)
-                return 1;
-
-            foreach (string finding in result.Findings)
-            {
-                if (finding.StartsWith("HIGH:", StringComparison.OrdinalIgnoreCase))
-                    return 1;
-            }
-
-            return 0;
+            return WriteDiagnosticResult(
+                "replication-metadata",
+                result,
+                ReplicationMetadataService.ToText(result),
+                exitCode);
         }
 
         private static int SpnCollisions()
@@ -1276,14 +1273,15 @@ namespace DomainMembershipCheckRepair
                 user,
                 password);
 
-            Console.WriteLine(SpnCollisionAnalyzer.ToText(result));
+            int exitCode = DiagnosticExitCodes.FromFindings(
+                result.Findings,
+                result.Entries.Count > 0);
 
-            foreach (string finding in result.Findings)
-            {
-                if (finding.StartsWith("HIGH:", StringComparison.OrdinalIgnoreCase))
-                    return 1;
-            }
-            return 0;
+            return WriteDiagnosticResult(
+                "spn-collisions",
+                result,
+                SpnCollisionAnalyzer.ToText(result),
+                exitCode);
         }
 
         private static int SmbKerberos()
@@ -1315,10 +1313,11 @@ namespace DomainMembershipCheckRepair
                 user,
                 password);
 
-            Console.WriteLine(SmbKerberosAuthAnalyzer.ToText(result));
-            return String.Equals(result.KerberosCifsStatus, "OK", StringComparison.OrdinalIgnoreCase)
-                ? 0
-                : 1;
+            return WriteDiagnosticResult(
+                "smb-kerberos",
+                result,
+                SmbKerberosAuthAnalyzer.ToText(result),
+                ExitFromSmbKerberos(result));
         }
 
         private static int SelfTest()
@@ -1326,8 +1325,12 @@ namespace DomainMembershipCheckRepair
             SelfTestResult result = SelfTestService.Run(
                 options.Domain,
                 options.PreferredDc);
-            Console.WriteLine(SelfTestService.ToText(result));
-            return result.HasFailure ? 1 : 0;
+
+            return WriteDiagnosticResult(
+                "self-test",
+                result,
+                SelfTestService.ToText(result),
+                ExitFromSelfTest(result));
         }
 
         private static int RecoveryPlan()
@@ -1342,8 +1345,13 @@ namespace DomainMembershipCheckRepair
                 String.IsNullOrWhiteSpace(options.ComputerName) ? Environment.MachineName : options.ComputerName,
                 user,
                 password);
-            Console.WriteLine(RecoveryPlanService.ToText(result.RecoveryPlan));
-            return 0;
+
+            int exitCode = ExitFromAdvanced(result);
+            return WriteDiagnosticResult(
+                "recovery-plan",
+                result == null ? null : result.RecoveryPlan,
+                result == null ? String.Empty : RecoveryPlanService.ToText(result.RecoveryPlan),
+                exitCode);
         }
 
         private static int SupportBundle()
@@ -1365,13 +1373,41 @@ namespace DomainMembershipCheckRepair
                     result,
                     options.OutputPath,
                     options.IncludeApplicationLog);
-                Console.WriteLine("Support bundle: " + archive);
-                return 0;
+
+                if (options.Json)
+                {
+                    Dictionary<string, object> payload = new Dictionary<string, object>();
+                    payload["archive"] = archive;
+                    payload["diagnosticExitCode"] = ExitFromAdvanced(result);
+                    payload["diagnosticExitMeaning"] = DiagnosticExitCodes.Describe(ExitFromAdvanced(result));
+                    Console.WriteLine(JsonReportSerializer.SerializeAction(
+                        "support-bundle",
+                        DiagnosticExitCodes.Success,
+                        payload));
+                }
+                else
+                {
+                    Console.WriteLine("Support bundle: " + archive);
+                }
+
+                return DiagnosticExitCodes.Success;
             }
             catch (Exception ex)
             {
-                logger.Log("ERROR", "Support bundle failed: " + ex.Message);
-                return 1;
+                if (options.Json)
+                {
+                    Dictionary<string, object> payload = new Dictionary<string, object>();
+                    payload["error"] = ex.Message;
+                    Console.WriteLine(JsonReportSerializer.SerializeAction(
+                        "support-bundle",
+                        DiagnosticExitCodes.NotTested,
+                        payload));
+                }
+                else
+                {
+                    logger.Log("ERROR", "Support bundle failed: " + ex.Message);
+                }
+                return DiagnosticExitCodes.NotTested;
             }
         }
 
@@ -1403,8 +1439,10 @@ namespace DomainMembershipCheckRepair
 
         private static int CyberArkHealth()
         {
-            Console.WriteLine(CyberArkDiagnosticsService.ToText(CyberArkDiagnosticsService.Analyze()));
-            return 0;
+            CyberArkDiagnosticsResult result = CyberArkDiagnosticsService.Analyze();
+            string report = CyberArkDiagnosticsService.ToText(result);
+            int exitCode = DiagnosticExitCodes.FromReportText(report, true);
+            return WriteDiagnosticResult("cyberark", result, report, exitCode);
         }
 
 
