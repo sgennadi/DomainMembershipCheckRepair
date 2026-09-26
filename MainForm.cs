@@ -2659,7 +2659,12 @@ namespace DomainMembershipCheckRepair
                 "Owner: " + FirstNonEmpty(account.Owner, "(unknown)") + "\r\n" +
                 "pwdLastSet: " + FirstNonEmpty(account.PwdLastSet, "(unknown)") + "\r\n" +
                 "SPNs: " + account.ServicePrincipalNameCount + "\r\n" +
-                "Child objects: " + account.ChildObjectCount + "\r\n\r\n" +
+                "Child objects: " + account.ChildObjectCount + "\r\n" +
+                "Recycle Bin: " +
+                    (deleteSafety.RecycleBin != null && deleteSafety.RecycleBin.QuerySucceeded
+                        ? (deleteSafety.RecycleBin.Enabled ? "ENABLED" : "DISABLED")
+                        : "UNKNOWN") + "\r\n\r\n" +
+                "A pre-delete recovery package MUST be created successfully before deletion can proceed.\r\n\r\n" +
                 "WARNING: This permanently deletes the AD computer object and data stored on or below that object. Depending on the environment, this may include recovery information such as LAPS data or BitLocker recovery child objects.\r\n\r\n" +
                 "After deletion, the tool will retry Join/Rejoin using the SAME computer name.\r\n\r\nContinue?",
                 "Confirm AD computer deletion",
