@@ -32,7 +32,7 @@ namespace DomainMembershipCheckRepair
                         : ldapDomain;
                 }
 
-                using (DirectoryEntry rootDse = new DirectoryEntry("LDAP://" + ldapServer + "/RootDSE", user, password, AuthenticationTypes.Secure))
+                using (DirectoryEntry rootDse = CreateEntry("LDAP://" + ldapServer + "/RootDSE", user, password))
                 {
                     object namingContextValue = rootDse.Properties["defaultNamingContext"].Value;
                     if (namingContextValue == null)
@@ -42,7 +42,7 @@ namespace DomainMembershipCheckRepair
                     }
 
                     string namingContext = namingContextValue.ToString();
-                    using (DirectoryEntry root = new DirectoryEntry("LDAP://" + ldapServer + "/" + namingContext, user, password, AuthenticationTypes.Secure))
+                    using (DirectoryEntry root = CreateEntry("LDAP://" + ldapServer + "/" + namingContext, user, password))
                     using (DirectorySearcher searcher = new DirectorySearcher(root))
                     {
                         string samAccountName = DomainValidation.EscapeLdapFilterValue(computerName + "$");
@@ -145,7 +145,7 @@ namespace DomainMembershipCheckRepair
 
             try
             {
-                using (DirectoryEntry target = new DirectoryEntry(account.LdapPath, user, password, AuthenticationTypes.Secure))
+                using (DirectoryEntry target = CreateEntry(account.LdapPath, user, password))
                 {
                     target.RefreshCache(new string[] { "sAMAccountName", "objectClass", "objectGUID" });
 
@@ -199,7 +199,7 @@ namespace DomainMembershipCheckRepair
 
             try
             {
-                using (DirectoryEntry entry = new DirectoryEntry(info.LdapPath, user, password, AuthenticationTypes.Secure))
+                using (DirectoryEntry entry = CreateEntry(info.LdapPath, user, password))
                 {
                     try
                     {
@@ -231,6 +231,14 @@ namespace DomainMembershipCheckRepair
             catch
             {
             }
+        }
+
+        private static DirectoryEntry CreateEntry(string path, string user, string password)
+        {
+            if (!String.IsNullOrWhiteSpace(user) && password != null)
+                return new DirectoryEntry(path, user, password, AuthenticationTypes.Secure);
+
+            return new DirectoryEntry(path);
         }
 
         private static string GetMultiValueProperty(SearchResult result, string propertyName, out int count)
