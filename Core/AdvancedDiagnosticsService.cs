@@ -74,14 +74,14 @@ namespace DomainMembershipCheckRepair
             result.Events = EventTimelineService.Collect(48);
             result.CyberArk = CyberArkDiagnosticsService.Analyze();
 
-            if (!String.IsNullOrWhiteSpace(user) && password != null)
+            if (!String.IsNullOrWhiteSpace(effectiveDomain) || !String.IsNullOrWhiteSpace(effectiveDc))
             {
                 result.Account = AdDirectoryService.FindComputerAccount(
-                    String.IsNullOrWhiteSpace(computerName) ? Environment.MachineName : computerName,
+                    effectiveComputerName,
                     user,
                     password,
                     effectiveDomain,
-                    preferredDc,
+                    effectiveDc,
                     null);
             }
 
