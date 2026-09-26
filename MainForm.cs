@@ -948,219 +948,211 @@ namespace DomainMembershipCheckRepair
 
         private void SelfTestWorkflow()
         {
-            SetBusy(true);
-            try
-            {
-                SelfTestResult result = SelfTestService.Run(
-                    domainBox == null ? String.Empty : domainBox.Text,
-                    dcBox == null ? String.Empty : dcBox.Text);
-                ReportDialog.ShowReport(
-                    this,
-                    "Application Self Test",
-                    SelfTestService.ToText(result));
-            }
-            catch (Exception ex)
-            {
-                Log("ERROR", "Self Test failed: " + ex.Message);
-                MessageBox.Show(
-                    this,
-                    ex.Message,
-                    "Self Test failed",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
-            }
-            finally
-            {
-                SetBusy(false);
-            }
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
+
+            RunBackgroundDiagnostic(
+                "Application Self Test",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
+                {
+                    progress("Self Test: checking runtime and Windows APIs");
+                    token.ThrowIfCancellationRequested();
+                    SelfTestResult result = SelfTestService.Run(
+                        inputs.Domain,
+                        inputs.PreferredDc);
+                    token.ThrowIfCancellationRequested();
+                    return result;
+                },
+                delegate(SelfTestResult result)
+                {
+                    ReportDialog.ShowReport(
+                        this,
+                        "Application Self Test",
+                        SelfTestService.ToText(result));
+                });
         }
 
         private void SiteSubnetWorkflow()
         {
-            SetBusy(true);
-            try
-            {
-                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
-                string password = passwordBox == null ? null : passwordBox.Text;
-                if (String.IsNullOrWhiteSpace(user) || String.IsNullOrEmpty(password))
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
+
+            RunBackgroundDiagnostic(
+                "AD Site / Subnet Diagnostics",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
                 {
-                    user = String.Empty;
-                    password = null;
-                }
-
-                SiteSubnetDiagnosticsResult result = SiteSubnetDiagnosticsService.Analyze(
-                    domainBox == null ? String.Empty : domainBox.Text,
-                    dcBox == null ? String.Empty : dcBox.Text,
-                    user,
-                    password);
-
-                ReportDialog.ShowReport(this, "AD Site / Subnet Diagnostics", SiteSubnetDiagnosticsService.ToText(result));
-            }
-            catch (Exception ex)
-            {
-                Log("ERROR", "Site/Subnet diagnostics failed: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "Site/Subnet diagnostics failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                SetBusy(false);
-            }
+                    progress("Site/Subnet: querying client and AD site data");
+                    token.ThrowIfCancellationRequested();
+                    SiteSubnetDiagnosticsResult result = SiteSubnetDiagnosticsService.Analyze(
+                        inputs.Domain,
+                        inputs.PreferredDc,
+                        inputs.User,
+                        inputs.Password);
+                    token.ThrowIfCancellationRequested();
+                    return result;
+                },
+                delegate(SiteSubnetDiagnosticsResult result)
+                {
+                    ReportDialog.ShowReport(
+                        this,
+                        "AD Site / Subnet Diagnostics",
+                        SiteSubnetDiagnosticsService.ToText(result));
+                });
         }
 
         private void ProtocolDiagnosticsWorkflow()
         {
-            SetBusy(true);
-            try
-            {
-                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
-                string password = passwordBox == null ? null : passwordBox.Text;
-                if (String.IsNullOrWhiteSpace(user) || String.IsNullOrEmpty(password))
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
+
+            RunBackgroundDiagnostic(
+                "Protocol-level Diagnostics",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
                 {
-                    user = String.Empty;
-                    password = null;
-                }
+                    DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
+                        inputs.Domain,
+                        inputs.PreferredDc);
+                    string effectiveDc = DomainValidation.SelectDirectoryServer(
+                        inputs.PreferredDc,
+                        snapshot.DiscoveredDc);
 
-                ProtocolDiagnosticsResult result = ProtocolDiagnosticsService.Analyze(
-                    domainBox == null ? String.Empty : domainBox.Text,
-                    dcBox == null ? String.Empty : dcBox.Text,
-                    user,
-                    password);
-
-                ReportDialog.ShowReport(this, "Protocol-level Diagnostics", ProtocolDiagnosticsService.ToText(result));
-            }
-            catch (Exception ex)
-            {
-                Log("ERROR", "Protocol diagnostics failed: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "Protocol diagnostics failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                SetBusy(false);
-            }
+                    return ProtocolDiagnosticsService.Analyze(
+                        snapshot.TargetDomain,
+                        effectiveDc,
+                        inputs.User,
+                        inputs.Password,
+                        token,
+                        progress);
+                },
+                delegate(ProtocolDiagnosticsResult result)
+                {
+                    ReportDialog.ShowReport(
+                        this,
+                        "Protocol-level Diagnostics",
+                        ProtocolDiagnosticsService.ToText(result));
+                });
         }
 
         private void HardeningWorkflow()
         {
-            SetBusy(true);
-            try
-            {
-                AdComputerAccountInfo account = null;
-                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
-                string password = passwordBox == null ? null : passwordBox.Text;
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
 
-                if (!String.IsNullOrWhiteSpace(user) && !String.IsNullOrEmpty(password))
+            RunBackgroundDiagnostic(
+                "LDAP / Kerberos / Netlogon Hardening",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
                 {
-                    string targetDomain = domainBox == null ? String.Empty : (domainBox.Text ?? String.Empty).Trim();
-                    account = AdDirectoryService.FindComputerAccount(
-                        Environment.MachineName,
-                        user,
-                        password,
-                        targetDomain,
-                        dcBox == null ? String.Empty : dcBox.Text,
-                        null);
-                }
+                    progress("Hardening: reading AD computer account and policy");
+                    token.ThrowIfCancellationRequested();
 
-                HardeningDiagnosticsResult result = HardeningDiagnosticsService.Analyze(account);
-                ReportDialog.ShowReport(this, "LDAP / Kerberos / Netlogon Hardening", HardeningDiagnosticsService.ToText(result));
-            }
-            catch (Exception ex)
-            {
-                Log("ERROR", "Hardening diagnostics failed: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "Hardening diagnostics failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                SetBusy(false);
-            }
+                    AdComputerAccountInfo account = null;
+                    if (!String.IsNullOrWhiteSpace(inputs.Domain) ||
+                        !String.IsNullOrWhiteSpace(inputs.PreferredDc))
+                    {
+                        account = AdDirectoryService.FindComputerAccount(
+                            inputs.ComputerName,
+                            inputs.User,
+                            inputs.Password,
+                            inputs.Domain,
+                            inputs.PreferredDc,
+                            null);
+                    }
+
+                    token.ThrowIfCancellationRequested();
+                    return HardeningDiagnosticsService.Analyze(account);
+                },
+                delegate(HardeningDiagnosticsResult result)
+                {
+                    ReportDialog.ShowReport(
+                        this,
+                        "LDAP / Kerberos / Netlogon Hardening",
+                        HardeningDiagnosticsService.ToText(result));
+                });
         }
 
         private void JoinPermissionsWorkflow()
         {
-            SetBusy(true);
-            try
-            {
-                string targetDomain = domainBox == null ? String.Empty : (domainBox.Text ?? String.Empty).Trim();
-                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
-                string password = passwordBox == null ? null : passwordBox.Text;
-                AdComputerAccountInfo account = null;
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
 
-                if (!String.IsNullOrWhiteSpace(user) && !String.IsNullOrEmpty(password))
+            RunBackgroundDiagnostic(
+                "Domain Join Permissions Analyzer",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
                 {
-                    account = AdDirectoryService.FindComputerAccount(
-                        Environment.MachineName,
-                        user,
-                        password,
-                        targetDomain,
-                        dcBox == null ? String.Empty : dcBox.Text,
+                    progress("Join Permissions: resolving domain and operator token");
+                    DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
+                        inputs.Domain,
+                        inputs.PreferredDc);
+
+                    string effectiveDc = DomainValidation.SelectDirectoryServer(
+                        inputs.PreferredDc,
+                        snapshot.DiscoveredDc);
+
+                    token.ThrowIfCancellationRequested();
+                    AdComputerAccountInfo account = AdDirectoryService.FindComputerAccount(
+                        inputs.ComputerName,
+                        inputs.User,
+                        inputs.Password,
+                        snapshot.TargetDomain,
+                        effectiveDc,
                         null);
-                }
-                else
+
+                    token.ThrowIfCancellationRequested();
+                    JoinPermissionsResult result = JoinPermissionsAnalyzer.Analyze(
+                        snapshot.TargetDomain,
+                        effectiveDc,
+                        inputs.ComputerName,
+                        inputs.User,
+                        inputs.Password,
+                        account);
+
+                    token.ThrowIfCancellationRequested();
+                    return result;
+                },
+                delegate(JoinPermissionsResult result)
                 {
-                    user = String.Empty;
-                    password = null;
-                }
-
-                DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
-                    targetDomain,
-                    dcBox == null ? String.Empty : dcBox.Text);
-
-                JoinPermissionsResult result = JoinPermissionsAnalyzer.Analyze(
-                    snapshot.TargetDomain,
-                    snapshot.DiscoveredDc,
-                    Environment.MachineName,
-                    user,
-                    password,
-                    account);
-
-                ReportDialog.ShowReport(this, "Domain Join Permissions Analyzer", JoinPermissionsAnalyzer.ToText(result));
-            }
-            catch (Exception ex)
-            {
-                Log("ERROR", "Join Permissions analysis failed: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "Join Permissions analysis failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                SetBusy(false);
-            }
+                    ReportDialog.ShowReport(
+                        this,
+                        "Domain Join Permissions Analyzer",
+                        JoinPermissionsAnalyzer.ToText(result));
+                });
         }
 
         private void HybridEntraWorkflow()
         {
-            SetBusy(true);
-            try
-            {
-                HybridEntraDiagnosticsResult result = HybridEntraDiagnosticsService.Analyze();
-                ReportDialog.ShowReport(this, "Hybrid Microsoft Entra Diagnostics", HybridEntraDiagnosticsService.ToText(result));
-            }
-            catch (Exception ex)
-            {
-                Log("ERROR", "Hybrid Entra diagnostics failed: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "Hybrid Entra diagnostics failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                SetBusy(false);
-            }
+            RunBackgroundDiagnostic(
+                "Hybrid Microsoft Entra Diagnostics",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
+                {
+                    progress("Hybrid Entra: reading dsregcmd state");
+                    token.ThrowIfCancellationRequested();
+                    HybridEntraDiagnosticsResult result = HybridEntraDiagnosticsService.Analyze();
+                    token.ThrowIfCancellationRequested();
+                    return result;
+                },
+                delegate(HybridEntraDiagnosticsResult result)
+                {
+                    ReportDialog.ShowReport(
+                        this,
+                        "Hybrid Microsoft Entra Diagnostics",
+                        HybridEntraDiagnosticsService.ToText(result));
+                });
         }
 
         private void PolicySourceWorkflow()
         {
-            SetBusy(true);
-            try
-            {
-                PolicySourceDiagnosticsResult result = PolicySourceAnalyzer.Analyze();
-                ReportDialog.ShowReport(this, "Policy Source Analyzer", PolicySourceAnalyzer.ToText(result));
-            }
-            catch (Exception ex)
-            {
-                Log("ERROR", "Policy Source analysis failed: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "Policy Source analysis failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                SetBusy(false);
-            }
+            RunBackgroundDiagnostic(
+                "Policy Source Analyzer",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
+                {
+                    progress("Policy Sources: reading GPO, MDM and runtime evidence");
+                    token.ThrowIfCancellationRequested();
+                    PolicySourceDiagnosticsResult result = PolicySourceAnalyzer.Analyze();
+                    token.ThrowIfCancellationRequested();
+                    return result;
+                },
+                delegate(PolicySourceDiagnosticsResult result)
+                {
+                    ReportDialog.ShowReport(
+                        this,
+                        "Policy Source Analyzer",
+                        PolicySourceAnalyzer.ToText(result));
+                });
         }
 
         private void ReplicationMetadataWorkflow()
