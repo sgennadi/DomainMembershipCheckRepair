@@ -60,6 +60,9 @@ namespace DomainMembershipCheckRepair
                 Write(Path.Combine(temp, "dc-matrix.txt"), DcMatrixService.ToText(advanced.DcMatrix));
                 Write(Path.Combine(temp, "site-subnet.txt"), SiteSubnetDiagnosticsService.ToText(advanced.SiteSubnet));
                 Write(Path.Combine(temp, "protocol-diagnostics.txt"), ProtocolDiagnosticsService.ToText(advanced.Protocols));
+                Write(Path.Combine(temp, "ldap-compatibility.txt"), LdapCompatibilityAnalyzer.ToText(advanced.LdapCompatibility));
+                Write(Path.Combine(temp, "rpc-endpoints.txt"), RpcEndpointMapperAnalyzer.ToText(advanced.RpcEndpoints));
+                Write(Path.Combine(temp, "kerberos-deep.txt"), KerberosDeepAnalyzer.ToText(advanced.KerberosDeep));
                 Write(Path.Combine(temp, "event-timeline.txt"), EventTimelineService.ToText(advanced.Events));
                 Write(Path.Combine(temp, "cyberark-epm.txt"), CyberArkDiagnosticsService.ToText(advanced.CyberArk));
                 Write(Path.Combine(temp, "hardening.txt"), HardeningDiagnosticsService.ToText(advanced.Hardening));
@@ -67,11 +70,14 @@ namespace DomainMembershipCheckRepair
                 Write(Path.Combine(temp, "hybrid-entra.txt"), HybridEntraDiagnosticsService.ToText(advanced.HybridEntra));
                 Write(Path.Combine(temp, "policy-sources.txt"), PolicySourceAnalyzer.ToText(advanced.PolicySources));
                 Write(Path.Combine(temp, "replication-metadata.txt"), ReplicationMetadataService.ToText(advanced.ReplicationMetadata));
+                Write(Path.Combine(temp, "replication-timeline.txt"), ReplicationTimelineAnalyzer.ToText(advanced.ReplicationTimeline));
+                Write(Path.Combine(temp, "identity-consistency.txt"), IdentityConsistencyAnalyzer.ToText(advanced.IdentityConsistency));
                 Write(Path.Combine(temp, "spn-collisions.txt"), SpnCollisionAnalyzer.ToText(advanced.SpnCollisions));
                 Write(Path.Combine(temp, "smb-kerberos.txt"), SmbKerberosAuthAnalyzer.ToText(advanced.SmbKerberos));
                 Write(Path.Combine(temp, "self-test.txt"), SelfTestService.ToText(advanced.SelfTest));
                 Write(Path.Combine(temp, "machine-password.txt"), MachinePasswordAnalyzer.ToText(advanced.MachinePassword));
                 Write(Path.Combine(temp, "root-causes.txt"), RootCauseEngine.ToText(advanced.RootCauses));
+                Write(Path.Combine(temp, "next-safe-action.txt"), SmartNextActionService.ToText(advanced.NextAction));
                 Write(Path.Combine(temp, "recovery-plan.txt"), RecoveryPlanService.ToText(advanced.RecoveryPlan));
 
                 CollectCommand(temp, "ipconfig-all.txt", "ipconfig.exe", "/all", cancellationToken, progress);
@@ -93,6 +99,10 @@ namespace DomainMembershipCheckRepair
                     Copy(DiagnosticsService.NetSetupLogPath, Path.Combine(temp, "NetSetup.log"));
                 if (includeApplicationLog && File.Exists(DiagnosticsService.ApplicationLogPath))
                     Copy(DiagnosticsService.ApplicationLogPath, Path.Combine(temp, "DomainMembershipRepair.log"));
+
+                string latestTransaction = TransactionJournalService.GetLatestJournalPath();
+                if (!String.IsNullOrWhiteSpace(latestTransaction) && File.Exists(latestTransaction))
+                    Copy(latestTransaction, Path.Combine(temp, "latest-transaction.json"));
 
                 Write(
                     Path.Combine(temp, "README.txt"),
