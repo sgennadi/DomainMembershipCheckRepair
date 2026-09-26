@@ -2607,6 +2607,12 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("pwdLastSet: " + FirstNonEmpty(account.PwdLastSet, "(unknown)"));
             Console.WriteLine("SPN count: " + account.ServicePrincipalNameCount);
             Console.WriteLine("Child objects: " + account.ChildObjectCount);
+            Console.WriteLine(
+                "Recycle Bin: " +
+                (deleteSafety.RecycleBin != null && deleteSafety.RecycleBin.QuerySucceeded
+                    ? (deleteSafety.RecycleBin.Enabled ? "ENABLED" : "DISABLED")
+                    : "UNKNOWN"));
+            Console.WriteLine("A pre-delete recovery package MUST be created successfully before deletion can proceed.");
             Console.WriteLine("Deleting the computer object can also delete child data stored below it, including recovery information such as LAPS or BitLocker recovery child objects.");
             Console.WriteLine("After deletion, the tool will retry Join/Rejoin using the SAME computer name.");
             Console.WriteLine();
