@@ -15,6 +15,14 @@
 - Extended Self Test with DN-to-DNS conversion validation and optional `repadmin.exe` availability reporting.
 - Added regression tests for replication access-denied classification, targeted replication summary arguments, CIFS SPN generation/deduplication, SMB/Kerberos mismatch classification and Preferred-DC selection precedence.
 - Fixed Advanced GUI busy-state handling so all diagnostic buttons are disabled during an active operation.
+- Added structured JSON output for all read-only/reporting CLI actions, with machine-readable action/result envelopes.
+- Added normalized diagnostic exit codes: 20 finding detected, 21 not tested/capability unavailable, 22 diagnostic access denied and 23 partial result.
+- Added network-only credential execution for Kerberos, SMB, RPC and repadmin diagnostics using Windows `LOGON_NETCREDENTIALS_ONLY`; entered passwords are never added to command lines or logs.
+- Read-only AD computer-account and permission analysis now tries the current Windows security context when explicit credentials are not supplied.
+- Added LDAP/ADSI replication metadata fallback so useful replication/object metadata remains available without RSAT/repadmin.
+- Expanded DC Matrix with per-DC SPN visibility/collision state and cross-DC computer/SPN consistency detection.
+- Moved Advanced GUI diagnostics to background execution with live step status and cooperative Cancel support, including cancellation-aware external command runners.
+- Added `advanced-diagnostics.json` to Advanced Support Bundles and regression tests for JSON, diagnostic exit codes, net-only credential parsing and SPN state fingerprints.
 
 ## 1.5.0
 
