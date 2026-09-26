@@ -33,6 +33,7 @@ namespace DomainMembershipCheckRepair
             TestKerberosDeepParsing();
             TestLdapCompatibilityClassification();
             TestRpcEndpointParsing();
+            TestRpcKnownInterfaces();
             TestIdentityConsistencyFilter();
             TestTransactionJournalParsing();
 
@@ -485,6 +486,39 @@ namespace DomainMembershipCheckRepair
                 0,
                 RpcEndpointMapperAnalyzer.ExtractTcpPort("ncalrpc:[LRPC-abc]"),
                 "non-TCP RPC binding ignored");
+        }
+
+        private static void TestRpcKnownInterfaces()
+        {
+            AssertEqual(
+                "Netlogon (MS-NRPC)",
+                RpcEndpointMapperAnalyzer.DescribeKnownInterface(
+                    "12345678-1234-abcd-ef00-01234567cffb"),
+                "Netlogon RPC UUID mapped");
+
+            AssertEqual(
+                "LSA Policy (MS-LSAD)",
+                RpcEndpointMapperAnalyzer.DescribeKnownInterface(
+                    "12345778-1234-abcd-ef00-0123456789ab"),
+                "LSA RPC UUID mapped");
+
+            AssertEqual(
+                "SAMR (MS-SAMR)",
+                RpcEndpointMapperAnalyzer.DescribeKnownInterface(
+                    "12345778-1234-abcd-ef00-0123456789ac"),
+                "SAMR RPC UUID mapped");
+
+            AssertEqual(
+                "Directory Replication Service (MS-DRSR)",
+                RpcEndpointMapperAnalyzer.DescribeKnownInterface(
+                    "e3514235-4b06-11d1-ab04-00c04fc2dcd2"),
+                "DRSUAPI RPC UUID mapped");
+
+            AssertEqual(
+                String.Empty,
+                RpcEndpointMapperAnalyzer.DescribeKnownInterface(
+                    "00000000-0000-0000-0000-000000000000"),
+                "unknown RPC UUID not mislabeled");
         }
 
         private static void TestIdentityConsistencyFilter()
