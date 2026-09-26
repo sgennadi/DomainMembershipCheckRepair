@@ -294,7 +294,7 @@ namespace DomainMembershipCheckRepair
             if (!String.IsNullOrWhiteSpace(result.Action))
             {
                 string action = result.Action.Trim().ToLowerInvariant();
-                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "mii-disable" && action != "detect" && action != "ad-check" && action != "diagnose" && action != "export-diagnostics" && action != "advanced" && action != "netsetup" && action != "dc-matrix" && action != "site-subnet" && action != "protocols" && action != "hardening" && action != "join-permissions" && action != "hybrid-entra" && action != "policy-source" && action != "replication-metadata" && action != "spn-collisions" && action != "smb-kerberos" && action != "kerberos-deep" && action != "ldap-compatibility" && action != "rpc-endpoints" && action != "replication-timeline" && action != "identity-consistency" && action != "next-action" && action != "transactions" && action != "rollback-local" && action != "self-test" && action != "recovery-plan" && action != "support-bundle" && action != "cyberark" && action != "safe-fixes" && action != "odj-apply" && action != "odj-provision")
+                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "mii-disable" && action != "detect" && action != "ad-check" && action != "ad-recycle-bin" && action != "ad-deleted" && action != "ad-restore" && action != "diagnose" && action != "export-diagnostics" && action != "advanced" && action != "netsetup" && action != "dc-matrix" && action != "site-subnet" && action != "protocols" && action != "hardening" && action != "join-permissions" && action != "hybrid-entra" && action != "policy-source" && action != "replication-metadata" && action != "spn-collisions" && action != "smb-kerberos" && action != "kerberos-deep" && action != "ldap-compatibility" && action != "rpc-endpoints" && action != "replication-timeline" && action != "identity-consistency" && action != "next-action" && action != "history" && action != "history-compare" && action != "transactions" && action != "rollback-local" && action != "self-test" && action != "recovery-plan" && action != "support-bundle" && action != "cyberark" && action != "safe-fixes" && action != "odj-apply" && action != "odj-provision")
                 {
                     error = "Unknown action '" + result.Action + "'. Run --help to see the supported actions.";
                     return result;
@@ -312,6 +312,7 @@ namespace DomainMembershipCheckRepair
                                 result.Action == "restart" || result.Action == "mii-disable" ||
                                 result.Action == "safe-fixes" ||
                                 result.Action == "rollback-local" ||
+                                result.Action == "ad-restore" ||
                                 result.Action == "odj-apply" || result.Action == "odj-provision"))
             {
                 error = "--json is supported for read-only/reporting actions only.";
@@ -373,6 +374,9 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("  --cli --action mii-disable");
             Console.WriteLine("  --cli --action detect");
             Console.WriteLine("  --cli --action ad-check");
+            Console.WriteLine("  --cli --action ad-recycle-bin");
+            Console.WriteLine("  --cli --action ad-deleted [--computer NAME]");
+            Console.WriteLine("  --cli --action ad-restore [--computer NAME]");
             Console.WriteLine("  --cli --action diagnose");
             Console.WriteLine("  --cli --action export-diagnostics");
             Console.WriteLine("  --cli --action advanced");
@@ -393,6 +397,8 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("  --cli --action replication-timeline");
             Console.WriteLine("  --cli --action identity-consistency");
             Console.WriteLine("  --cli --action next-action");
+            Console.WriteLine("  --cli --action history");
+            Console.WriteLine("  --cli --action history-compare");
             Console.WriteLine("  --cli --action transactions");
             Console.WriteLine("  --cli --action rollback-local");
             Console.WriteLine("  --cli --action self-test");
@@ -439,6 +445,7 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine(" 11  AD lookup failed (ad-check)");
             Console.WriteLine(" 12  Restart required because a rename is pending");
             Console.WriteLine(" 13  Administrator elevation was cancelled, blocked, or ineffective");
+            Console.WriteLine(" 14  Deleted AD computer object restore failed");
         }
 
         private static int InteractiveMenu()
@@ -599,6 +606,11 @@ namespace DomainMembershipCheckRepair
                     case "odj-provision": return ProvisionOfflineDomainJoin();
                     case "detect": return DetectAndDisplayDomain();
                     case "ad-check": return CheckAdAccount();
+                    case "ad-recycle-bin": return AdRecycleBinStatusAction();
+                    case "ad-deleted": return AdDeletedObject();
+                    case "ad-restore": return RestoreDeletedAd();
+                    case "history": return DiagnosticHistory();
+                    case "history-compare": return CompareDiagnosticHistory();
                     case "diagnose": return Diagnostics();
                     case "export-diagnostics": return ExportDiagnostics();
                     default: return 3;
@@ -1003,6 +1015,220 @@ namespace DomainMembershipCheckRepair
                 result,
                 AdvancedDiagnosticsService.ToText(result),
                 exitCode);
+        }
+
+        private static int AdRecycleBinStatusAction()
+        {
+            string user;
+            string password;
+            GetOptionalCredentials(out user, out password);
+
+            string domain = (options.Domain ?? String.Empty).Trim();
+            if (String.IsNullOrWhiteSpace(domain) &&
+                String.IsNullOrWhiteSpace(options.PreferredDc))
+            {
+                domain = ResolveConfiguredOrDetectedDomain(user, true);
+                if (String.IsNullOrWhiteSpace(domain))
+                    return 3;
+            }
+
+            AdRecycleBinStatus result =
+                AdRecycleBinRecoveryService.GetStatus(
+                    domain,
+                    options.PreferredDc,
+                    user,
+                    password);
+
+            int exitCode = !result.QuerySucceeded
+                ? DiagnosticExitCodes.NotTested
+                : (result.Enabled
+                    ? DiagnosticExitCodes.Success
+                    : DiagnosticExitCodes.FindingDetected);
+
+            return WriteDiagnosticResult(
+                "ad-recycle-bin",
+                result,
+                AdRecycleBinRecoveryService.ToText(result),
+                exitCode);
+        }
+
+        private static int AdDeletedObject()
+        {
+            string user;
+            string password;
+            GetOptionalCredentials(out user, out password);
+
+            string domain = (options.Domain ?? String.Empty).Trim();
+            if (String.IsNullOrWhiteSpace(domain) &&
+                String.IsNullOrWhiteSpace(options.PreferredDc))
+            {
+                domain = ResolveConfiguredOrDetectedDomain(user, true);
+                if (String.IsNullOrWhiteSpace(domain))
+                    return 3;
+            }
+
+            string computer = String.IsNullOrWhiteSpace(options.ComputerName)
+                ? Environment.MachineName
+                : options.ComputerName;
+
+            DeletedComputerObjectInfo result =
+                AdRecycleBinRecoveryService.FindDeletedComputer(
+                    domain,
+                    options.PreferredDc,
+                    computer,
+                    user,
+                    password);
+
+            int exitCode = !result.QuerySucceeded
+                ? DiagnosticExitCodes.NotTested
+                : (result.Found
+                    ? DiagnosticExitCodes.FindingDetected
+                    : DiagnosticExitCodes.Success);
+
+            return WriteDiagnosticResult(
+                "ad-deleted",
+                result,
+                AdRecycleBinRecoveryService.ToText(result),
+                exitCode);
+        }
+
+        private static int RestoreDeletedAd()
+        {
+            string user;
+            string password;
+            if (!GetCredentials(out user, out password))
+                return 7;
+
+            string domain = ResolveConfiguredOrDetectedDomain(user, true);
+            if (String.IsNullOrWhiteSpace(domain))
+                return 3;
+
+            string computer = String.IsNullOrWhiteSpace(options.ComputerName)
+                ? Environment.MachineName
+                : options.ComputerName;
+
+            string validation = DomainValidation.ValidateComputerName(computer);
+            if (validation != null)
+            {
+                Console.WriteLine("Invalid computer name: " + validation);
+                return 3;
+            }
+
+            DeletedComputerObjectInfo deleted =
+                AdRecycleBinRecoveryService.FindDeletedComputer(
+                    domain,
+                    options.PreferredDc,
+                    computer,
+                    user,
+                    password);
+
+            Console.WriteLine(
+                AdRecycleBinRecoveryService.ToText(deleted));
+
+            if (!deleted.QuerySucceeded ||
+                !deleted.Found ||
+                !deleted.Restorable)
+                return 14;
+
+            if (options.DryRun)
+            {
+                Console.WriteLine();
+                Console.WriteLine(
+                    "DRY RUN: would restore the deleted object to:");
+                Console.WriteLine(deleted.RestoreDistinguishedName);
+                return 0;
+            }
+
+            Console.WriteLine();
+            Console.WriteLine(
+                "WARNING: this changes Active Directory.");
+            Console.WriteLine(
+                "Restore DN: " + deleted.RestoreDistinguishedName);
+
+            if (!AskYesNo(
+                "Restore this deleted AD computer object now?",
+                false))
+                return 7;
+
+            CreatePreChangeBundle(
+                "ad-restore",
+                domain,
+                user,
+                password);
+
+            TransactionJournal journal =
+                TransactionJournalService.Begin("ad-restore");
+
+            TransactionJournalService.RecordNote(
+                journal,
+                "Active Directory restore",
+                "Operator confirmed restore of " +
+                deleted.DistinguishedName + " to " +
+                deleted.RestoreDistinguishedName + ".");
+
+            AdRestoreResult result =
+                AdRecycleBinRecoveryService.RestoreDeletedComputer(
+                    domain,
+                    options.PreferredDc,
+                    computer,
+                    user,
+                    password);
+
+            TransactionJournalService.RecordNote(
+                journal,
+                "Active Directory restore",
+                result.Success
+                    ? "Restore succeeded: " + result.RestoredDn
+                    : "Restore failed: " + result.Message);
+            journal.Complete();
+
+            Console.WriteLine(
+                AdRecycleBinRecoveryService.ToText(result));
+
+            return result.Success ? 0 : 14;
+        }
+
+        private static int DiagnosticHistory()
+        {
+            List<DiagnosticHistoryRecord> records =
+                DiagnosticHistoryService.ListRecords(30);
+
+            int exitCode = records.Count == 0
+                ? DiagnosticExitCodes.NotTested
+                : DiagnosticExitCodes.Success;
+
+            return WriteDiagnosticResult(
+                "history",
+                records,
+                DiagnosticHistoryService.ListToText(records),
+                exitCode);
+        }
+
+        private static int CompareDiagnosticHistory()
+        {
+            DiagnosticHistoryComparison comparison;
+            string error;
+
+            if (!DiagnosticHistoryService.TryCompareLatest(
+                out comparison,
+                out error))
+            {
+                Dictionary<string, object> payload =
+                    new Dictionary<string, object>();
+                payload["error"] = error;
+
+                return WriteDiagnosticResult(
+                    "history-compare",
+                    payload,
+                    error,
+                    DiagnosticExitCodes.NotTested);
+            }
+
+            return WriteDiagnosticResult(
+                "history-compare",
+                comparison,
+                DiagnosticHistoryService.ToText(comparison),
+                DiagnosticExitCodes.Success);
         }
 
         private static int AnalyzeNetSetup()
