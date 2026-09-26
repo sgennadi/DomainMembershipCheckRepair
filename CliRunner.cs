@@ -2065,10 +2065,22 @@ namespace DomainMembershipCheckRepair
                 user,
                 password);
 
+            TransactionJournal renameJournal = TransactionJournalService.Begin("rename-and-join");
+            TransactionJournalService.RecordNote(
+                renameJournal,
+                "Computer rename",
+                "Pending rename requested from " + currentName + " to " + requestedName +
+                ". Rename/domain join is audit-only and not automatically reversible.");
+
             logger.Log("INFO", "Setting pending computer name to '" + requestedName + "'.");
             int renameError;
             if (!NativeMethods.SetPendingComputerName(requestedName, out renameError))
             {
+                TransactionJournalService.RecordNote(
+                    renameJournal,
+                    "Computer rename",
+                    "SetPendingComputerName failed: " + NativeMethods.FormatError(renameError));
+                renameJournal.Complete();
                 logger.Log("ERROR", "SetComputerNameEx failed: " + NativeMethods.FormatError(renameError));
                 return 8;
             }
@@ -2078,6 +2090,11 @@ namespace DomainMembershipCheckRepair
 
             if (joinStatus == NativeMethods.NERR_Success)
             {
+                TransactionJournalService.RecordNote(
+                    renameJournal,
+                    "Domain join",
+                    "Rename + domain join succeeded; restart required for new name " + requestedName + ".");
+                renameJournal.Complete();
                 logger.Log("SUCCESS", "Rename + domain join succeeded. New name after reboot: " + requestedName);
                 HandleRestartAfterSuccess("Rename and domain join completed successfully. New computer name after restart: " + requestedName);
                 return 0;
@@ -2370,12 +2387,28 @@ namespace DomainMembershipCheckRepair
                 user,
                 password);
 
+            TransactionJournal deleteJournal = TransactionJournalService.Begin("delete-and-recreate");
+            TransactionJournalService.RecordNote(
+                deleteJournal,
+                "Active Directory delete",
+                "Operator confirmed deletion of " +
+                (String.IsNullOrWhiteSpace(account.DistinguishedName) ? computerName + "$" : account.DistinguishedName) +
+                ". AD deletion is destructive and is never automatically rolled back.");
+
             string deleteError;
             if (!AdDirectoryService.DeleteComputerAccount(account, computerName, user, password, logger.Log, out deleteError))
             {
+                TransactionJournalService.RecordNote(deleteJournal, "Active Directory delete", "Delete failed: " + deleteError);
+                deleteJournal.Complete();
                 logger.Log("ERROR", "Unable to delete the AD computer account safely: " + deleteError);
                 return 9;
             }
+
+            TransactionJournalService.RecordNote(
+                deleteJournal,
+                "Active Directory delete",
+                "AD computer object deletion succeeded. This action is not locally reversible.");
+            deleteJournal.Complete();
 
             int[] retryDelays = new int[] { 2, 4, 8, 12 };
             int status = NativeMethods.ERROR_ACCESS_DENIED;
