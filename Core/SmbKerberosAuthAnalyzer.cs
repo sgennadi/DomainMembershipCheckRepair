@@ -168,7 +168,16 @@ namespace DomainMembershipCheckRepair
                 return "NOT TESTED";
             if (result.TimedOut)
                 return "FAILED / TIMEOUT";
-            return result.ExitCode == 0 ? "OK" : "FAILED";
+            if (result.ExitCode == 0)
+                return "OK";
+
+            string text = result.CombinedOutput ?? String.Empty;
+            if (text.IndexOf("Access is denied", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                text.IndexOf("System error 5", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                text.IndexOf("Logon failure", StringComparison.OrdinalIgnoreCase) >= 0)
+                return "REACHABLE / ACCESS DENIED";
+
+            return "FAILED";
         }
 
         private static string Collapse(string value, int max)
