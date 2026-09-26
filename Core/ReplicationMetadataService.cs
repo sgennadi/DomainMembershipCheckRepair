@@ -42,6 +42,7 @@ namespace DomainMembershipCheckRepair
             r.ReplSummary = FormatCommand(summary);
 
             CommandResult meta = null;
+            CommandResult attr = null;
             if (!String.IsNullOrWhiteSpace(r.Dc) && !String.IsNullOrWhiteSpace(r.ObjectDn))
             {
                 meta = ProcessRunner.Run(
@@ -50,7 +51,7 @@ namespace DomainMembershipCheckRepair
                     30000);
                 r.ObjectMetadata = FormatCommand(meta);
 
-                CommandResult attr = ProcessRunner.Run(
+                attr = ProcessRunner.Run(
                     repadmin,
                     "/showattr " + Quote(r.Dc) + " " + Quote(r.ObjectDn) + " /atts:objectGUID,pwdLastSet,whenChanged,servicePrincipalName",
                     30000);
@@ -61,11 +62,37 @@ namespace DomainMembershipCheckRepair
                 r.Findings.Add("Object metadata was not requested because the DC or object DN is unavailable.");
             }
 
-            if (CommandFailed(summary) || HasReplicationFailures(summary == null ? String.Empty : summary.CombinedOutput))
+            string summaryDiagnostic = CommandDiagnosticText(summary);
+            if (HasReplicationFailures(summaryDiagnostic))
+            {
                 r.Findings.Add("HIGH: repadmin /replsummary reports replication failures or unavailable partners.");
+            }
+            else if (IsAccessDenied(summaryDiagnostic))
+            {
+                r.Findings.Add("INFO: repadmin /replsummary could not be evaluated because replication query access was denied for the current security context.");
+            }
+            else if (CommandFailed(summary))
+            {
+                r.Findings.Add("CHECK: repadmin /replsummary did not complete successfully; replication health could not be verified.");
+            }
 
             if (meta != null && CommandFailed(meta))
-                r.Findings.Add("CHECK: object replication metadata could not be read cleanly from the selected DC.");
+            {
+                string metaDiagnostic = CommandDiagnosticText(meta);
+                if (IsAccessDenied(metaDiagnostic))
+                    r.Findings.Add("INFO: object replication metadata could not be read because the current security context does not have permission.");
+                else
+                    r.Findings.Add("CHECK: object replication metadata could not be read cleanly from the selected DC.");
+            }
+
+            if (attr != null && CommandFailed(attr))
+            {
+                string attrDiagnostic = CommandDiagnosticText(attr);
+                if (IsAccessDenied(attrDiagnostic))
+                    r.Findings.Add("INFO: replicated object attributes could not be read because the current security context does not have permission.");
+                else
+                    r.Findings.Add("CHECK: replicated object attributes could not be read cleanly from the selected DC.");
+            }
 
             return r;
         }
@@ -137,8 +164,7 @@ namespace DomainMembershipCheckRepair
                 return false;
 
             string value = text.ToLowerInvariant();
-            if (value.Contains("access is denied") ||
-                value.Contains("rpc server is unavailable") ||
+            if (value.Contains("rpc server is unavailable") ||
                 value.Contains("target principal name is incorrect") ||
                 value.Contains("naming context is in the process of being removed"))
             {
@@ -157,6 +183,32 @@ namespace DomainMembershipCheckRepair
             }
 
             return false;
+        }
+
+        internal static bool IsAccessDenied(string text)
+        {
+            if (String.IsNullOrWhiteSpace(text))
+                return false;
+
+            string value = text.ToLowerInvariant();
+            return value.Contains("access is denied") ||
+                   value.Contains("access was denied") ||
+                   value.Contains("replication access was denied") ||
+                   value.Contains("8453") ||
+                   value.Contains("0x2105");
+        }
+
+        private static string CommandDiagnosticText(CommandResult result)
+        {
+            if (result == null)
+                return String.Empty;
+
+            StringBuilder sb = new StringBuilder();
+            if (!String.IsNullOrWhiteSpace(result.Error))
+                sb.AppendLine(result.Error);
+            if (!String.IsNullOrWhiteSpace(result.CombinedOutput))
+                sb.AppendLine(result.CombinedOutput);
+            return sb.ToString();
         }
 
         private static bool CommandFailed(CommandResult result)
