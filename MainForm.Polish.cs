@@ -199,29 +199,32 @@ namespace DomainMembershipCheckRepair
 
         private void CopyDiagnosticsToClipboard()
         {
-            try
-            {
-                DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
-                    domainBox == null ? String.Empty : domainBox.Text,
-                    dcBox == null ? String.Empty : dcBox.Text);
-                lastDiagnosticsSnapshot = snapshot;
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
 
-                string report = DiagnosticsService.ToText(snapshot);
-                Clipboard.SetText(report);
-                RefreshStatusCards();
-                Log("SUCCESS", "Diagnostics copied to clipboard.");
-                MessageBox.Show(
-                    this,
-                    "Diagnostics copied to the clipboard.\r\n\r\nNo entered domain username or password is included in the diagnostic report.",
-                    "Diagnostics copied",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                Log("ERROR", "Unable to copy diagnostics: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "Copy diagnostics failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            RunBackgroundDiagnostic(
+                "Copy Diagnostics",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
+                {
+                    progress("Copy Diagnostics: capturing current state");
+                    token.ThrowIfCancellationRequested();
+                    DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
+                        inputs.Domain,
+                        inputs.PreferredDc);
+                    token.ThrowIfCancellationRequested();
+                    return snapshot;
+                },
+                delegate(DiagnosticsSnapshot snapshot)
+                {
+                    lastDiagnosticsSnapshot = snapshot;
+                    Clipboard.SetText(DiagnosticsService.ToText(snapshot));
+                    Log("SUCCESS", "Diagnostics copied to clipboard.");
+                    MessageBox.Show(
+                        this,
+                        "Diagnostics copied to the clipboard.\r\n\r\nNo entered domain username or password is included in the diagnostic report.",
+                        "Diagnostics copied",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                });
         }
     }
 }
