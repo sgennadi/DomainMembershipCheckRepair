@@ -41,8 +41,8 @@ The release version has one source of truth: `VersionInfo.cs`. Assembly metadata
 - SPN collision detection for HOST/RestrictedKrbHost/TERMSRV registrations.
 - SMB/Kerberos authentication analysis with explicit CIFS ticket testing and NTLM/signing policy context.
 - Kerberos Deep Analyzer for TGT/HOST/LDAP/CIFS tickets, encryption, flags, ticket lifetime, KDC binding and time-skew evidence.
-- Real LDAP compatibility tests: signed SASL LDAP, authenticated LDAPS and TLS certificate/hostname validation.
-- Native RPC Endpoint Mapper enumeration with dynamic RPC TCP endpoint reachability tests.
+- Real LDAP compatibility tests: signed SASL LDAP, LDAP StartTLS + Negotiate, authenticated LDAPS and TLS certificate/hostname validation. StartTLS exercises the Windows SSPI TLS-protected path used by CBT-capable LDAP clients without claiming that server-side CBT enforcement is proven from the client alone.
+- Native RPC Endpoint Mapper enumeration with dynamic RPC TCP endpoint reachability tests plus known-interface mapping and functional probes for Netlogon, LSA Policy, SAMR and DRSUAPI.
 - Parsed per-DC replication timeline for pwdLastSet, servicePrincipalName, dNSHostName and userAccountControl.
 - Computer identity consistency search across sAMAccountName, dNSHostName and expected HOST/CIFS SPNs.
 - Smart Next Safe Action that highlights one immediate non-destructive next step and can block destructive recovery when evidence is unsafe.
@@ -364,17 +364,20 @@ Version 1.6.0 additionally includes:
 - structured JSON for all read-only/reporting CLI actions and dedicated diagnostic exit codes;
 - background execution for Advanced GUI reports with live step status and cooperative Cancel support;
 - Kerberos Deep Analyzer for the current TGT plus HOST/LDAP/CIFS service tickets, including encryption type, ticket flags, lifetime, KDC binding and reported time skew;
-- real LDAP compatibility testing with signed SASL LDAP 389, LDAPS 636 authenticated bind, and an SslStream TLS handshake that validates both the certificate chain and DC hostname;
-- native RPC Endpoint Mapper enumeration through Rpcrt4.dll followed by concrete dynamic TCP endpoint reachability checks;
+- real LDAP compatibility testing with signed SASL LDAP 389, LDAP StartTLS + Negotiate, LDAPS 636 authenticated bind, and an SslStream TLS handshake that validates both the certificate chain and DC hostname;
+- native RPC Endpoint Mapper enumeration through Rpcrt4.dll followed by concrete dynamic TCP endpoint reachability checks and functional Netlogon/LSA/SAMR/DRSUAPI probes;
 - parsed `msDS-ReplAttributeMetaData` timeline across reachable DCs for `pwdLastSet`, `servicePrincipalName`, `dNSHostName` and `userAccountControl`;
 - computer identity consistency analysis for duplicate/stale `sAMAccountName`, `dNSHostName`, HOST and CIFS identity keys;
 - Smart Next Safe Action that selects one immediate safe technical step and marks when destructive recovery should be deferred;
+- expanded Self Test coverage for Kerberos TGT, LDAP StartTLS/LDAPS, RPC interface probes, AD replication metadata and transaction ACL security;
+- grouped Advanced GUI sections for easier operation at high DPI and on smaller displays;
+- a manual self-hosted AD Integration Lab workflow for live-domain smoke/healthy JSON validation without storing a domain password;
 - local transaction journals under `%ProgramData%\DomainMembershipCheckRepair\Transactions` for reversible local recovery changes;
 - explicit Rollback Local support restricted to an allowlist of Machine Identity Isolation DWORDs and the Netlogon service; domain join, rename, AD deletion, DNS flush and time resync are never automatically reversed;
 - transaction folder ACL hardening for SYSTEM/Administrators with read access for Users, plus a second hard-coded rollback target allowlist to resist journal tampering;
 - integration of deep Kerberos/LDAP/RPC/identity/replication findings into Root Cause analysis, Recovery Plan and the Advanced Support Bundle.
 
-The Advanced GUI exposes Replication Metadata, SPN Collisions and SMB / Kerberos as individual reports. Long-running read-only diagnostics run off the UI thread; Cancel interrupts cancellation-aware external commands immediately and stops other analyzers after the current Windows/LDAP API call returns.
+The Advanced GUI exposes the deep analyzers as individual reports. Actions are grouped into **Overview & Reports**, **Identity & Active Directory**, **Network & Protocols**, **Security & Hybrid**, and **Recovery & Operations**. Long-running read-only diagnostics run off the UI thread; Cancel interrupts cancellation-aware external commands immediately and stops other analyzers after the current Windows/LDAP API call returns.
 
 ### DPI and display scaling
 
@@ -677,6 +680,8 @@ The repository uses Node.js 24-compatible GitHub Actions. Actions are pinned to 
 - publishes the GitHub Release
 
 Dependabot checks GitHub Actions updates weekly.
+
+`ad-integration.yml` is a manual, opt-in workflow for a dedicated self-hosted Windows runner in a test AD domain. It is gated by `AD_LAB_ENABLED=true`, uses the runner's domain security context rather than a stored password, executes the deep read-only CLI analyzers, validates their JSON envelopes/diagnostic exit codes, and uploads the resulting integration diagnostics. See [Tests/Integration/README.md](Tests/Integration/README.md).
 
 ## Release process
 
