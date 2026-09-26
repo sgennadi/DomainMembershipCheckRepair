@@ -33,6 +33,12 @@
 - Hardened transaction rollback with protected ProgramData ACLs and a fixed allowlist limited to MII DWORDs and Netlogon service state.
 - Added individual GUI/CLI actions and Support Bundle reports for Kerberos Deep, LDAP Compatibility, RPC Endpoints, Replication Timeline, Identity Consistency, Next Safe Action and Transactions.
 - Added regression tests for Kerberos parsing, LDAP failure classification, RPC endpoint parsing, identity LDAP filters, GUI/CLI rollback elevation and transaction rollback allowlists.
+- Added LDAP 389 StartTLS + Negotiate compatibility testing to exercise the TLS-protected Windows SSPI path used by CBT-capable LDAP clients.
+- Added known RPC interface mapping plus functional Netlogon, LSA Policy, SAMR and DRSUAPI probes on top of Endpoint Mapper/dynamic-port testing.
+- Expanded Self Test with Kerberos TGT, signed LDAP/StartTLS/LDAPS, RPC interface, replication-metadata and transaction-storage ACL checks.
+- Reorganized the Advanced GUI into workflow groups while preserving DPI-aware sizing, scrolling and background cancellation.
+- Added a manual self-hosted AD Integration Lab GitHub Actions workflow and PowerShell harness for live-domain read-only smoke/healthy validation without storing domain credentials.
+- Added regression tests for the known Netlogon/LSA/SAMR/DRSUAPI interface UUID mappings.
 
 ## 1.5.0
 
