@@ -187,7 +187,35 @@ namespace DomainMembershipCheckRepair
             sids.Add("S-1-5-11");
 
             if (String.IsNullOrWhiteSpace(user))
+            {
+                try
+                {
+                    using (WindowsIdentity current = WindowsIdentity.GetCurrent())
+                    {
+                        if (current != null && current.User != null)
+                        {
+                            result.OperatorSid = current.User.Value;
+                            sids.Add(current.User.Value);
+                        }
+
+                        if (current != null && current.Groups != null)
+                        {
+                            foreach (IdentityReference group in current.Groups)
+                            {
+                                SecurityIdentifier sid = group as SecurityIdentifier;
+                                if (sid != null)
+                                    sids.Add(sid.Value);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    result.Findings.Add("Unable to read the current Windows token groups: " + ex.Message);
+                }
+
                 return sids;
+            }
 
             try
             {
