@@ -70,7 +70,10 @@ namespace DomainMembershipCheckRepair
 
                     if (item.IndexOf("access denied", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         item.IndexOf("access was denied", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        item.IndexOf("permission denied", StringComparison.OrdinalIgnoreCase) >= 0)
+                        item.IndexOf("permission denied", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        item.IndexOf("permission was denied", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        item.IndexOf("does not have permission", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        item.IndexOf("insufficient permission", StringComparison.OrdinalIgnoreCase) >= 0)
                         denied = true;
 
                     if (item.StartsWith("INFO:", StringComparison.OrdinalIgnoreCase))
