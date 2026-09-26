@@ -1195,19 +1195,16 @@ namespace DomainMembershipCheckRepair
                 string password = passwordBox == null ? null : passwordBox.Text;
                 string objectDn = String.Empty;
 
-                if (!String.IsNullOrWhiteSpace(user) && !String.IsNullOrEmpty(password))
-                {
-                    AdComputerAccountInfo account = AdDirectoryService.FindComputerAccount(
-                        Environment.MachineName,
-                        user,
-                        password,
-                        snapshot.TargetDomain,
-                        DomainValidation.SelectDirectoryServer(preferredDc, snapshot.DiscoveredDc),
-                        null);
+                AdComputerAccountInfo account = AdDirectoryService.FindComputerAccount(
+                    Environment.MachineName,
+                    user,
+                    password,
+                    snapshot.TargetDomain,
+                    DomainValidation.SelectDirectoryServer(preferredDc, snapshot.DiscoveredDc),
+                    null);
 
-                    if (account != null && account.LookupSucceeded && account.Exists)
-                        objectDn = account.DistinguishedName;
-                }
+                if (account != null && account.LookupSucceeded && account.Exists)
+                    objectDn = account.DistinguishedName;
 
                 string effectiveDc = DomainValidation.SelectDirectoryServer(
                     preferredDc,
@@ -1216,7 +1213,9 @@ namespace DomainMembershipCheckRepair
                 ReplicationMetadataResult result = ReplicationMetadataService.Analyze(
                     snapshot.TargetDomain,
                     effectiveDc,
-                    objectDn);
+                    objectDn,
+                    user,
+                    password);
 
                 ReportDialog.ShowReport(
                     this,
@@ -1275,9 +1274,19 @@ namespace DomainMembershipCheckRepair
             SetBusy(true);
             try
             {
+                string user = userBox == null ? String.Empty : (userBox.Text ?? String.Empty).Trim();
+                string password = passwordBox == null ? null : passwordBox.Text;
+                if (String.IsNullOrWhiteSpace(user) || String.IsNullOrEmpty(password))
+                {
+                    user = String.Empty;
+                    password = null;
+                }
+
                 SmbKerberosAuthResult result = SmbKerberosAuthAnalyzer.Analyze(
                     domainBox == null ? String.Empty : domainBox.Text,
-                    dcBox == null ? String.Empty : dcBox.Text);
+                    dcBox == null ? String.Empty : dcBox.Text,
+                    user,
+                    password);
 
                 ReportDialog.ShowReport(
                     this,
