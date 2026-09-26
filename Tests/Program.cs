@@ -23,6 +23,8 @@ namespace DomainMembershipCheckRepair
             TestKerberosEncryptionTypeDecoding();
             TestRemoteProtocolArguments();
             TestReplicationSummaryParsing();
+            TestExpectedSpns();
+            TestSmbKerberosMismatchClassification();
 
             if (failures == 0)
             {
@@ -216,6 +218,55 @@ namespace DomainMembershipCheckRepair
             AssertTrue(
                 ReplicationMetadataService.IsAccessDenied(accessDenied),
                 "repadmin replication access denied is recognized");
+        }
+
+        private static void TestExpectedSpns()
+        {
+            string[] values = SpnCollisionAnalyzer.BuildExpectedSpns(
+                "PC01",
+                "PC01.example.com");
+
+            AssertTrue(Array.Exists(values, delegate(string value)
+            {
+                return String.Equals(value, "HOST/PC01", StringComparison.OrdinalIgnoreCase);
+            }), "HOST short SPN included");
+
+            AssertTrue(Array.Exists(values, delegate(string value)
+            {
+                return String.Equals(value, "HOST/PC01.example.com", StringComparison.OrdinalIgnoreCase);
+            }), "HOST FQDN SPN included");
+
+            AssertTrue(Array.Exists(values, delegate(string value)
+            {
+                return String.Equals(value, "CIFS/PC01", StringComparison.OrdinalIgnoreCase);
+            }), "CIFS short SPN included");
+
+            AssertTrue(Array.Exists(values, delegate(string value)
+            {
+                return String.Equals(value, "CIFS/PC01.example.com", StringComparison.OrdinalIgnoreCase);
+            }), "CIFS FQDN SPN included");
+
+            string[] deduplicated = SpnCollisionAnalyzer.BuildExpectedSpns("PC01", "PC01");
+            AssertEqualInt(4, deduplicated.Length, "duplicate short/FQDN SPNs removed");
+        }
+
+        private static void TestSmbKerberosMismatchClassification()
+        {
+            AssertTrue(
+                SmbKerberosAuthAnalyzer.HasKerberosSmbMismatch("FAILED", "OK"),
+                "Kerberos failure with SMB success detected");
+
+            AssertTrue(
+                SmbKerberosAuthAnalyzer.HasKerberosSmbMismatch("FAILED / TIMEOUT", "OK"),
+                "Kerberos timeout with SMB success detected");
+
+            AssertFalse(
+                SmbKerberosAuthAnalyzer.HasKerberosSmbMismatch("NOT TESTED", "OK"),
+                "untested Kerberos is not reported as fallback evidence");
+
+            AssertFalse(
+                SmbKerberosAuthAnalyzer.HasKerberosSmbMismatch("OK", "OK"),
+                "healthy Kerberos is not mismatch");
         }
 
         private static void TestUiLayoutMath()
