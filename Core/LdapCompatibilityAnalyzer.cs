@@ -57,6 +57,9 @@ namespace DomainMembershipCheckRepair
             Report(progress, "LDAP Compatibility: signed SASL bind on 389");
             result.Checks.Add(TestBind(result.Dc, 389, false, true, user, password, cancellationToken));
 
+            Report(progress, "LDAP Compatibility: StartTLS 389 + Negotiate bind");
+            result.Checks.Add(TestStartTlsBind(result.Dc, user, password, cancellationToken));
+
             Report(progress, "LDAP Compatibility: validating LDAPS TLS certificate and hostname");
             result.Checks.Add(TestLdapsTls(result.Dc, cancellationToken));
 
@@ -120,6 +123,65 @@ namespace DomainMembershipCheckRepair
                 text.IndexOf("TLS", StringComparison.OrdinalIgnoreCase) >= 0)
                 return "FAILED / TLS";
             return "FAILED";
+        }
+
+        private static LdapCompatibilityCheck TestStartTlsBind(
+            string dc,
+            string user,
+            string password,
+            CancellationToken cancellationToken)
+        {
+            LdapCompatibilityCheck check = new LdapCompatibilityCheck();
+            check.Name = "LDAP 389 / StartTLS + Negotiate";
+
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                LdapDirectoryIdentifier id = new LdapDirectoryIdentifier(dc, 389, true, false);
+                using (LdapConnection connection = new LdapConnection(id))
+                {
+                    connection.Timeout = TimeSpan.FromSeconds(8);
+                    connection.AuthType = AuthType.Negotiate;
+
+                    NetworkCredential credential = BuildCredential(user, password);
+                    if (credential != null)
+                        connection.Credential = credential;
+
+                    connection.SessionOptions.ProtocolVersion = 3;
+                    connection.SessionOptions.StartTransportLayerSecurity(null);
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    connection.Bind();
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    SearchRequest request = new SearchRequest(
+                        null,
+                        "(objectClass=*)",
+                        SearchScope.Base,
+                        "defaultNamingContext",
+                        "dnsHostName");
+
+                    SearchResponse response = (SearchResponse)connection.SendRequest(request);
+                    check.Status = "OK";
+                    check.Details =
+                        response != null
+                            ? "StartTLS negotiation, Windows Negotiate authentication and RootDSE query succeeded. " +
+                              "This exercises the TLS-protected SSPI path used by CBT-capable Windows LDAP clients."
+                            : "StartTLS negotiation and Windows Negotiate authentication succeeded.";
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                check.Status = ClassifyException(ex);
+                check.Details = Collapse(ex.Message, 500);
+            }
+
+            return check;
         }
 
         private static LdapCompatibilityCheck TestLdapsTls(
@@ -298,12 +360,16 @@ namespace DomainMembershipCheckRepair
         private static void AnalyzeFindings(LdapCompatibilityResult result)
         {
             LdapCompatibilityCheck signed = Find(result, "LDAP 389 / Negotiate + signing");
+            LdapCompatibilityCheck startTls = Find(result, "LDAP 389 / StartTLS + Negotiate");
             LdapCompatibilityCheck tls = Find(result, "LDAPS 636 / TLS certificate + hostname");
             LdapCompatibilityCheck ldaps = Find(result, "LDAPS 636 / Negotiate");
             LdapCompatibilityCheck unsigned = Find(result, "LDAP 389 / Negotiate unsigned probe");
 
             if (signed != null && !String.Equals(signed.Status, "OK", StringComparison.OrdinalIgnoreCase))
                 result.Findings.Add("HIGH: Signed LDAP Negotiate bind to port 389 failed.");
+
+            if (startTls != null && !String.Equals(startTls.Status, "OK", StringComparison.OrdinalIgnoreCase))
+                result.Findings.Add("CHECK: LDAP StartTLS 389 + Negotiate bind failed; review StartTLS/TLS/CBT compatibility separately from normal signed LDAP.");
 
             if (tls != null && !String.Equals(tls.Status, "OK", StringComparison.OrdinalIgnoreCase))
                 result.Findings.Add("HIGH: LDAPS TLS certificate/hostname validation failed.");
@@ -318,10 +384,11 @@ namespace DomainMembershipCheckRepair
             }
 
             if (signed != null && String.Equals(signed.Status, "OK", StringComparison.OrdinalIgnoreCase) &&
+                startTls != null && String.Equals(startTls.Status, "OK", StringComparison.OrdinalIgnoreCase) &&
                 tls != null && String.Equals(tls.Status, "OK", StringComparison.OrdinalIgnoreCase) &&
                 ldaps != null && String.Equals(ldaps.Status, "OK", StringComparison.OrdinalIgnoreCase))
             {
-                result.Findings.Add("INFO: Signed LDAP and LDAPS authenticated binds both succeeded.");
+                result.Findings.Add("INFO: Signed LDAP, StartTLS Negotiate and LDAPS authenticated binds all succeeded.");
             }
         }
 
