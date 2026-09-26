@@ -93,6 +93,9 @@
     <Compile Include="Core\DiagnosticsService.cs" />
     <Compile Include="Core\HealthDiagnosticsService.cs" />
     <Compile Include="Core\ProcessRunner.cs" />
+    <Compile Include="Core\NetworkCredentialProcessRunner.cs" />
+    <Compile Include="Core\JsonReportSerializer.cs" />
+    <Compile Include="Core\DiagnosticExitCodes.cs" />
     <Compile Include="Core\NetSetupLogAnalyzer.cs" />
     <Compile Include="Core\EventTimelineService.cs" />
     <Compile Include="Core\DnsDiagnosticsService.cs" />
