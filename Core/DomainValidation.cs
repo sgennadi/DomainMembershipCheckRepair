@@ -172,7 +172,25 @@ namespace DomainMembershipCheckRepair
             while (server.StartsWith(@"\\", StringComparison.Ordinal))
                 server = server.Substring(2);
             server = server.Trim().Trim('/');
+
+            if (!IsSafeDirectoryServer(server))
+                return String.Empty;
+
             return server;
+        }
+
+        internal static bool IsSafeDirectoryServer(string value)
+        {
+            if (String.IsNullOrWhiteSpace(value) || value.Length > 255)
+                return false;
+
+            foreach (char c in value)
+            {
+                if (Char.IsWhiteSpace(c) || Char.IsControl(c) || c == '"' || c == '\\' || c == '/')
+                    return false;
+            }
+
+            return true;
         }
     }
 }
