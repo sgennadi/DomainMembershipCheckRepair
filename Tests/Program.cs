@@ -30,6 +30,11 @@ namespace DomainMembershipCheckRepair
             TestJsonReporting();
             TestDiagnosticExitCodes();
             TestSpnStateFingerprint();
+            TestKerberosDeepParsing();
+            TestLdapCompatibilityClassification();
+            TestRpcEndpointParsing();
+            TestIdentityConsistencyFilter();
+            TestTransactionJournalParsing();
 
             if (failures == 0)
             {
@@ -135,6 +140,7 @@ namespace DomainMembershipCheckRepair
             AssertTrue(ElevationHelper.RequiresElevation("mii-disable"), "mii-disable requires elevation");
             AssertTrue(ElevationHelper.RequiresElevation("odj-apply"), "odj-apply requires elevation");
             AssertTrue(ElevationHelper.RequiresElevation("safe-fixes"), "safe-fixes requires elevation");
+            AssertTrue(ElevationHelper.RequiresElevation("rollback-local"), "rollback-local requires elevation");
 
             AssertFalse(ElevationHelper.RequiresElevation("status"), "status does not require elevation");
             AssertFalse(ElevationHelper.RequiresElevation("check"), "check does not require elevation");
@@ -172,6 +178,11 @@ namespace DomainMembershipCheckRepair
                 new string[] { "--resume-action", "post-reboot-check", "--domain", "example.com" });
             AssertEqual("post-reboot-check", postReboot.Action, "post reboot resume action");
             AssertEqual("example.com", postReboot.Domain, "post reboot domain");
+
+            GuiResumeOptions rollback = ElevationHelper.ParseGuiResumeOptions(
+                new string[] { "--resume-action", "rollback-local", "--elevation-attempted" });
+            AssertEqual("rollback-local", rollback.Action, "rollback GUI resume action");
+            AssertTrue(rollback.ElevationAttempted, "rollback resume elevation marker");
         }
 
         private static void TestNetSetupErrorMapping()
@@ -418,6 +429,95 @@ namespace DomainMembershipCheckRepair
                 SpnCollisionAnalyzer.BuildStateFingerprint(first),
                 SpnCollisionAnalyzer.BuildStateFingerprint(second),
                 "SPN state fingerprint ignores case and DN ordering");
+        }
+
+        private static void TestKerberosDeepParsing()
+        {
+            string sample =
+                "Client: user @ EXAMPLE.COM\r\n" +
+                "Server: cifs/dc01.example.com @ EXAMPLE.COM\r\n" +
+                "KerbTicket Encryption Type: AES-256-CTS-HMAC-SHA1-96\r\n" +
+                "Session Key Type: AES-256-CTS-HMAC-SHA1-96\r\n" +
+                "Ticket Flags 0x40e10000 -> forwardable renewable initial pre_authent name_canonicalize\r\n" +
+                "Start Time: 9/26/2026 10:00:00\r\n" +
+                "End Time: 9/26/2026 20:00:00\r\n" +
+                "Renew Time: 10/3/2026 10:00:00\r\n";
+
+            KerberosTicketDetails ticket = KerberosDeepAnalyzer.ParseTicketText("CIFS", sample);
+            AssertEqual("user @ EXAMPLE.COM", ticket.Client, "Kerberos client parsed");
+            AssertEqual("cifs/dc01.example.com @ EXAMPLE.COM", ticket.Server, "Kerberos server parsed");
+            AssertTrue(ticket.EncryptionType.IndexOf("AES-256", StringComparison.OrdinalIgnoreCase) >= 0, "Kerberos AES encryption parsed");
+            AssertFalse(KerberosDeepAnalyzer.IsLegacyEncryption(ticket.EncryptionType), "AES is not legacy Kerberos encryption");
+            AssertTrue(KerberosDeepAnalyzer.IsLegacyEncryption("RC4-HMAC"), "RC4 detected as legacy Kerberos encryption");
+        }
+
+        private static void TestLdapCompatibilityClassification()
+        {
+            AssertEqual(
+                "FAILED / SIGNING REQUIRED",
+                LdapCompatibilityAnalyzer.ClassifyException(new Exception("stronger authentication required")),
+                "LDAP signing requirement classified");
+
+            AssertEqual(
+                "FAILED / CREDENTIALS",
+                LdapCompatibilityAnalyzer.ClassifyException(new Exception("invalid credentials")),
+                "LDAP invalid credentials classified");
+
+            AssertEqual(
+                "FAILED / TLS",
+                LdapCompatibilityAnalyzer.ClassifyException(new Exception("TLS certificate failure")),
+                "LDAP TLS failure classified");
+        }
+
+        private static void TestRpcEndpointParsing()
+        {
+            AssertEqualInt(
+                49667,
+                RpcEndpointMapperAnalyzer.ExtractTcpPort("ncacn_ip_tcp:dc01.example.com[49667]"),
+                "RPC dynamic TCP port parsed");
+
+            AssertEqualInt(
+                135,
+                RpcEndpointMapperAnalyzer.ExtractTcpPort("ncacn_ip_tcp:dc01.example.com[135]"),
+                "RPC endpoint mapper port parsed");
+
+            AssertEqualInt(
+                0,
+                RpcEndpointMapperAnalyzer.ExtractTcpPort("ncalrpc:[LRPC-abc]"),
+                "non-TCP RPC binding ignored");
+        }
+
+        private static void TestIdentityConsistencyFilter()
+        {
+            string filter = IdentityConsistencyAnalyzer.BuildFilter(
+                "PC01",
+                "PC01.example.com",
+                new string[] { "HOST/PC01", "CIFS/PC01.example.com" });
+
+            AssertTrue(filter.IndexOf("(sAMAccountName=PC01$)", StringComparison.Ordinal) >= 0, "identity filter includes SAM");
+            AssertTrue(filter.IndexOf("(dNSHostName=PC01.example.com)", StringComparison.Ordinal) >= 0, "identity filter includes DNS");
+            AssertTrue(filter.IndexOf("(servicePrincipalName=HOST/PC01)", StringComparison.Ordinal) >= 0, "identity filter includes HOST SPN");
+
+            string escaped = IdentityConsistencyAnalyzer.BuildFilter(
+                "PC*01",
+                String.Empty,
+                new string[0]);
+            AssertTrue(escaped.IndexOf(@"PC\2a01$", StringComparison.Ordinal) >= 0, "identity filter escapes LDAP metacharacters");
+        }
+
+        private static void TestTransactionJournalParsing()
+        {
+            string json =
+                "{\"entries\":[" +
+                "{\"kind\":\"RegistryDword\",\"target\":\"HKLM\\\\SOFTWARE\\\\Test|Value\",\"before\":\"2\",\"after\":\"0\",\"reversible\":true,\"note\":\"test\"}," +
+                "{\"kind\":\"Note\",\"target\":\"DNS\",\"before\":\"\",\"after\":\"\",\"reversible\":false,\"note\":\"flush\"}" +
+                "]}";
+
+            List<TransactionJournalEntry> entries = TransactionJournalService.ParseEntries(json);
+            AssertEqualInt(2, entries.Count, "transaction journal entries parsed");
+            AssertEqual("RegistryDword", entries[0].Kind, "transaction journal kind parsed");
+            AssertTrue(entries[0].Reversible, "transaction registry entry reversible parsed");
+            AssertFalse(entries[1].Reversible, "transaction note is not reversible");
         }
 
         private static void TestUiLayoutMath()
