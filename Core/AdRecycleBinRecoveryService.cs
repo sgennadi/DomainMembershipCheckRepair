@@ -25,6 +25,7 @@ namespace DomainMembershipCheckRepair
     {
         internal bool QuerySucceeded;
         internal bool Found;
+        internal int MatchCount;
         internal bool Restorable;
         internal bool Recycled;
         internal string Dc = String.Empty;
@@ -245,9 +246,20 @@ namespace DomainMembershipCheckRepair
 
                     SearchResponse response = (SearchResponse)connection.SendRequest(request);
                     result.QuerySucceeded = true;
+                    result.MatchCount = response.Entries.Count;
 
                     if (response.Entries.Count == 0)
                         return result;
+
+                    if (response.Entries.Count > 1)
+                    {
+                        result.Found = true;
+                        result.Restorable = false;
+                        result.Error =
+                            "Multiple deleted computer objects match " +
+                            computerName + "$. Restore is blocked until the intended object is identified unambiguously.";
+                        return result;
+                    }
 
                     SearchResultEntry best = response.Entries[0];
                     result.Found = true;
@@ -455,6 +467,32 @@ namespace DomainMembershipCheckRepair
                             "The original parent container no longer exists: " +
                             deleted.LastKnownParent;
                         return result;
+                    }
+
+                    try
+                    {
+                        SearchRequest targetRequest = new SearchRequest(
+                            deleted.RestoreDistinguishedName,
+                            "(objectClass=*)",
+                            SearchScope.Base,
+                            "distinguishedName");
+
+                        SearchResponse targetResponse =
+                            (SearchResponse)connection.SendRequest(targetRequest);
+
+                        if (targetResponse.Entries.Count > 0)
+                        {
+                            result.Message =
+                                "Restore is blocked because the original target DN is already occupied: " +
+                                deleted.RestoreDistinguishedName;
+                            return result;
+                        }
+                    }
+                    catch (DirectoryOperationException ex)
+                    {
+                        if (ex.Response == null ||
+                            ex.Response.ResultCode != ResultCode.NoSuchObject)
+                            throw;
                     }
 
                     ModifyRequest modify = new ModifyRequest(deleted.DistinguishedName);
