@@ -44,9 +44,9 @@ namespace DomainMembershipCheckRepair
             TestDnsUdp(result);
             TestLdap(result, 389, false, user, password);
             TestLdap(result, 636, true, user, password);
-            TestKerberos(result);
-            TestRpc(result);
-            TestSmb(result);
+            TestKerberos(result, user, password);
+            TestRpc(result, user, password);
+            TestSmb(result, user, password);
 
             return result;
         }
@@ -176,7 +176,7 @@ namespace DomainMembershipCheckRepair
             }
         }
 
-        private static void TestKerberos(ProtocolDiagnosticsResult result)
+        private static void TestKerberos(ProtocolDiagnosticsResult result, string user, string password)
         {
             if (String.IsNullOrWhiteSpace(result.Dc))
             {
@@ -185,7 +185,12 @@ namespace DomainMembershipCheckRepair
             }
 
             string spn = "ldap/" + result.Dc;
-            CommandResult command = ProcessRunner.Run("klist.exe", "get " + spn, 10000);
+            CommandResult command = NetworkCredentialProcessRunner.Run(
+                "klist.exe",
+                "get " + spn,
+                10000,
+                user,
+                password);
 
             if (!String.IsNullOrWhiteSpace(command.Error))
             {
@@ -202,7 +207,7 @@ namespace DomainMembershipCheckRepair
                 "Current logon context requested " + spn + ". " + details);
         }
 
-        private static void TestRpc(ProtocolDiagnosticsResult result)
+        private static void TestRpc(ProtocolDiagnosticsResult result, string user, string password)
         {
             if (String.IsNullOrWhiteSpace(result.Dc))
             {
@@ -210,10 +215,12 @@ namespace DomainMembershipCheckRepair
                 return;
             }
 
-            CommandResult command = ProcessRunner.Run(
+            CommandResult command = NetworkCredentialProcessRunner.Run(
                 "sc.exe",
                 BuildRemoteScArguments(result.Dc, "Netlogon"),
-                10000);
+                10000,
+                user,
+                password);
 
             string text = Collapse(command.CombinedOutput, 360);
             if (command.TimedOut)
@@ -242,7 +249,7 @@ namespace DomainMembershipCheckRepair
             Add(result, "RPC service-control test", "FAILED", text);
         }
 
-        private static void TestSmb(ProtocolDiagnosticsResult result)
+        private static void TestSmb(ProtocolDiagnosticsResult result, string user, string password)
         {
             if (String.IsNullOrWhiteSpace(result.Dc))
             {
@@ -250,10 +257,12 @@ namespace DomainMembershipCheckRepair
                 return;
             }
 
-            CommandResult command = ProcessRunner.Run(
+            CommandResult command = NetworkCredentialProcessRunner.Run(
                 "net.exe",
                 BuildRemoteNetViewArguments(result.Dc),
-                10000);
+                10000,
+                user,
+                password);
 
             string text = Collapse(command.CombinedOutput, 360);
             if (command.TimedOut)
