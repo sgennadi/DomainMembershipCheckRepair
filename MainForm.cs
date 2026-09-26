@@ -250,11 +250,12 @@ namespace DomainMembershipCheckRepair
 
             TabControl actionTabs = new TabControl();
             actionTabs.Dock = DockStyle.Fill;
-            actionTabs.Height = 132;
-            actionTabs.MinimumSize = new Size(0, 116);
+            actionTabs.Height = 300;
+            actionTabs.MinimumSize = new Size(0, 220);
 
             TabPage basicPage = new TabPage("Basic");
             TabPage advancedPage = new TabPage("Advanced");
+            advancedPage.AutoScroll = true;
 
             FlowLayoutPanel basicActions = new FlowLayoutPanel();
             basicActions.Dock = DockStyle.Fill;
@@ -262,14 +263,18 @@ namespace DomainMembershipCheckRepair
             basicActions.WrapContents = true;
             basicActions.Padding = new Padding(6);
 
-            FlowLayoutPanel advancedActions = new FlowLayoutPanel();
-            advancedActions.Dock = DockStyle.Fill;
-            advancedActions.AutoScroll = true;
-            advancedActions.WrapContents = true;
-            advancedActions.Padding = new Padding(6);
+            TableLayoutPanel advancedLayout = new TableLayoutPanel();
+            advancedLayout.Dock = DockStyle.Top;
+            advancedLayout.AutoSize = true;
+            advancedLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            advancedLayout.ColumnCount = 1;
+            advancedLayout.RowCount = 5;
+            advancedLayout.Padding = new Padding(6);
+            advancedLayout.Margin = new Padding(0);
+            advancedLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
             basicPage.Controls.Add(basicActions);
-            advancedPage.Controls.Add(advancedActions);
+            advancedPage.Controls.Add(advancedLayout);
             actionTabs.TabPages.Add(basicPage);
             actionTabs.TabPages.Add(advancedPage);
 
@@ -370,35 +375,64 @@ namespace DomainMembershipCheckRepair
             basicActions.Controls.Add(adCheckButton);
             basicActions.Controls.Add(restartButton);
 
-            advancedActions.Controls.Add(copyDiagnosticsButton);
-            advancedActions.Controls.Add(exportButton);
-            advancedActions.Controls.Add(advancedButton);
-            advancedActions.Controls.Add(recoveryPlanButton);
-            advancedActions.Controls.Add(dcMatrixButton);
-            advancedActions.Controls.Add(supportBundleButton);
-            advancedActions.Controls.Add(cyberArkButton);
-            advancedActions.Controls.Add(offlineJoinButton);
-            advancedActions.Controls.Add(selfTestButton);
-            advancedActions.Controls.Add(siteSubnetButton);
-            advancedActions.Controls.Add(protocolsButton);
-            advancedActions.Controls.Add(hardeningButton);
-            advancedActions.Controls.Add(joinPermissionsButton);
-            advancedActions.Controls.Add(hybridEntraButton);
-            advancedActions.Controls.Add(policySourceButton);
-            advancedActions.Controls.Add(replicationMetadataButton);
-            advancedActions.Controls.Add(spnCollisionsButton);
-            advancedActions.Controls.Add(smbKerberosButton);
-            advancedActions.Controls.Add(kerberosDeepButton);
-            advancedActions.Controls.Add(ldapCompatibilityButton);
-            advancedActions.Controls.Add(rpcEndpointsButton);
-            advancedActions.Controls.Add(replicationTimelineButton);
-            advancedActions.Controls.Add(identityConsistencyButton);
-            advancedActions.Controls.Add(nextActionButton);
-            advancedActions.Controls.Add(transactionsButton);
-            advancedActions.Controls.Add(rollbackLocalButton);
-            advancedActions.Controls.Add(cancelDiagnosticsButton);
-            advancedActions.Controls.Add(diagnosticsProgressLabel);
-            advancedActions.Controls.Add(aboutButton);
+            advancedLayout.Controls.Add(
+                CreateActionGroup(
+                    "Overview & Reports",
+                    copyDiagnosticsButton,
+                    exportButton,
+                    advancedButton,
+                    nextActionButton,
+                    recoveryPlanButton,
+                    supportBundleButton,
+                    selfTestButton,
+                    aboutButton),
+                0,
+                0);
+
+            advancedLayout.Controls.Add(
+                CreateActionGroup(
+                    "Identity & Active Directory",
+                    dcMatrixButton,
+                    siteSubnetButton,
+                    joinPermissionsButton,
+                    replicationMetadataButton,
+                    replicationTimelineButton,
+                    identityConsistencyButton,
+                    spnCollisionsButton),
+                0,
+                1);
+
+            advancedLayout.Controls.Add(
+                CreateActionGroup(
+                    "Network & Protocols",
+                    protocolsButton,
+                    ldapCompatibilityButton,
+                    rpcEndpointsButton,
+                    smbKerberosButton,
+                    kerberosDeepButton),
+                0,
+                2);
+
+            advancedLayout.Controls.Add(
+                CreateActionGroup(
+                    "Security & Hybrid",
+                    hardeningButton,
+                    policySourceButton,
+                    hybridEntraButton,
+                    cyberArkButton),
+                0,
+                3);
+
+            advancedLayout.Controls.Add(
+                CreateActionGroup(
+                    "Recovery & Operations",
+                    offlineJoinButton,
+                    transactionsButton,
+                    rollbackLocalButton,
+                    cancelDiagnosticsButton,
+                    diagnosticsProgressLabel),
+                0,
+                4);
 
             root.Controls.Add(actionTabs, 0, 7);
             root.SetColumnSpan(actionTabs, 2);
@@ -454,7 +488,7 @@ namespace DomainMembershipCheckRepair
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 150F));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 320F));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 220F));
@@ -480,6 +514,40 @@ namespace DomainMembershipCheckRepair
             label.Anchor = AnchorStyles.Left;
             label.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             return label;
+        }
+
+        private static GroupBox CreateActionGroup(
+            string title,
+            params Control[] controls)
+        {
+            GroupBox group = new GroupBox();
+            group.Text = title;
+            group.Dock = DockStyle.Top;
+            group.AutoSize = true;
+            group.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            group.Padding = new Padding(8, 6, 8, 8);
+            group.Margin = new Padding(0, 0, 0, 6);
+
+            FlowLayoutPanel flow = new FlowLayoutPanel();
+            flow.Dock = DockStyle.Top;
+            flow.AutoSize = true;
+            flow.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            flow.WrapContents = true;
+            flow.FlowDirection = FlowDirection.LeftToRight;
+            flow.Padding = new Padding(2);
+            flow.Margin = new Padding(0);
+
+            if (controls != null)
+            {
+                foreach (Control control in controls)
+                {
+                    if (control != null)
+                        flow.Controls.Add(control);
+                }
+            }
+
+            group.Controls.Add(flow);
+            return group;
         }
 
         private static Button CreateButton(string text, int width)
