@@ -33,6 +33,8 @@ namespace DomainMembershipCheckRepair
         internal List<RootCauseFinding> RootCauses;
         internal List<string> RecoveryPlan;
         internal SmartNextActionResult NextAction;
+        internal string HistoryPath = String.Empty;
+        internal string HistoryError = String.Empty;
     }
 
     internal static class AdvancedDiagnosticsService
@@ -354,6 +356,21 @@ namespace DomainMembershipCheckRepair
             sb.AppendLine(RootCauseEngine.ToText(r.RootCauses));
             sb.AppendLine();
             sb.AppendLine(SmartNextActionService.ToText(r.NextAction));
+
+            if (!String.IsNullOrWhiteSpace(r.HistoryPath))
+            {
+                sb.AppendLine();
+                sb.AppendLine("Diagnostic history");
+                sb.AppendLine("------------------");
+                sb.AppendLine("Saved: " + r.HistoryPath);
+            }
+            else if (!String.IsNullOrWhiteSpace(r.HistoryError))
+            {
+                sb.AppendLine();
+                sb.AppendLine("Diagnostic history");
+                sb.AppendLine("------------------");
+                sb.AppendLine("Not saved: " + r.HistoryError);
+            }
 
             if (r.Account != null && r.Account.LookupSucceeded)
             {
