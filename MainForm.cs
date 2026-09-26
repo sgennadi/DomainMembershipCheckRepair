@@ -73,6 +73,12 @@ namespace DomainMembershipCheckRepair
             ApplyWindowPolish();
             UiLayoutHelper.EnableScreenAwareSizing(this, new Size(640, 480));
 
+            FormClosing += delegate
+            {
+                if (diagnosticsCancellation != null)
+                    diagnosticsCancellation.Cancel();
+            };
+
             BuildUi();
             ApplyStartupOptions();
             RefreshStatus(true);
