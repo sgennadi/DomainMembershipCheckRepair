@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 
 namespace DomainMembershipCheckRepair
 {
@@ -30,6 +31,24 @@ namespace DomainMembershipCheckRepair
             string user,
             string password)
         {
+            return Analyze(
+                domain,
+                dc,
+                user,
+                password,
+                CancellationToken.None,
+                null);
+        }
+
+        internal static ProtocolDiagnosticsResult Analyze(
+            string domain,
+            string dc,
+            string user,
+            string password,
+            CancellationToken cancellationToken,
+            Action<string> progress)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             ProtocolDiagnosticsResult result = new ProtocolDiagnosticsResult();
             result.Domain = (domain ?? String.Empty).Trim();
             result.Dc = DomainValidation.NormalizeDirectoryServer(dc);
@@ -41,12 +60,23 @@ namespace DomainMembershipCheckRepair
                     result.Dc = DomainValidation.NormalizeDirectoryServer(discovered.DomainControllerName);
             }
 
+            Step(cancellationToken, progress, "Protocol: DNS UDP 53");
             TestDnsUdp(result);
+
+            Step(cancellationToken, progress, "Protocol: LDAP 389");
             TestLdap(result, 389, false, user, password);
+
+            Step(cancellationToken, progress, "Protocol: LDAPS 636");
             TestLdap(result, 636, true, user, password);
-            TestKerberos(result, user, password);
-            TestRpc(result, user, password);
-            TestSmb(result, user, password);
+
+            Step(cancellationToken, progress, "Protocol: Kerberos ticket");
+            TestKerberos(result, user, password, cancellationToken);
+
+            Step(cancellationToken, progress, "Protocol: RPC service control");
+            TestRpc(result, user, password, cancellationToken);
+
+            Step(cancellationToken, progress, "Protocol: SMB server enumeration");
+            TestSmb(result, user, password, cancellationToken);
 
             return result;
         }
@@ -176,7 +206,7 @@ namespace DomainMembershipCheckRepair
             }
         }
 
-        private static void TestKerberos(ProtocolDiagnosticsResult result, string user, string password)
+        private static void TestKerberos(ProtocolDiagnosticsResult result, string user, string password, CancellationToken cancellationToken)
         {
             if (String.IsNullOrWhiteSpace(result.Dc))
             {
@@ -190,7 +220,8 @@ namespace DomainMembershipCheckRepair
                 "get " + spn,
                 10000,
                 user,
-                password);
+                password,
+                cancellationToken);
 
             if (!String.IsNullOrWhiteSpace(command.Error))
             {
@@ -207,7 +238,7 @@ namespace DomainMembershipCheckRepair
                 "Current logon context requested " + spn + ". " + details);
         }
 
-        private static void TestRpc(ProtocolDiagnosticsResult result, string user, string password)
+        private static void TestRpc(ProtocolDiagnosticsResult result, string user, string password, CancellationToken cancellationToken)
         {
             if (String.IsNullOrWhiteSpace(result.Dc))
             {
@@ -220,7 +251,8 @@ namespace DomainMembershipCheckRepair
                 BuildRemoteScArguments(result.Dc, "Netlogon"),
                 10000,
                 user,
-                password);
+                password,
+                cancellationToken);
 
             string text = Collapse(command.CombinedOutput, 360);
             if (command.TimedOut)
@@ -249,7 +281,7 @@ namespace DomainMembershipCheckRepair
             Add(result, "RPC service-control test", "FAILED", text);
         }
 
-        private static void TestSmb(ProtocolDiagnosticsResult result, string user, string password)
+        private static void TestSmb(ProtocolDiagnosticsResult result, string user, string password, CancellationToken cancellationToken)
         {
             if (String.IsNullOrWhiteSpace(result.Dc))
             {
@@ -262,7 +294,8 @@ namespace DomainMembershipCheckRepair
                 BuildRemoteNetViewArguments(result.Dc),
                 10000,
                 user,
-                password);
+                password,
+                cancellationToken);
 
             string text = Collapse(command.CombinedOutput, 360);
             if (command.TimedOut)
@@ -289,6 +322,16 @@ namespace DomainMembershipCheckRepair
             }
 
             Add(result, "SMB server enumeration", "FAILED", text);
+        }
+
+        private static void Step(
+            CancellationToken cancellationToken,
+            Action<string> progress,
+            string text)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (progress != null)
+                progress(text);
         }
 
         internal static string BuildRemoteScArguments(string host, string serviceName)
