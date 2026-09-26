@@ -990,6 +990,13 @@ namespace DomainMembershipCheckRepair
                 user,
                 password);
 
+            string historyPath;
+            string historyError;
+            if (DiagnosticHistoryService.TrySave(result, out historyPath, out historyError))
+                result.HistoryPath = historyPath;
+            else
+                result.HistoryError = historyError;
+
             int exitCode = ExitFromAdvanced(result);
             return WriteDiagnosticResult(
                 "advanced",
