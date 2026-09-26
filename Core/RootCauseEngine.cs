@@ -29,6 +29,11 @@ namespace DomainMembershipCheckRepair
             HybridEntraDiagnosticsResult hybridEntra,
             PolicySourceDiagnosticsResult policySources,
             ReplicationMetadataResult replicationMetadata,
+            ReplicationTimelineResult replicationTimeline,
+            IdentityConsistencyResult identityConsistency,
+            LdapCompatibilityResult ldapCompatibility,
+            RpcEndpointMapperResult rpcEndpoints,
+            KerberosDeepResult kerberosDeep,
             SpnCollisionResult spnCollisions,
             SmbKerberosAuthResult smbKerberos)
         {
@@ -315,6 +320,77 @@ namespace DomainMembershipCheckRepair
                         Add(findings, 84, "MEDIUM", "AD replication metadata", text,
                             "Verify object replication metadata on a writable DC before destructive computer-account recovery.");
                     }
+                }
+            }
+
+            if (replicationTimeline != null)
+            {
+                foreach (string item in replicationTimeline.Findings)
+                {
+                    string text = item ?? String.Empty;
+                    if (text.StartsWith("HIGH:", StringComparison.OrdinalIgnoreCase))
+                        Add(findings, 98, "HIGH", "Replication timeline", text,
+                            "Allow or repair AD replication before changing the computer object or trust.");
+                    else if (text.StartsWith("CHECK:", StringComparison.OrdinalIgnoreCase))
+                        Add(findings, 83, "MEDIUM", "Replication timeline", text,
+                            "Verify per-DC attribute metadata before destructive recovery.");
+                }
+            }
+
+            if (identityConsistency != null)
+            {
+                foreach (string item in identityConsistency.Findings)
+                {
+                    string text = item ?? String.Empty;
+                    if (text.StartsWith("HIGH:", StringComparison.OrdinalIgnoreCase))
+                        Add(findings, 99, "HIGH", "Computer identity consistency", text,
+                            "Identify the authoritative computer object and correct duplicate SAM/DNS/SPN identity keys after replication is healthy.");
+                    else if (text.StartsWith("CHECK:", StringComparison.OrdinalIgnoreCase))
+                        Add(findings, 86, "MEDIUM", "Computer identity consistency", text,
+                            "Review computer DNS name and stale identity data before rejoin.");
+                }
+            }
+
+            if (ldapCompatibility != null)
+            {
+                foreach (string item in ldapCompatibility.Findings)
+                {
+                    string text = item ?? String.Empty;
+                    if (text.StartsWith("HIGH:", StringComparison.OrdinalIgnoreCase))
+                        Add(findings, 96, "HIGH", "LDAP compatibility", text,
+                            "Resolve signed LDAP/LDAPS authentication compatibility before trust repair or rejoin.");
+                    else if (text.StartsWith("CHECK:", StringComparison.OrdinalIgnoreCase))
+                        Add(findings, 82, "MEDIUM", "LDAP compatibility", text,
+                            "Review LDAPS certificate/TLS and effective LDAP policy.");
+                }
+            }
+
+            if (rpcEndpoints != null)
+            {
+                foreach (string item in rpcEndpoints.Findings)
+                {
+                    string text = item ?? String.Empty;
+                    if (text.StartsWith("HIGH:", StringComparison.OrdinalIgnoreCase))
+                        Add(findings, 97, "HIGH", "Dynamic RPC connectivity", text,
+                            "Allow Endpoint Mapper and the required dynamic RPC TCP endpoints before domain recovery.");
+                    else if (text.StartsWith("CHECK:", StringComparison.OrdinalIgnoreCase))
+                        Add(findings, 84, "MEDIUM", "RPC Endpoint Mapper", text,
+                            "Verify RPC Endpoint Mapper enumeration and firewall policy.");
+                }
+            }
+
+            if (kerberosDeep != null)
+            {
+                foreach (string item in kerberosDeep.Findings)
+                {
+                    string text = item ?? String.Empty;
+                    if (text.StartsWith("HIGH:", StringComparison.OrdinalIgnoreCase))
+                        Add(findings, 98, "HIGH", "Kerberos ticket acquisition", text,
+                            "Resolve KDC/SPN/DNS/time/encryption issues before trust repair or rejoin.");
+                    else if (text.StartsWith("MEDIUM:", StringComparison.OrdinalIgnoreCase) ||
+                             text.StartsWith("CHECK:", StringComparison.OrdinalIgnoreCase))
+                        Add(findings, 87, "MEDIUM", "Kerberos ticket details", text,
+                            "Review ticket encryption, service SPNs and KDC binding.");
                 }
             }
 
