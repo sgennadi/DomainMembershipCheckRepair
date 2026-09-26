@@ -558,6 +558,10 @@ namespace DomainMembershipCheckRepair
                     SafeFixesWorkflow();
                     break;
 
+                case "rollback-local":
+                    RollbackLocalWorkflow();
+                    break;
+
                 case "join":
                     MessageBox.Show(
                         this,
@@ -1307,6 +1311,175 @@ namespace DomainMembershipCheckRepair
                         "SMB / Kerberos Authentication",
                         SmbKerberosAuthAnalyzer.ToText(result));
                 });
+        }
+
+        private void KerberosDeepWorkflow()
+        {
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
+            RunBackgroundDiagnostic(
+                "Kerberos Deep Analyzer",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
+                {
+                    DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(inputs.Domain, inputs.PreferredDc);
+                    string dc = DomainValidation.SelectDirectoryServer(inputs.PreferredDc, snapshot.DiscoveredDc);
+                    return KerberosDeepAnalyzer.Analyze(
+                        snapshot.TargetDomain, dc, inputs.User, inputs.Password, token, progress);
+                },
+                delegate(KerberosDeepResult result)
+                {
+                    ReportDialog.ShowReport(this, "Kerberos Deep Analyzer", KerberosDeepAnalyzer.ToText(result));
+                });
+        }
+
+        private void LdapCompatibilityWorkflow()
+        {
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
+            RunBackgroundDiagnostic(
+                "LDAP Compatibility",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
+                {
+                    DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(inputs.Domain, inputs.PreferredDc);
+                    string dc = DomainValidation.SelectDirectoryServer(inputs.PreferredDc, snapshot.DiscoveredDc);
+                    return LdapCompatibilityAnalyzer.Analyze(
+                        snapshot.TargetDomain, dc, inputs.User, inputs.Password, token, progress);
+                },
+                delegate(LdapCompatibilityResult result)
+                {
+                    ReportDialog.ShowReport(this, "LDAP Compatibility", LdapCompatibilityAnalyzer.ToText(result));
+                });
+        }
+
+        private void RpcEndpointsWorkflow()
+        {
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
+            RunBackgroundDiagnostic(
+                "RPC Endpoint Mapper",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
+                {
+                    DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(inputs.Domain, inputs.PreferredDc);
+                    string dc = DomainValidation.SelectDirectoryServer(inputs.PreferredDc, snapshot.DiscoveredDc);
+                    return RpcEndpointMapperAnalyzer.Analyze(snapshot.TargetDomain, dc, token, progress);
+                },
+                delegate(RpcEndpointMapperResult result)
+                {
+                    ReportDialog.ShowReport(this, "RPC Endpoint Mapper", RpcEndpointMapperAnalyzer.ToText(result));
+                });
+        }
+
+        private void ReplicationTimelineWorkflow()
+        {
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
+            RunBackgroundDiagnostic(
+                "Replication Timeline",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
+                {
+                    DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(inputs.Domain, inputs.PreferredDc);
+                    string dc = DomainValidation.SelectDirectoryServer(inputs.PreferredDc, snapshot.DiscoveredDc);
+                    AdComputerAccountInfo account = AdDirectoryService.FindComputerAccount(
+                        inputs.ComputerName, inputs.User, inputs.Password, snapshot.TargetDomain, dc, null);
+                    DcMatrixResult matrix = DcMatrixService.Analyze(
+                        snapshot.TargetDomain, dc, inputs.ComputerName, inputs.User, inputs.Password, token, progress);
+                    return ReplicationTimelineAnalyzer.Analyze(
+                        matrix,
+                        account != null && account.Exists ? account.DistinguishedName : String.Empty,
+                        inputs.User,
+                        inputs.Password,
+                        token,
+                        progress);
+                },
+                delegate(ReplicationTimelineResult result)
+                {
+                    ReportDialog.ShowReport(this, "Replication Timeline", ReplicationTimelineAnalyzer.ToText(result));
+                });
+        }
+
+        private void IdentityConsistencyWorkflow()
+        {
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
+            RunBackgroundDiagnostic(
+                "Identity Consistency",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
+                {
+                    DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(inputs.Domain, inputs.PreferredDc);
+                    string dc = DomainValidation.SelectDirectoryServer(inputs.PreferredDc, snapshot.DiscoveredDc);
+                    AdComputerAccountInfo account = AdDirectoryService.FindComputerAccount(
+                        inputs.ComputerName, inputs.User, inputs.Password, snapshot.TargetDomain, dc, null);
+                    string fqdn = account != null && account.Exists && !String.IsNullOrWhiteSpace(account.DnsHostName)
+                        ? account.DnsHostName
+                        : (!String.IsNullOrWhiteSpace(snapshot.PhysicalDnsDomain)
+                            ? inputs.ComputerName + "." + snapshot.PhysicalDnsDomain
+                            : (!String.IsNullOrWhiteSpace(snapshot.TargetDomain)
+                                ? inputs.ComputerName + "." + snapshot.TargetDomain
+                                : String.Empty));
+                    progress("Identity: searching SAM, DNS and SPN keys");
+                    return IdentityConsistencyAnalyzer.Analyze(
+                        snapshot.TargetDomain, dc, inputs.ComputerName, fqdn,
+                        inputs.User, inputs.Password, token);
+                },
+                delegate(IdentityConsistencyResult result)
+                {
+                    ReportDialog.ShowReport(this, "Identity Consistency", IdentityConsistencyAnalyzer.ToText(result));
+                });
+        }
+
+        private void NextActionWorkflow()
+        {
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
+            RunBackgroundDiagnostic(
+                "Next Safe Action",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
+                {
+                    AdvancedDiagnosticsResult advanced = AdvancedDiagnosticsService.Analyze(
+                        inputs.Domain, inputs.PreferredDc, inputs.ComputerName,
+                        inputs.User, inputs.Password, token, progress);
+                    return advanced.NextAction;
+                },
+                delegate(SmartNextActionResult result)
+                {
+                    ReportDialog.ShowReport(this, "Recommended Next Safe Action", SmartNextActionService.ToText(result));
+                });
+        }
+
+        private void TransactionsWorkflow()
+        {
+            string path = TransactionJournalService.GetLatestJournalPath();
+            ReportDialog.ShowReport(
+                this,
+                "Latest Transaction Journal",
+                String.IsNullOrWhiteSpace(path)
+                    ? "No transaction journal was found."
+                    : "Path: " + path + "\r\n\r\n" + TransactionJournalService.ToText(path));
+        }
+
+        private void RollbackLocalWorkflow()
+        {
+            if (!EnsureElevatedForGui("rollback-local"))
+                return;
+
+            string path = TransactionJournalService.GetLatestJournalPath();
+            if (String.IsNullOrWhiteSpace(path))
+            {
+                MessageBox.Show(this, "No transaction journal was found.", "Rollback Local", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            DialogResult answer = MessageBox.Show(
+                this,
+                "Restore reversible LOCAL registry/service changes from the latest transaction journal?\r\n\r\n" +
+                path + "\r\n\r\nDomain join, rename, AD deletion, DNS flush and time resync entries are not automatically reversed.",
+                "Rollback Local Changes",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2);
+
+            if (answer != DialogResult.Yes)
+                return;
+
+            string report;
+            bool ok = TransactionJournalService.RollbackLatest(out report);
+            Log(ok ? "SUCCESS" : "WARN", "Local transaction rollback completed.");
+            ReportDialog.ShowReport(this, "Rollback Local Changes", report);
+            RefreshStatus(false);
         }
 
         private void CyberArkHealthWorkflow()
