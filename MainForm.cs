@@ -47,6 +47,14 @@ namespace DomainMembershipCheckRepair
         private Button replicationMetadataButton;
         private Button spnCollisionsButton;
         private Button smbKerberosButton;
+        private Button kerberosDeepButton;
+        private Button ldapCompatibilityButton;
+        private Button rpcEndpointsButton;
+        private Button replicationTimelineButton;
+        private Button identityConsistencyButton;
+        private Button nextActionButton;
+        private Button transactionsButton;
+        private Button rollbackLocalButton;
         private Button restartButton;
         private Button aboutButton;
         private TextBox logBox;
@@ -286,6 +294,14 @@ namespace DomainMembershipCheckRepair
             replicationMetadataButton = CreateButton("Replication Metadata", 155);
             spnCollisionsButton = CreateButton("SPN Collisions", 125);
             smbKerberosButton = CreateButton("SMB / Kerberos", 130);
+            kerberosDeepButton = CreateButton("Kerberos Deep", 120);
+            ldapCompatibilityButton = CreateButton("LDAP Compatibility", 145);
+            rpcEndpointsButton = CreateButton("RPC Endpoints", 120);
+            replicationTimelineButton = CreateButton("Replication Timeline", 145);
+            identityConsistencyButton = CreateButton("Identity Consistency", 145);
+            nextActionButton = CreateButton("Next Safe Action", 130);
+            transactionsButton = CreateButton("Transactions", 110);
+            rollbackLocalButton = CreateButton("Rollback Local", 120);
             cancelDiagnosticsButton = CreateButton("Cancel Diagnostics", 135);
             cancelDiagnosticsButton.Enabled = false;
 
@@ -308,6 +324,7 @@ namespace DomainMembershipCheckRepair
             ElevationHelper.SetElevationShield(restartButton, needsElevation);
             ElevationHelper.SetElevationShield(offlineJoinButton, needsElevation);
             ElevationHelper.SetElevationShield(safeFixesButton, needsElevation);
+            ElevationHelper.SetElevationShield(rollbackLocalButton, needsElevation);
 
             checkButton.Click += delegate { RefreshStatus(false); };
             diagnosticsButton.Click += delegate { DiagnosticsWorkflow(); };
@@ -330,6 +347,14 @@ namespace DomainMembershipCheckRepair
             replicationMetadataButton.Click += delegate { ReplicationMetadataWorkflow(); };
             spnCollisionsButton.Click += delegate { SpnCollisionsWorkflow(); };
             smbKerberosButton.Click += delegate { SmbKerberosWorkflow(); };
+            kerberosDeepButton.Click += delegate { KerberosDeepWorkflow(); };
+            ldapCompatibilityButton.Click += delegate { LdapCompatibilityWorkflow(); };
+            rpcEndpointsButton.Click += delegate { RpcEndpointsWorkflow(); };
+            replicationTimelineButton.Click += delegate { ReplicationTimelineWorkflow(); };
+            identityConsistencyButton.Click += delegate { IdentityConsistencyWorkflow(); };
+            nextActionButton.Click += delegate { NextActionWorkflow(); };
+            transactionsButton.Click += delegate { TransactionsWorkflow(); };
+            rollbackLocalButton.Click += delegate { RollbackLocalWorkflow(); };
             cancelDiagnosticsButton.Click += delegate { CancelDiagnosticOperation(); };
             repairButton.Click += delegate { RepairTrustWorkflow(); };
             joinButton.Click += delegate { JoinCurrentNameWorkflow(); };
@@ -363,6 +388,14 @@ namespace DomainMembershipCheckRepair
             advancedActions.Controls.Add(replicationMetadataButton);
             advancedActions.Controls.Add(spnCollisionsButton);
             advancedActions.Controls.Add(smbKerberosButton);
+            advancedActions.Controls.Add(kerberosDeepButton);
+            advancedActions.Controls.Add(ldapCompatibilityButton);
+            advancedActions.Controls.Add(rpcEndpointsButton);
+            advancedActions.Controls.Add(replicationTimelineButton);
+            advancedActions.Controls.Add(identityConsistencyButton);
+            advancedActions.Controls.Add(nextActionButton);
+            advancedActions.Controls.Add(transactionsButton);
+            advancedActions.Controls.Add(rollbackLocalButton);
             advancedActions.Controls.Add(cancelDiagnosticsButton);
             advancedActions.Controls.Add(diagnosticsProgressLabel);
             advancedActions.Controls.Add(aboutButton);
@@ -2273,6 +2306,14 @@ namespace DomainMembershipCheckRepair
             if (replicationMetadataButton != null) replicationMetadataButton.Enabled = !busy;
             if (spnCollisionsButton != null) spnCollisionsButton.Enabled = !busy;
             if (smbKerberosButton != null) smbKerberosButton.Enabled = !busy;
+            if (kerberosDeepButton != null) kerberosDeepButton.Enabled = !busy;
+            if (ldapCompatibilityButton != null) ldapCompatibilityButton.Enabled = !busy;
+            if (rpcEndpointsButton != null) rpcEndpointsButton.Enabled = !busy;
+            if (replicationTimelineButton != null) replicationTimelineButton.Enabled = !busy;
+            if (identityConsistencyButton != null) identityConsistencyButton.Enabled = !busy;
+            if (nextActionButton != null) nextActionButton.Enabled = !busy;
+            if (transactionsButton != null) transactionsButton.Enabled = !busy;
+            if (rollbackLocalButton != null) rollbackLocalButton.Enabled = !busy;
             if (restartButton != null) restartButton.Enabled = !busy;
             if (aboutButton != null) aboutButton.Enabled = !busy;
 
