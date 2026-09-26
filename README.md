@@ -47,6 +47,8 @@ The release version has one source of truth: `VersionInfo.cs`. Assembly metadata
 - Computer identity consistency search across sAMAccountName, dNSHostName and expected HOST/CIFS SPNs.
 - Smart Next Safe Action that highlights one immediate non-destructive next step and can block destructive recovery when evidence is unsafe.
 - Local transaction journal with allowlisted rollback for reversible MII/Netlogon changes.
+- Active Directory Recycle Bin readiness/search/restore workflow with a mandatory pre-delete recovery metadata package.
+- Per-user Advanced Diagnostics history with DC/Kerberos/SPN/replication/root-cause Compare Runs.
 - Hybrid Microsoft Entra diagnostics.
 - Automatic pre/post recovery snapshots and pre-change safety bundles.
 - Destructive AD Delete Safety Gate with cross-DC/RODC/child-object/recent-change checks.
@@ -104,7 +106,11 @@ The GUI provides:
 - RPC Endpoints
 - Replication Timeline
 - Identity Consistency
+- AD Recovery
+- Restore Deleted AD
 - Next Safe Action
+- History
+- Compare Runs
 - Transactions
 - Rollback Local
 - About
@@ -159,6 +165,9 @@ DomainMembershipCheckRepair.exe --cli --action restart
 DomainMembershipCheckRepair.exe --cli --action mii-disable
 DomainMembershipCheckRepair.exe --cli --action detect
 DomainMembershipCheckRepair.exe --cli --action ad-check
+DomainMembershipCheckRepair.exe --cli --action ad-recycle-bin
+DomainMembershipCheckRepair.exe --cli --action ad-deleted --computer PC-042
+DomainMembershipCheckRepair.exe --cli --action ad-restore --computer PC-042
 DomainMembershipCheckRepair.exe --cli --action diagnose
 DomainMembershipCheckRepair.exe --cli --action export-diagnostics
 DomainMembershipCheckRepair.exe --cli --action advanced
@@ -179,6 +188,8 @@ DomainMembershipCheckRepair.exe --cli --action rpc-endpoints
 DomainMembershipCheckRepair.exe --cli --action replication-timeline
 DomainMembershipCheckRepair.exe --cli --action identity-consistency
 DomainMembershipCheckRepair.exe --cli --action next-action
+DomainMembershipCheckRepair.exe --cli --action history
+DomainMembershipCheckRepair.exe --cli --action history-compare
 DomainMembershipCheckRepair.exe --cli --action transactions
 DomainMembershipCheckRepair.exe --cli --action rollback-local
 DomainMembershipCheckRepair.exe --cli --action self-test
@@ -375,6 +386,11 @@ Version 1.6.0 additionally includes:
 - local transaction journals under `%ProgramData%\DomainMembershipCheckRepair\Transactions` for reversible local recovery changes;
 - explicit Rollback Local support restricted to an allowlist of Machine Identity Isolation DWORDs and the Netlogon service; domain join, rename, AD deletion, DNS flush and time resync are never automatically reversed;
 - transaction folder ACL hardening for SYSTEM/Administrators with read access for Users, plus a second hard-coded rollback target allowlist to resist journal tampering;
+- Active Directory Recycle Bin status detection through forest optional-feature state, read-only deleted-computer search, and guarded deleted-object restore;
+- a mandatory pre-delete AD recovery package under `%ProgramData%\DomainMembershipCheckRepair\RecoveryPackages`; Delete + Recreate fails closed if the package cannot be created;
+- deleted-object restore safety that requires Recycle Bin enabled, exactly one matching deleted object, a non-recycled/restorable state, the original parent to exist, and the original target DN to be free;
+- per-user Advanced Diagnostics history under `%LocalAppData%\DomainMembershipCheckRepair\History`, keeping a compact credential-free history of DC Matrix, Kerberos, SPN, replication, root-cause and Next Safe Action state;
+- History and Compare Runs reports that highlight tracked changes between the two latest records for the same computer;
 - integration of deep Kerberos/LDAP/RPC/identity/replication findings into Root Cause analysis, Recovery Plan and the Advanced Support Bundle.
 
 The Advanced GUI exposes the deep analyzers as individual reports. Actions are grouped into **Overview & Reports**, **Identity & Active Directory**, **Network & Protocols**, **Security & Hybrid**, and **Recovery & Operations**. Long-running read-only diagnostics run off the UI thread; Cancel interrupts cancellation-aware external commands immediately and stops other analyzers after the current Windows/LDAP API call returns.
@@ -447,6 +463,8 @@ The bundle can include:
 - Identity Consistency report
 - Next Safe Action report
 - latest transaction journal when present
+- latest diagnostic history record when present
+- latest pre-delete AD recovery package when present
 - diagnostics JSON
 - NetSetup.log analysis and original NetSetup.log
 - Windows event timeline
@@ -591,6 +609,43 @@ DomainMembershipCheckRepair.exe --cli --action rollback-local
 
 `rollback-local` requires administrator elevation. The transaction directory is ACL-hardened, and the elevated rollback path independently enforces a fixed allowlist so editing a journal cannot request an arbitrary registry or service change.
 
+### AD Recycle Bin recovery and Diagnostic History
+
+Before **Delete + Recreate** can delete an Active Directory computer object, the tool must successfully write a pre-delete recovery metadata package to:
+
+```text
+%ProgramData%\DomainMembershipCheckRepair\RecoveryPackages
+```
+
+The package contains identity/recovery metadata such as the original DN, object GUID, SAM name, DNS host name, owner, timestamps, SPNs, UAC and encryption flags. It never contains the entered domain password. If this package cannot be created, deletion is blocked.
+
+**AD Recovery** is read-only. It reports forest Recycle Bin readiness, searches for a matching deleted computer object, shows the original parent/RDN and proposed restore DN, and displays the latest recovery-package path.
+
+**Restore Deleted AD** is a mutating action. It requires administrator elevation, domain credentials, and explicit confirmation. The password is not transferred across elevation. Restore is allowed only when Recycle Bin is verified enabled, exactly one matching deleted object exists, the object is not already recycled, the original parent still exists, and the target DN is not occupied. If Recycle Bin is disabled, the pre-delete package remains useful for investigation/manual reconstruction, but the tool deliberately does not attempt incomplete tombstone reanimation.
+
+CLI:
+
+```text
+DomainMembershipCheckRepair.exe --cli --action ad-recycle-bin --domain example.com --json
+DomainMembershipCheckRepair.exe --cli --action ad-deleted --domain example.com --computer PC-042 --json
+DomainMembershipCheckRepair.exe --cli --action ad-restore --domain example.com --computer PC-042
+```
+
+Advanced Diagnostics saves a compact record to:
+
+```text
+%LocalAppData%\DomainMembershipCheckRepair\History
+```
+
+The history record intentionally excludes credentials and raw command output. It tracks secure-channel state, computer GUID/pwdLastSet, DC Matrix state, Kerberos ticket state, SPN ownership, replication timeline, root causes and Next Safe Action. **Compare Runs** compares the newest record with the previous record for the same computer. The history store keeps the most recent 60 records.
+
+CLI:
+
+```text
+DomainMembershipCheckRepair.exe --cli --action history --json
+DomainMembershipCheckRepair.exe --cli --action history-compare --json
+```
+
 ## Credentials and privacy
 
 Accepted user formats:
@@ -621,6 +676,7 @@ The program does not save usernames or passwords to Registry/config files. The o
 11  AD lookup failed
 12  Restart required because a rename is pending
 13  Administrator elevation was cancelled, blocked, or ineffective
+14  Deleted AD computer object restore failed
 
 20  Diagnostic finding detected (read-only/reporting actions)
 21  Diagnostic was not tested / required capability unavailable
@@ -628,7 +684,7 @@ The program does not save usernames or passwords to Registry/config files. The o
 23  Partial diagnostic result
 ```
 
-Codes 20-23 are used by the new read-only/reporting analyzers so automation can distinguish a detected problem from an unavailable test or insufficient diagnostic permissions. Existing operational codes 0-13 remain unchanged for domain membership, repair, join and elevation workflows.
+Codes 20-23 are used by the new read-only/reporting analyzers so automation can distinguish a detected problem from an unavailable test or insufficient diagnostic permissions. Existing operational codes 0-13 remain unchanged for domain membership, repair, join and elevation workflows. Code 14 is reserved for a failed or unavailable deleted-object restore.
 
 ## Local builds
 
