@@ -518,6 +518,30 @@ namespace DomainMembershipCheckRepair
             AssertEqual("RegistryDword", entries[0].Kind, "transaction journal kind parsed");
             AssertTrue(entries[0].Reversible, "transaction registry entry reversible parsed");
             AssertFalse(entries[1].Reversible, "transaction note is not reversible");
+
+            AssertTrue(
+                TransactionJournalService.IsAllowedRollbackTarget(
+                    "RegistryDword",
+                    @"HKLM\SYSTEM\CurrentControlSet\Control\Lsa|MachineIdentityIsolation"),
+                "MII LSA rollback target allowed");
+
+            AssertTrue(
+                TransactionJournalService.IsAllowedRollbackTarget(
+                    "ServiceState",
+                    "Netlogon"),
+                "Netlogon rollback target allowed");
+
+            AssertFalse(
+                TransactionJournalService.IsAllowedRollbackTarget(
+                    "RegistryDword",
+                    @"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run|Bad"),
+                "arbitrary HKLM rollback target blocked");
+
+            AssertFalse(
+                TransactionJournalService.IsAllowedRollbackTarget(
+                    "ServiceState",
+                    "WinDefend"),
+                "arbitrary service rollback target blocked");
         }
 
         private static void TestUiLayoutMath()
