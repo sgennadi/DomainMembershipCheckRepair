@@ -1358,7 +1358,13 @@ namespace DomainMembershipCheckRepair
                 {
                     DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(inputs.Domain, inputs.PreferredDc);
                     string dc = DomainValidation.SelectDirectoryServer(inputs.PreferredDc, snapshot.DiscoveredDc);
-                    return RpcEndpointMapperAnalyzer.Analyze(snapshot.TargetDomain, dc, token, progress);
+                    return RpcEndpointMapperAnalyzer.Analyze(
+                        snapshot.TargetDomain,
+                        dc,
+                        inputs.User,
+                        inputs.Password,
+                        token,
+                        progress);
                 },
                 delegate(RpcEndpointMapperResult result)
                 {
