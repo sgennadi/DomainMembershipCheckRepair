@@ -6,7 +6,7 @@ The project is domain-neutral. It contains no hard-coded organization, domain, d
 
 ## Current version
 
-`1.5.0`
+`1.6.0`
 
 The release version has one source of truth: `VersionInfo.cs`. Assembly metadata and the UI read that value, and the release workflow refuses to publish a tag that does not match it.
 
@@ -293,11 +293,11 @@ The MII action uses the same on-demand elevation flow as other mutating operatio
 
 ## Advanced recovery and troubleshooting
 
-Version 1.4.0 introduced the higher-level troubleshooting engine. Version 1.5.0 extends it with enterprise policy, protocol, permissions, site/subnet, Hybrid Entra and deployment self-test analysis.
+Version 1.4.0 introduced the higher-level troubleshooting engine. Version 1.5.0 extended it with enterprise policy, protocol, permissions, site/subnet, Hybrid Entra and deployment self-test analysis. Version 1.6.0 adds deeper AD replication, SPN and SMB/Kerberos diagnostics plus explicit Preferred-DC handling for broken-trust and standalone troubleshooting.
 
 ### Enterprise diagnostics in 1.5.0
 
-Advanced Diagnostics additionally includes:
+Advanced Diagnostics includes:
 
 - client AD site, selected DC site and AD subnet matching;
 - protocol-level DNS UDP, LDAP/LDAPS bind, Kerberos ticket, RPC and SMB checks;
@@ -306,12 +306,23 @@ Advanced Diagnostics additionally includes:
 - MachineAccountQuota and conservative join-permission ACL evidence;
 - Microsoft Entra hybrid-join/device-auth state from `dsregcmd /status`;
 - GPO/runtime/MDM policy-source evidence;
-- application Self Test;
+- application Self Test.
+
+These 1.5 checks feed the prioritized root-cause engine and Recovery Plan rather than appearing only as raw diagnostic output. The Advanced GUI exposes Site/Subnet, Protocol Tests, Hardening, Join Permissions, Hybrid Entra and Policy Sources as individual reports.
+
+### AD replication and Kerberos diagnostics in 1.6.0
+
+Version 1.6.0 additionally includes:
+
 - AD replication metadata from `repadmin /replsummary`, `/showobjmeta` and `/showattr` when RSAT AD DS tools are installed;
 - SPN collision checks for HOST, RestrictedKrbHost, TERMSRV and explicit CIFS registrations;
-- explicit CIFS Kerberos ticket acquisition compared with SMB access and local SMB NTLM/signing policy context.
+- explicit CIFS Kerberos ticket acquisition compared with SMB access and local SMB NTLM/signing policy context;
+- Preferred DC precedence: a manually entered DC is used before an automatically discovered DC;
+- standalone/workgroup execution of the replication, SPN and SMB/Kerberos CLI analyzers when `--dc` is supplied;
+- replication Access Denied / 8453 classification as insufficient diagnostic permission instead of a false replication-health failure;
+- integration of replication/SPN/SMB findings into Root Cause analysis, Recovery Plan and the Advanced Support Bundle.
 
-These checks feed the prioritized root-cause engine and Recovery Plan rather than appearing only as raw diagnostic output. The Advanced GUI also exposes Site/Subnet, Protocol Tests, Hardening, Join Permissions, Hybrid Entra and Policy Sources as individual reports.
+The Advanced GUI exposes Replication Metadata, SPN Collisions and SMB / Kerberos as individual reports.
 
 ### DPI and display scaling
 
@@ -581,8 +592,8 @@ Dependabot checks GitHub Actions updates weekly.
 Update `VersionInfo.cs` and `CHANGELOG.md`, merge the change, then tag the same version:
 
 ```text
-git tag v1.5.0
-git push origin v1.5.0
+git tag v1.6.0
+git push origin v1.6.0
 ```
 
 The release workflow will reject a mismatched tag.
