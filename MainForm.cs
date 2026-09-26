@@ -52,7 +52,11 @@ namespace DomainMembershipCheckRepair
         private Button rpcEndpointsButton;
         private Button replicationTimelineButton;
         private Button identityConsistencyButton;
+        private Button adRecoveryButton;
+        private Button restoreDeletedAdButton;
         private Button nextActionButton;
+        private Button historyButton;
+        private Button compareHistoryButton;
         private Button transactionsButton;
         private Button rollbackLocalButton;
         private Button restartButton;
@@ -304,7 +308,11 @@ namespace DomainMembershipCheckRepair
             rpcEndpointsButton = CreateButton("RPC Endpoints", 120);
             replicationTimelineButton = CreateButton("Replication Timeline", 145);
             identityConsistencyButton = CreateButton("Identity Consistency", 145);
+            adRecoveryButton = CreateButton("AD Recovery", 110);
+            restoreDeletedAdButton = CreateButton("Restore Deleted AD", 145);
             nextActionButton = CreateButton("Next Safe Action", 130);
+            historyButton = CreateButton("History", 90);
+            compareHistoryButton = CreateButton("Compare Runs", 115);
             transactionsButton = CreateButton("Transactions", 110);
             rollbackLocalButton = CreateButton("Rollback Local", 120);
             cancelDiagnosticsButton = CreateButton("Cancel Diagnostics", 135);
@@ -330,6 +338,7 @@ namespace DomainMembershipCheckRepair
             ElevationHelper.SetElevationShield(offlineJoinButton, needsElevation);
             ElevationHelper.SetElevationShield(safeFixesButton, needsElevation);
             ElevationHelper.SetElevationShield(rollbackLocalButton, needsElevation);
+            ElevationHelper.SetElevationShield(restoreDeletedAdButton, needsElevation);
 
             checkButton.Click += delegate { RefreshStatus(false); };
             diagnosticsButton.Click += delegate { DiagnosticsWorkflow(); };
@@ -357,7 +366,11 @@ namespace DomainMembershipCheckRepair
             rpcEndpointsButton.Click += delegate { RpcEndpointsWorkflow(); };
             replicationTimelineButton.Click += delegate { ReplicationTimelineWorkflow(); };
             identityConsistencyButton.Click += delegate { IdentityConsistencyWorkflow(); };
+            adRecoveryButton.Click += delegate { AdRecoveryWorkflow(); };
+            restoreDeletedAdButton.Click += delegate { RestoreDeletedAdWorkflow(); };
             nextActionButton.Click += delegate { NextActionWorkflow(); };
+            historyButton.Click += delegate { HistoryWorkflow(); };
+            compareHistoryButton.Click += delegate { CompareHistoryWorkflow(); };
             transactionsButton.Click += delegate { TransactionsWorkflow(); };
             rollbackLocalButton.Click += delegate { RollbackLocalWorkflow(); };
             cancelDiagnosticsButton.Click += delegate { CancelDiagnosticOperation(); };
@@ -385,6 +398,8 @@ namespace DomainMembershipCheckRepair
                     recoveryPlanButton,
                     supportBundleButton,
                     selfTestButton,
+                    historyButton,
+                    compareHistoryButton,
                     aboutButton),
                 0,
                 0);
@@ -398,7 +413,9 @@ namespace DomainMembershipCheckRepair
                     replicationMetadataButton,
                     replicationTimelineButton,
                     identityConsistencyButton,
-                    spnCollisionsButton),
+                    spnCollisionsButton,
+                    adRecoveryButton,
+                    restoreDeletedAdButton),
                 0,
                 1);
 
@@ -628,6 +645,22 @@ namespace DomainMembershipCheckRepair
 
                 case "rollback-local":
                     RollbackLocalWorkflow();
+                    break;
+
+                case "ad-restore":
+                    MessageBox.Show(
+                        this,
+                        "Administrator privileges are active.\r\n\r\n" +
+                        "For security, the domain password is never transferred between the standard and elevated processes. " +
+                        "Enter the domain credentials, then click Restore Deleted AD again.",
+                        "Elevation successful",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+
+                    if (String.IsNullOrWhiteSpace(userBox.Text))
+                        userBox.Focus();
+                    else
+                        passwordBox.Focus();
                     break;
 
                 case "join":
@@ -1528,6 +1561,243 @@ namespace DomainMembershipCheckRepair
                 {
                     ReportDialog.ShowReport(this, "Recommended Next Safe Action", SmartNextActionService.ToText(result));
                 });
+        }
+
+        private void AdRecoveryWorkflow()
+        {
+            string computerName = ComputerNameLookupDialog.ShowDialog(
+                this,
+                Environment.MachineName);
+            if (computerName == null)
+                return;
+
+            string validationError = ValidateComputerName(computerName);
+            if (validationError != null)
+            {
+                MessageBox.Show(
+                    this,
+                    validationError,
+                    "Invalid computer name",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            DiagnosticInputs inputs = CaptureDiagnosticInputs();
+
+            RunBackgroundDiagnostic(
+                "AD Recovery",
+                delegate(System.Threading.CancellationToken token, Action<string> progress)
+                {
+                    progress("AD Recovery: resolving domain and domain controller");
+                    DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(
+                        inputs.Domain,
+                        inputs.PreferredDc);
+
+                    string domain = !String.IsNullOrWhiteSpace(snapshot.TargetDomain)
+                        ? snapshot.TargetDomain
+                        : inputs.Domain;
+
+                    string dc = DomainValidation.SelectDirectoryServer(
+                        inputs.PreferredDc,
+                        snapshot.DiscoveredDc);
+
+                    token.ThrowIfCancellationRequested();
+                    progress("AD Recovery: checking Recycle Bin");
+                    AdRecycleBinStatus status = AdRecycleBinRecoveryService.GetStatus(
+                        domain,
+                        dc,
+                        inputs.User,
+                        inputs.Password);
+
+                    token.ThrowIfCancellationRequested();
+                    progress("AD Recovery: searching deleted computer object");
+                    DeletedComputerObjectInfo deleted =
+                        AdRecycleBinRecoveryService.FindDeletedComputer(
+                            domain,
+                            dc,
+                            computerName,
+                            inputs.User,
+                            inputs.Password);
+
+                    StringBuilder report = new StringBuilder();
+                    report.AppendLine(AdRecycleBinRecoveryService.ToText(status));
+                    report.AppendLine();
+                    report.AppendLine(AdRecycleBinRecoveryService.ToText(deleted));
+
+                    string package =
+                        AdRecycleBinRecoveryService.GetLatestRecoveryPackagePath();
+                    report.AppendLine();
+                    report.AppendLine("Latest pre-delete recovery package");
+                    report.AppendLine("----------------------------------");
+                    report.AppendLine(
+                        String.IsNullOrWhiteSpace(package)
+                            ? "(none)"
+                            : package);
+
+                    return report.ToString();
+                },
+                delegate(string report)
+                {
+                    ReportDialog.ShowReport(
+                        this,
+                        "Active Directory Recovery",
+                        report);
+                });
+        }
+
+        private void RestoreDeletedAdWorkflow()
+        {
+            if (!EnsureElevatedForGui("ad-restore"))
+                return;
+
+            string targetDomain;
+            if (!TryGetTargetDomain(out targetDomain))
+                return;
+
+            string user;
+            string password;
+            if (!GetCredentials(out user, out password))
+                return;
+
+            targetDomain = ResolveDomainForOperation(
+                targetDomain,
+                user);
+            if (String.IsNullOrWhiteSpace(targetDomain))
+                return;
+
+            string computerName = ComputerNameLookupDialog.ShowDialog(
+                this,
+                Environment.MachineName);
+            if (computerName == null)
+                return;
+
+            string validationError = ValidateComputerName(computerName);
+            if (validationError != null)
+            {
+                MessageBox.Show(
+                    this,
+                    validationError,
+                    "Invalid computer name",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            string dc = dcBox == null
+                ? String.Empty
+                : dcBox.Text;
+
+            DeletedComputerObjectInfo deleted =
+                AdRecycleBinRecoveryService.FindDeletedComputer(
+                    targetDomain,
+                    dc,
+                    computerName,
+                    user,
+                    password);
+
+            if (!deleted.QuerySucceeded || !deleted.Found || !deleted.Restorable)
+            {
+                ReportDialog.ShowReport(
+                    this,
+                    "Restore Deleted AD",
+                    AdRecycleBinRecoveryService.ToText(deleted));
+                return;
+            }
+
+            DialogResult confirm = MessageBox.Show(
+                this,
+                "Restore this deleted Active Directory computer object?\r\n\r\n" +
+                "Computer: " + computerName + "\r\n" +
+                "Deleted DN: " + deleted.DistinguishedName + "\r\n" +
+                "Restore DN: " + deleted.RestoreDistinguishedName + "\r\n" +
+                "GUID: " + FirstNonEmpty(deleted.ObjectGuid, "(unknown)") + "\r\n\r\n" +
+                "This changes Active Directory. The original parent container must still exist, and the target DN must not already be occupied.",
+                "Confirm AD object restore",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2);
+
+            if (confirm != DialogResult.Yes)
+                return;
+
+            CreatePreChangeBundle(
+                "ad-restore",
+                targetDomain,
+                user,
+                password);
+
+            TransactionJournal journal =
+                TransactionJournalService.Begin("ad-restore");
+            TransactionJournalService.RecordNote(
+                journal,
+                "Active Directory restore",
+                "Operator confirmed restore of deleted object " +
+                deleted.DistinguishedName + " to " +
+                deleted.RestoreDistinguishedName + ".");
+
+            AdRestoreResult result =
+                AdRecycleBinRecoveryService.RestoreDeletedComputer(
+                    targetDomain,
+                    dc,
+                    computerName,
+                    user,
+                    password);
+
+            TransactionJournalService.RecordNote(
+                journal,
+                "Active Directory restore",
+                result.Success
+                    ? "Deleted AD computer object restore succeeded: " +
+                      result.RestoredDn
+                    : "Deleted AD computer object restore failed: " +
+                      result.Message);
+            journal.Complete();
+
+            Log(
+                result.Success ? "SUCCESS" : "ERROR",
+                result.Message);
+
+            ReportDialog.ShowReport(
+                this,
+                "Restore Deleted AD",
+                AdRecycleBinRecoveryService.ToText(result));
+
+            if (result.Success)
+                RefreshStatus(false);
+        }
+
+        private void HistoryWorkflow()
+        {
+            List<DiagnosticHistoryRecord> records =
+                DiagnosticHistoryService.ListRecords(30);
+
+            ReportDialog.ShowReport(
+                this,
+                "Diagnostic History",
+                DiagnosticHistoryService.ListToText(records));
+        }
+
+        private void CompareHistoryWorkflow()
+        {
+            DiagnosticHistoryComparison comparison;
+            string error;
+
+            if (!DiagnosticHistoryService.TryCompareLatest(
+                out comparison,
+                out error))
+            {
+                ReportDialog.ShowReport(
+                    this,
+                    "Compare Diagnostic Runs",
+                    error);
+                return;
+            }
+
+            ReportDialog.ShowReport(
+                this,
+                "Compare Diagnostic Runs",
+                DiagnosticHistoryService.ToText(comparison));
         }
 
         private void TransactionsWorkflow()
@@ -2620,7 +2890,11 @@ namespace DomainMembershipCheckRepair
             if (rpcEndpointsButton != null) rpcEndpointsButton.Enabled = !busy;
             if (replicationTimelineButton != null) replicationTimelineButton.Enabled = !busy;
             if (identityConsistencyButton != null) identityConsistencyButton.Enabled = !busy;
+            if (adRecoveryButton != null) adRecoveryButton.Enabled = !busy;
+            if (restoreDeletedAdButton != null) restoreDeletedAdButton.Enabled = !busy;
             if (nextActionButton != null) nextActionButton.Enabled = !busy;
+            if (historyButton != null) historyButton.Enabled = !busy;
+            if (compareHistoryButton != null) compareHistoryButton.Enabled = !busy;
             if (transactionsButton != null) transactionsButton.Enabled = !busy;
             if (rollbackLocalButton != null) rollbackLocalButton.Enabled = !busy;
             if (restartButton != null) restartButton.Enabled = !busy;
