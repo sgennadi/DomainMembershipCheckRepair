@@ -1380,8 +1380,12 @@ namespace DomainMembershipCheckRepair
         {
             DiagnosticsSnapshot snapshot = DiagnosticsService.Capture(options.Domain, options.PreferredDc);
             string dc = DomainValidation.SelectDirectoryServer(options.PreferredDc, snapshot.DiscoveredDc);
+            string user;
+            string password;
+            GetOptionalCredentials(out user, out password);
+
             RpcEndpointMapperResult result = RpcEndpointMapperAnalyzer.Analyze(
-                snapshot.TargetDomain, dc, CancellationToken.None, null);
+                snapshot.TargetDomain, dc, user, password, CancellationToken.None, null);
             int exitCode = DiagnosticExitCodes.FromFindings(
                 result.Findings, result.EndpointMapperReachable);
             return WriteDiagnosticResult("rpc-endpoints", result, RpcEndpointMapperAnalyzer.ToText(result), exitCode);
