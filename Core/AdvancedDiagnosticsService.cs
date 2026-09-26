@@ -44,10 +44,9 @@ namespace DomainMembershipCheckRepair
                 ? result.Snapshot.TargetDomain
                 : domain;
             string discoveredDc = result.Snapshot.DiscoveredDc;
-            string configuredDc = DomainValidation.NormalizeDirectoryServer(preferredDc);
-            string effectiveDc = !String.IsNullOrWhiteSpace(configuredDc)
-                ? configuredDc
-                : discoveredDc;
+            string effectiveDc = DomainValidation.SelectDirectoryServer(
+                preferredDc,
+                discoveredDc);
             string effectiveComputerName = String.IsNullOrWhiteSpace(computerName)
                 ? Environment.MachineName
                 : computerName;
