@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.ServiceProcess;
 using System.Text;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using Microsoft.Win32;
 
 namespace DomainMembershipCheckRepair
@@ -163,7 +165,7 @@ namespace DomainMembershipCheckRepair
 
         internal static string GetLatestJournalPath()
         {
-            string folder = GetFolder();
+            string folder = GetFolderPath();
             if (!Directory.Exists(folder))
                 return String.Empty;
 
@@ -222,6 +224,14 @@ namespace DomainMembershipCheckRepair
                         continue;
                     }
 
+                    if (!IsAllowedRollbackTarget(entry.Kind, entry.Target))
+                    {
+                        success = false;
+                        sb.AppendLine("BLOCKED: journal target is not in the rollback allowlist: " +
+                            entry.Kind + " " + entry.Target);
+                        continue;
+                    }
+
                     if (String.Equals(entry.Kind, "RegistryDword", StringComparison.OrdinalIgnoreCase))
                     {
                         string error;
@@ -274,6 +284,29 @@ namespace DomainMembershipCheckRepair
             {
                 return null;
             }
+        }
+
+        internal static bool IsAllowedRollbackTarget(string kind, string target)
+        {
+            string k = (kind ?? String.Empty).Trim();
+            string t = (target ?? String.Empty).Trim();
+
+            if (String.Equals(k, "RegistryDword", StringComparison.OrdinalIgnoreCase))
+            {
+                return String.Equals(
+                           t,
+                           @"HKLM\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard|MachineIdentityIsolation",
+                           StringComparison.OrdinalIgnoreCase) ||
+                       String.Equals(
+                           t,
+                           @"HKLM\SYSTEM\CurrentControlSet\Control\Lsa|MachineIdentityIsolation",
+                           StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (String.Equals(k, "ServiceState", StringComparison.OrdinalIgnoreCase))
+                return String.Equals(t, "Netlogon", StringComparison.OrdinalIgnoreCase);
+
+            return false;
         }
 
         private static bool RestoreRegistry(TransactionJournalEntry entry, out string error)
@@ -444,12 +477,58 @@ namespace DomainMembershipCheckRepair
 
         private static string GetFolder()
         {
-            string path = System.IO.Path.Combine(
+            string path = GetFolderPath();
+            Directory.CreateDirectory(path);
+            HardenFolderAcl(path);
+            return path;
+        }
+
+        private static string GetFolderPath()
+        {
+            return System.IO.Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
                 "DomainMembershipCheckRepair",
                 "Transactions");
-            Directory.CreateDirectory(path);
-            return path;
+        }
+
+        private static void HardenFolderAcl(string path)
+        {
+            try
+            {
+                DirectorySecurity security = new DirectorySecurity();
+                security.SetAccessRuleProtection(true, false);
+
+                InheritanceFlags inheritance =
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+
+                security.AddAccessRule(new FileSystemAccessRule(
+                    new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                    FileSystemRights.FullControl,
+                    inheritance,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+
+                security.AddAccessRule(new FileSystemAccessRule(
+                    new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                    FileSystemRights.FullControl,
+                    inheritance,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+
+                security.AddAccessRule(new FileSystemAccessRule(
+                    new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
+                    FileSystemRights.ReadAndExecute | FileSystemRights.Read,
+                    inheritance,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+
+                Directory.SetAccessControl(path, security);
+            }
+            catch
+            {
+                // Rollback still applies its own strict target allowlist even if ACL
+                // hardening is unavailable on a non-NTFS or restricted filesystem.
+            }
         }
 
         private static void Prune()
