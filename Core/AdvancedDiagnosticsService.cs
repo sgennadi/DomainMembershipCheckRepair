@@ -119,7 +119,7 @@ namespace DomainMembershipCheckRepair
 
             result.HybridEntra = HybridEntraDiagnosticsService.Analyze();
             result.PolicySources = PolicySourceAnalyzer.Analyze();
-            result.SelfTest = SelfTestService.Run(effectiveDomain, discoveredDc);
+            result.SelfTest = SelfTestService.Run(effectiveDomain, effectiveDc);
 
             result.MachinePassword = MachinePasswordAnalyzer.Analyze(
                 result.Account,
