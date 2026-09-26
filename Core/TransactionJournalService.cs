@@ -188,6 +188,78 @@ namespace DomainMembershipCheckRepair
             return File.ReadAllText(path);
         }
 
+        internal static string GetStoragePath()
+        {
+            return GetFolderPath();
+        }
+
+        internal static bool CheckStorageSecurity(out string details)
+        {
+            string path = GetFolderPath();
+            if (!Directory.Exists(path))
+            {
+                details = "Transaction folder does not exist yet: " + path;
+                return true;
+            }
+
+            try
+            {
+                DirectorySecurity security = Directory.GetAccessControl(path);
+                AuthorizationRuleCollection rules = security.GetAccessRules(
+                    true,
+                    true,
+                    typeof(SecurityIdentifier));
+
+                SecurityIdentifier users = new SecurityIdentifier(
+                    WellKnownSidType.BuiltinUsersSid, null);
+                SecurityIdentifier authenticated = new SecurityIdentifier(
+                    WellKnownSidType.AuthenticatedUserSid, null);
+                SecurityIdentifier everyone = new SecurityIdentifier(
+                    WellKnownSidType.WorldSid, null);
+
+                foreach (FileSystemAccessRule rule in rules)
+                {
+                    if (rule.AccessControlType != AccessControlType.Allow)
+                        continue;
+
+                    SecurityIdentifier sid = rule.IdentityReference as SecurityIdentifier;
+                    if (sid == null)
+                        continue;
+
+                    bool broad = sid.Equals(users) ||
+                                 sid.Equals(authenticated) ||
+                                 sid.Equals(everyone);
+                    if (!broad)
+                        continue;
+
+                    FileSystemRights dangerous =
+                        FileSystemRights.Write |
+                        FileSystemRights.Modify |
+                        FileSystemRights.FullControl |
+                        FileSystemRights.WriteData |
+                        FileSystemRights.AppendData |
+                        FileSystemRights.CreateFiles |
+                        FileSystemRights.CreateDirectories |
+                        FileSystemRights.ChangePermissions |
+                        FileSystemRights.TakeOwnership;
+
+                    if ((rule.FileSystemRights & dangerous) != 0)
+                    {
+                        details = "Broad users have write-capable access to " + path + ".";
+                        return false;
+                    }
+                }
+
+                details = "Transaction folder ACL does not grant broad-user write access: " + path;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                details = "Unable to inspect transaction folder ACL: " + ex.Message;
+                return false;
+            }
+        }
+
         internal static bool RollbackLatest(out string report)
         {
             string path = GetLatestRollbackableJournalPath();
