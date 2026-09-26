@@ -609,7 +609,7 @@ namespace DomainMembershipCheckRepair
 
             try
             {
-                string server = "\\" + result.Dc;
+                string server = @"\\" + result.Dc;
                 nameBuffer = Marshal.StringToHGlobalUni(server);
 
                 LSA_UNICODE_STRING systemName = new LSA_UNICODE_STRING();
@@ -670,7 +670,7 @@ namespace DomainMembershipCheckRepair
                 int entries;
                 int total;
                 int status = NetUserEnum(
-                    "\\" + result.Dc,
+                    @"\\" + result.Dc,
                     0,
                     FILTER_NORMAL_ACCOUNT,
                     out buffer,
