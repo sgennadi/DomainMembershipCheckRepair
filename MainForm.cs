@@ -931,7 +931,9 @@ namespace DomainMembershipCheckRepair
                     return AdvancedSupportBundleService.Export(
                         result,
                         outputPath,
-                        includeApplicationLog);
+                        includeApplicationLog,
+                        token,
+                        progress);
                 },
                 delegate(string archive)
                 {
