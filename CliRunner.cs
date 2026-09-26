@@ -982,7 +982,9 @@ namespace DomainMembershipCheckRepair
             NetSetupAnalysis analysis = NetSetupLogAnalyzer.Analyze(DiagnosticsService.NetSetupLogPath);
             int exitCode = !analysis.Present
                 ? DiagnosticExitCodes.NotTested
-                : DiagnosticExitCodes.FromReportText(NetSetupLogAnalyzer.ToText(analysis), true);
+                : (analysis.Findings.Count > 0
+                    ? DiagnosticExitCodes.FindingDetected
+                    : DiagnosticExitCodes.Success);
 
             return WriteDiagnosticResult(
                 "netsetup",
@@ -1053,7 +1055,9 @@ namespace DomainMembershipCheckRepair
                 password);
 
             string report = SiteSubnetDiagnosticsService.ToText(result);
-            int exitCode = DiagnosticExitCodes.FromReportText(report, true);
+            int exitCode = DiagnosticExitCodes.FromFindings(
+                result.Findings,
+                !String.IsNullOrWhiteSpace(result.SelectedDc));
             return WriteDiagnosticResult("site-subnet", result, report, exitCode);
         }
 
@@ -1114,7 +1118,7 @@ namespace DomainMembershipCheckRepair
 
             HardeningDiagnosticsResult result = HardeningDiagnosticsService.Analyze(account);
             string report = HardeningDiagnosticsService.ToText(result);
-            int exitCode = DiagnosticExitCodes.FromReportText(report, true);
+            int exitCode = DiagnosticExitCodes.FromFindings(result.Findings, true);
             return WriteDiagnosticResult("hardening", result, report, exitCode);
         }
 
@@ -1172,7 +1176,9 @@ namespace DomainMembershipCheckRepair
             HybridEntraDiagnosticsResult result =
                 HybridEntraDiagnosticsService.Analyze();
             string report = HybridEntraDiagnosticsService.ToText(result);
-            int exitCode = DiagnosticExitCodes.FromReportText(report, true);
+            int exitCode = DiagnosticExitCodes.FromFindings(
+                result.Findings,
+                result.DsregcmdAvailable);
             return WriteDiagnosticResult("hybrid-entra", result, report, exitCode);
         }
 
@@ -1181,7 +1187,7 @@ namespace DomainMembershipCheckRepair
             PolicySourceDiagnosticsResult result =
                 PolicySourceAnalyzer.Analyze();
             string report = PolicySourceAnalyzer.ToText(result);
-            int exitCode = DiagnosticExitCodes.FromReportText(report, true);
+            int exitCode = DiagnosticExitCodes.FromFindings(result.Findings, true);
             return WriteDiagnosticResult("policy-source", result, report, exitCode);
         }
 
