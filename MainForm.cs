@@ -280,6 +280,16 @@ namespace DomainMembershipCheckRepair
             replicationMetadataButton = CreateButton("Replication Metadata", 155);
             spnCollisionsButton = CreateButton("SPN Collisions", 125);
             smbKerberosButton = CreateButton("SMB / Kerberos", 130);
+            cancelDiagnosticsButton = CreateButton("Cancel Diagnostics", 135);
+            cancelDiagnosticsButton.Enabled = false;
+
+            diagnosticsProgressLabel = new Label();
+            diagnosticsProgressLabel.AutoSize = true;
+            diagnosticsProgressLabel.AutoEllipsis = true;
+            diagnosticsProgressLabel.ForeColor = SystemColors.GrayText;
+            diagnosticsProgressLabel.Margin = new Padding(10, 7, 2, 1);
+            diagnosticsProgressLabel.Text = "Diagnostics: Idle";
+
             repairButton = CreateButton("Repair Trust", 120);
             joinButton = CreateButton("Join / Rejoin Domain", 170);
             adCheckButton = CreateButton("Check AD Account", 150);
@@ -314,6 +324,7 @@ namespace DomainMembershipCheckRepair
             replicationMetadataButton.Click += delegate { ReplicationMetadataWorkflow(); };
             spnCollisionsButton.Click += delegate { SpnCollisionsWorkflow(); };
             smbKerberosButton.Click += delegate { SmbKerberosWorkflow(); };
+            cancelDiagnosticsButton.Click += delegate { CancelDiagnosticOperation(); };
             repairButton.Click += delegate { RepairTrustWorkflow(); };
             joinButton.Click += delegate { JoinCurrentNameWorkflow(); };
             adCheckButton.Click += delegate { CheckAdAccountWorkflow(); };
@@ -346,13 +357,15 @@ namespace DomainMembershipCheckRepair
             advancedActions.Controls.Add(replicationMetadataButton);
             advancedActions.Controls.Add(spnCollisionsButton);
             advancedActions.Controls.Add(smbKerberosButton);
+            advancedActions.Controls.Add(cancelDiagnosticsButton);
+            advancedActions.Controls.Add(diagnosticsProgressLabel);
             advancedActions.Controls.Add(aboutButton);
 
             root.Controls.Add(actionTabs, 0, 7);
             root.SetColumnSpan(actionTabs, 2);
 
             Label note = new Label();
-            note.Text = "The target domain is detected automatically when possible and remains editable. Preferred DC pins LDAP lookup/deletion only; Windows chooses the DC used for domain join. Check AD Account is read-only. Destructive AD deletion always requires explicit confirmation.";
+            note.Text = "The target domain is detected automatically when possible and remains editable. Preferred DC pins read-only LDAP, replication and authentication diagnostics to that DC; Windows still chooses the DC used for domain join. Check AD Account is read-only. Destructive AD deletion always requires explicit confirmation.";
             note.AutoSize = true;
             note.Dock = DockStyle.Fill;
             note.MaximumSize = new Size(0, 0);
@@ -469,23 +482,7 @@ namespace DomainMembershipCheckRepair
             {
                 ResumeService.Clear();
                 Log("INFO", "Post-reboot recovery check started.");
-                AdvancedDiagnosticsWorkflow();
-
-                DiagnosticsSnapshot post = DiagnosticsService.Capture(
-                    domainBox == null ? String.Empty : domainBox.Text,
-                    dcBox == null ? String.Empty : dcBox.Text);
-
-                if (post.SecureChannelApplicable && !post.SecureChannelHealthy)
-                {
-                    DialogResult repair = MessageBox.Show(
-                        this,
-                        "The secure channel is still broken after restart. Request elevation and attempt Repair Trust now?",
-                        "Post-reboot recovery",
-                        MessageBoxButtons.YesNo,
-                        MessageBoxIcon.Warning);
-                    if (repair == DialogResult.Yes)
-                        RepairTrustWorkflow();
-                }
+                RunPostRebootDiagnosticsWorkflow();
                 return;
             }
 
@@ -2266,6 +2263,15 @@ namespace DomainMembershipCheckRepair
             if (smbKerberosButton != null) smbKerberosButton.Enabled = !busy;
             if (restartButton != null) restartButton.Enabled = !busy;
             if (aboutButton != null) aboutButton.Enabled = !busy;
+
+            if (cancelDiagnosticsButton != null)
+            {
+                cancelDiagnosticsButton.Enabled =
+                    busy &&
+                    diagnosticsCancellation != null &&
+                    !diagnosticsCancellation.IsCancellationRequested;
+            }
+
             Application.DoEvents();
         }
 
