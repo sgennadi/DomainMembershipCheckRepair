@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Win32.SafeHandles;
 
@@ -16,7 +17,6 @@ namespace DomainMembershipCheckRepair
         private const uint HANDLE_FLAG_INHERIT = 0x00000001;
         private const uint WAIT_OBJECT_0 = 0x00000000;
         private const uint WAIT_TIMEOUT = 0x00000102;
-        private const uint INFINITE = 0xFFFFFFFF;
 
         internal static CommandResult Run(
             string fileName,
@@ -25,8 +25,19 @@ namespace DomainMembershipCheckRepair
             string user,
             string password)
         {
+            return Run(fileName, arguments, timeoutMs, user, password, CancellationToken.None);
+        }
+
+        internal static CommandResult Run(
+            string fileName,
+            string arguments,
+            int timeoutMs,
+            string user,
+            string password,
+            CancellationToken cancellationToken)
+        {
             if (String.IsNullOrWhiteSpace(user) || password == null)
-                return ProcessRunner.Run(fileName, arguments, timeoutMs);
+                return ProcessRunner.Run(fileName, arguments, timeoutMs, cancellationToken);
 
             CommandResult result = new CommandResult();
             string account;
@@ -119,18 +130,40 @@ namespace DomainMembershipCheckRepair
                 Task<string> stderrTask = stderrReader.ReadToEndAsync();
 
                 int effectiveTimeout = timeoutMs <= 0 ? 30000 : timeoutMs;
-                uint wait = WaitForSingleObject(processInfo.hProcess, (uint)effectiveTimeout);
+                int elapsed = 0;
+                const int waitSlice = 200;
 
-                if (wait == WAIT_TIMEOUT)
+                while (true)
                 {
-                    result.TimedOut = true;
-                    try { TerminateProcess(processInfo.hProcess, 1460); } catch { }
-                    WaitForSingleObject(processInfo.hProcess, 2000);
-                }
-                else if (wait != WAIT_OBJECT_0)
-                {
-                    int error = Marshal.GetLastWin32Error();
-                    result.Error = error + " - " + new Win32Exception(error).Message;
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        result.Cancelled = true;
+                        try { TerminateProcess(processInfo.hProcess, 1223); } catch { }
+                        WaitForSingleObject(processInfo.hProcess, 2000);
+                        break;
+                    }
+
+                    int remaining = effectiveTimeout - elapsed;
+                    if (remaining <= 0)
+                    {
+                        result.TimedOut = true;
+                        try { TerminateProcess(processInfo.hProcess, 1460); } catch { }
+                        WaitForSingleObject(processInfo.hProcess, 2000);
+                        break;
+                    }
+
+                    int slice = Math.Min(waitSlice, remaining);
+                    uint wait = WaitForSingleObject(processInfo.hProcess, (uint)slice);
+                    if (wait == WAIT_OBJECT_0)
+                        break;
+                    if (wait != WAIT_TIMEOUT)
+                    {
+                        int error = Marshal.GetLastWin32Error();
+                        result.Error = error + " - " + new Win32Exception(error).Message;
+                        break;
+                    }
+
+                    elapsed += slice;
                 }
 
                 try
@@ -151,7 +184,7 @@ namespace DomainMembershipCheckRepair
                     try { result.StandardError = stderrTask.Result ?? String.Empty; } catch { }
                 }
 
-                if (!result.TimedOut && processInfo.hProcess != IntPtr.Zero)
+                if (!result.TimedOut && !result.Cancelled && processInfo.hProcess != IntPtr.Zero)
                 {
                     uint exitCode;
                     if (GetExitCodeProcess(processInfo.hProcess, out exitCode))
