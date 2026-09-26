@@ -88,6 +88,10 @@ namespace DomainMembershipCheckRepair
         {
             AssertEqual("dc01.example.com", DomainValidation.NormalizeDirectoryServer(@"\\dc01.example.com"), "UNC-style DC normalization");
             AssertEqual("dc01.example.com", DomainValidation.NormalizeDirectoryServer("LDAP://dc01.example.com/"), "LDAP URL normalization");
+            AssertEqual(String.Empty, DomainValidation.NormalizeDirectoryServer("dc01.example.com /syncall"), "DC with whitespace/extra argument rejected");
+            AssertEqual(String.Empty, DomainValidation.NormalizeDirectoryServer("dc01.example.com\" /showrepl"), "DC with quote rejected");
+            AssertEqual(String.Empty, DomainValidation.NormalizeDirectoryServer("dc01.example.com/path"), "DC with embedded path rejected");
+            AssertTrue(DomainValidation.IsSafeDirectoryServer("[fe80::1]"), "IPv6-style DC accepted");
         }
 
 
