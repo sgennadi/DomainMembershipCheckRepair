@@ -39,6 +39,14 @@
 - Reorganized the Advanced GUI into workflow groups while preserving DPI-aware sizing, scrolling and background cancellation.
 - Added a manual self-hosted AD Integration Lab GitHub Actions workflow and PowerShell harness for live-domain read-only smoke/healthy validation without storing domain credentials.
 - Added regression tests for the known Netlogon/LSA/SAMR/DRSUAPI interface UUID mappings.
+- Added Active Directory Recycle Bin readiness detection and read-only deleted-computer-object discovery.
+- Added a fail-closed pre-delete AD recovery metadata package under ProgramData; Delete + Recreate is blocked if the package cannot be written.
+- Added guarded deleted-object restore with elevation, explicit confirmation, Recycle Bin enforcement, unambiguous-match checks, original-parent validation and target-DN conflict protection.
+- Added GUI actions for AD Recovery and Restore Deleted AD plus CLI actions `ad-recycle-bin`, `ad-deleted` and `ad-restore`.
+- Added compact per-user Advanced Diagnostics history under LocalAppData and History / Compare Runs reports for DC Matrix, Kerberos, SPN, replication, root-cause and Next Safe Action changes.
+- Added CLI actions `history` and `history-compare`; Advanced Support Bundles now include the latest history record and pre-delete recovery package when present.
+- Expanded the live AD Integration Lab with read-only Recycle Bin/deleted-object readiness and history checks.
+- Added regression tests for Recycle Bin feature GUID, deleted-object LDAP filters, restore-DN construction/escaping and AD restore elevation/resume behavior.
 
 ## 1.5.0
 
