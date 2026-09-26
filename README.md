@@ -224,6 +224,8 @@ DomainMembershipCheckRepair.exe --cli --action ad-check --domain example.com --d
 
 `--dc` affects LDAP lookup/deletion. It does not force the native Windows domain-join API to use that DC.
 
+For read-only troubleshooting on a standalone/workgroup computer, `replication-metadata`, `spn-collisions`, and `smb-kerberos` can use `--dc` directly even when DC Locator cannot determine a domain. Advanced Diagnostics also falls back to the entered Preferred DC when automatic DC discovery is unavailable.
+
 ### Export diagnostics
 
 ```text
@@ -304,7 +306,10 @@ Advanced Diagnostics additionally includes:
 - MachineAccountQuota and conservative join-permission ACL evidence;
 - Microsoft Entra hybrid-join/device-auth state from `dsregcmd /status`;
 - GPO/runtime/MDM policy-source evidence;
-- application Self Test.
+- application Self Test;
+- AD replication metadata from `repadmin /replsummary`, `/showobjmeta` and `/showattr` when RSAT AD DS tools are installed;
+- SPN collision checks for HOST, RestrictedKrbHost, TERMSRV and explicit CIFS registrations;
+- explicit CIFS Kerberos ticket acquisition compared with SMB access and local SMB NTLM/signing policy context.
 
 These checks feed the prioritized root-cause engine and Recovery Plan rather than appearing only as raw diagnostic output. The Advanced GUI also exposes Site/Subnet, Protocol Tests, Hardening, Join Permissions, Hybrid Entra and Policy Sources as individual reports.
 
@@ -378,6 +383,9 @@ The bundle can include:
 - Join Permissions report
 - Hybrid Microsoft Entra report
 - policy-source report
+- AD replication metadata report
+- SPN collision report
+- SMB/Kerberos authentication report
 - application self-test
 - Recovery Plan
 - CyberArk/EPM health
