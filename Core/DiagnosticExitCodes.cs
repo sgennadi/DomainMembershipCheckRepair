@@ -24,6 +24,32 @@ namespace DomainMembershipCheckRepair
             }
         }
 
+        internal static int FromReportText(string report, bool capabilityAvailable)
+        {
+            if (!capabilityAvailable)
+                return NotTested;
+
+            string text = report ?? String.Empty;
+            string lower = text.ToLowerInvariant();
+
+            if (lower.IndexOf("high:", StringComparison.Ordinal) >= 0 ||
+                lower.IndexOf(": failed", StringComparison.Ordinal) >= 0 ||
+                lower.StartsWith("failed", StringComparison.Ordinal))
+                return FindingDetected;
+
+            if (lower.IndexOf("access denied", StringComparison.Ordinal) >= 0 ||
+                lower.IndexOf("access was denied", StringComparison.Ordinal) >= 0)
+                return AccessDenied;
+
+            if (lower.IndexOf("not tested", StringComparison.Ordinal) >= 0 ||
+                lower.IndexOf("check:", StringComparison.Ordinal) >= 0 ||
+                lower.IndexOf("warn", StringComparison.Ordinal) >= 0 ||
+                lower.IndexOf("unavailable", StringComparison.Ordinal) >= 0)
+                return Partial;
+
+            return Success;
+        }
+
         internal static int FromFindings(IEnumerable<string> findings, bool capabilityAvailable)
         {
             if (!capabilityAvailable)
