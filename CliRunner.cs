@@ -2398,7 +2398,33 @@ namespace DomainMembershipCheckRepair
                 user,
                 password);
 
+            string recoveryPackagePath;
+            string recoveryPackageError;
+            if (!AdRecycleBinRecoveryService.CreatePreDeleteRecoveryPackage(
+                account,
+                targetDomain,
+                options.PreferredDc,
+                user,
+                password,
+                out recoveryPackagePath,
+                out recoveryPackageError))
+            {
+                logger.Log(
+                    "ERROR",
+                    "AD deletion blocked because the pre-delete recovery package could not be created: " +
+                    recoveryPackageError);
+                return 9;
+            }
+
+            logger.Log(
+                "INFO",
+                "Pre-delete AD recovery package created: " + recoveryPackagePath);
+
             TransactionJournal deleteJournal = TransactionJournalService.Begin("delete-and-recreate");
+            TransactionJournalService.RecordNote(
+                deleteJournal,
+                "AD recovery package",
+                "Pre-delete recovery metadata saved to " + recoveryPackagePath + ".");
             TransactionJournalService.RecordNote(
                 deleteJournal,
                 "Active Directory delete",
