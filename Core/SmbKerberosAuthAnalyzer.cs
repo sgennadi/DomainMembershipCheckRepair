@@ -22,6 +22,15 @@ namespace DomainMembershipCheckRepair
     {
         internal static SmbKerberosAuthResult Analyze(string domain, string dc)
         {
+            return Analyze(domain, dc, String.Empty, null);
+        }
+
+        internal static SmbKerberosAuthResult Analyze(
+            string domain,
+            string dc,
+            string user,
+            string password)
+        {
             SmbKerberosAuthResult r = new SmbKerberosAuthResult();
             r.Dc = DomainValidation.NormalizeDirectoryServer(dc);
 
@@ -48,18 +57,22 @@ namespace DomainMembershipCheckRepair
                 return r;
             }
 
-            CommandResult kerberos = ProcessRunner.Run(
+            CommandResult kerberos = NetworkCredentialProcessRunner.Run(
                 "klist.exe",
                 "get cifs/" + r.Dc,
-                10000);
+                10000,
+                user,
+                password);
 
             r.KerberosCifsStatus = Status(kerberos);
             r.KerberosCifsDetails = Collapse(kerberos == null ? String.Empty : kerberos.CombinedOutput, 500);
 
-            CommandResult smb = ProcessRunner.Run(
+            CommandResult smb = NetworkCredentialProcessRunner.Run(
                 "net.exe",
                 ProtocolDiagnosticsService.BuildRemoteNetViewArguments(r.Dc),
-                10000);
+                10000,
+                user,
+                password);
 
             r.SmbStatus = Status(smb);
             r.SmbDetails = Collapse(smb == null ? String.Empty : smb.CombinedOutput, 500);
