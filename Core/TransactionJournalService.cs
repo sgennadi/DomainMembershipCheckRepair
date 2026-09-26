@@ -190,14 +190,45 @@ namespace DomainMembershipCheckRepair
 
         internal static bool RollbackLatest(out string report)
         {
-            string path = GetLatestJournalPath();
+            string path = GetLatestRollbackableJournalPath();
             if (String.IsNullOrWhiteSpace(path))
             {
-                report = "No transaction journal was found.";
+                report = "No transaction journal with reversible local changes was found.";
                 return false;
             }
 
             return Rollback(path, out report);
+        }
+
+        internal static string GetLatestRollbackableJournalPath()
+        {
+            string folder = GetFolderPath();
+            if (!Directory.Exists(folder))
+                return String.Empty;
+
+            try
+            {
+                FileInfo[] files = new DirectoryInfo(folder).GetFiles("*.json");
+                Array.Sort(files, delegate(FileInfo a, FileInfo b)
+                {
+                    return b.LastWriteTimeUtc.CompareTo(a.LastWriteTimeUtc);
+                });
+
+                foreach (FileInfo file in files)
+                {
+                    List<TransactionJournalEntry> entries = ParseEntries(File.ReadAllText(file.FullName));
+                    foreach (TransactionJournalEntry entry in entries)
+                    {
+                        if (entry.Reversible && IsAllowedRollbackTarget(entry.Kind, entry.Target))
+                            return file.FullName;
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return String.Empty;
         }
 
         internal static bool Rollback(string path, out string report)
