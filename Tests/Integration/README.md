@@ -54,7 +54,11 @@ The workflow is read-only. It does not invoke Repair Trust, Join/Rejoin, AD dele
 - replication-timeline
 - spn-collisions
 - smb-kerberos
+- ad-recycle-bin
+- ad-deleted
 - next-action
 - advanced
+- history
+- history-compare
 
 Each action's JSON and stderr are retained as a workflow artifact for later comparison.
