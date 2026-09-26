@@ -2323,9 +2323,18 @@ namespace DomainMembershipCheckRepair
                 user,
                 password))
             {
+            TransactionJournal deleteJournal = TransactionJournalService.Begin("delete-and-recreate");
+            TransactionJournalService.RecordNote(
+                deleteJournal,
+                "Active Directory delete",
+                "Operator confirmed deletion of " + dn +
+                ". AD deletion is destructive and is never automatically rolled back.");
+
             string deleteError;
             if (!AdDirectoryService.DeleteComputerAccount(account, computerName, user, password, Log, out deleteError))
             {
+                TransactionJournalService.RecordNote(deleteJournal, "Active Directory delete", "Delete failed: " + deleteError);
+                deleteJournal.Complete();
                 MessageBox.Show(this,
                     "The Active Directory computer account could not be deleted safely.\r\n\r\n" +
                     deleteError + "\r\n\r\n" +
@@ -2335,6 +2344,12 @@ namespace DomainMembershipCheckRepair
                     MessageBoxIcon.Error);
                 return;
             }
+
+            TransactionJournalService.RecordNote(
+                deleteJournal,
+                "Active Directory delete",
+                "AD computer object deletion succeeded. This action is not locally reversible.");
+            deleteJournal.Complete();
 
             int[] retryDelays = new int[] { 2, 4, 8, 12 };
             int status = NativeMethods.ERROR_ACCESS_DENIED;
