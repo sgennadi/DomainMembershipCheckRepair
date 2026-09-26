@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 
 namespace DomainMembershipCheckRepair
 {
@@ -37,7 +38,28 @@ namespace DomainMembershipCheckRepair
             string user,
             string password)
         {
+            return Analyze(
+                domain,
+                preferredDc,
+                computerName,
+                user,
+                password,
+                CancellationToken.None,
+                null);
+        }
+
+        internal static AdvancedDiagnosticsResult Analyze(
+            string domain,
+            string preferredDc,
+            string computerName,
+            string user,
+            string password,
+            CancellationToken cancellationToken,
+            Action<string> progress)
+        {
             AdvancedDiagnosticsResult result = new AdvancedDiagnosticsResult();
+
+            Step(cancellationToken, progress, "Capturing Windows and domain state");
             result.Snapshot = DiagnosticsService.Capture(domain, preferredDc);
 
             string effectiveDomain = !String.IsNullOrWhiteSpace(result.Snapshot.TargetDomain)
@@ -51,29 +73,45 @@ namespace DomainMembershipCheckRepair
                 ? Environment.MachineName
                 : computerName;
 
+            Step(cancellationToken, progress, "Analyzing NetSetup.log");
             result.NetSetup = NetSetupLogAnalyzer.Analyze(DiagnosticsService.NetSetupLogPath);
+
+            Step(cancellationToken, progress, "Checking DNS and DC Locator");
             result.Dns = DnsDiagnosticsService.Analyze(effectiveDomain);
+
+            Step(cancellationToken, progress, "Comparing domain controllers and SPN state");
             result.DcMatrix = DcMatrixService.Analyze(
                 effectiveDomain,
                 effectiveDc,
-                String.IsNullOrWhiteSpace(computerName) ? Environment.MachineName : computerName,
+                effectiveComputerName,
                 user,
-                password);
+                password,
+                cancellationToken,
+                progress);
+
+            Step(cancellationToken, progress, "Checking AD site and subnet");
             result.SiteSubnet = SiteSubnetDiagnosticsService.Analyze(
                 effectiveDomain,
                 effectiveDc,
                 user,
                 password);
 
+            Step(cancellationToken, progress, "Running LDAP, Kerberos, RPC and SMB protocol tests");
             result.Protocols = ProtocolDiagnosticsService.Analyze(
                 effectiveDomain,
                 effectiveDc,
                 user,
-                password);
+                password,
+                cancellationToken,
+                progress);
 
+            Step(cancellationToken, progress, "Collecting relevant Windows events");
             result.Events = EventTimelineService.Collect(48);
+
+            Step(cancellationToken, progress, "Inspecting CyberArk / EPM state");
             result.CyberArk = CyberArkDiagnosticsService.Analyze();
 
+            Step(cancellationToken, progress, "Reading the AD computer account");
             if (!String.IsNullOrWhiteSpace(effectiveDomain) || !String.IsNullOrWhiteSpace(effectiveDc))
             {
                 result.Account = AdDirectoryService.FindComputerAccount(
@@ -85,6 +123,7 @@ namespace DomainMembershipCheckRepair
                     null);
             }
 
+            Step(cancellationToken, progress, "Evaluating hardening policy");
             result.Hardening = HardeningDiagnosticsService.Analyze(result.Account);
 
             string objectDn = result.Account != null &&
@@ -93,43 +132,57 @@ namespace DomainMembershipCheckRepair
                 ? result.Account.DistinguishedName
                 : String.Empty;
 
+            Step(cancellationToken, progress, "Reading AD replication metadata");
             result.ReplicationMetadata = ReplicationMetadataService.Analyze(
                 effectiveDomain,
                 effectiveDc,
                 objectDn,
                 user,
-                password);
+                password,
+                cancellationToken);
 
+            Step(cancellationToken, progress, "Checking SPN collisions");
             result.SpnCollisions = SpnCollisionAnalyzer.Analyze(
                 effectiveDomain,
                 effectiveDc,
                 effectiveComputerName,
                 user,
-                password);
+                password,
+                cancellationToken);
 
+            Step(cancellationToken, progress, "Testing SMB / Kerberos authentication");
             result.SmbKerberos = SmbKerberosAuthAnalyzer.Analyze(
                 effectiveDomain,
                 effectiveDc,
                 user,
-                password);
+                password,
+                cancellationToken);
 
+            Step(cancellationToken, progress, "Evaluating domain join permissions");
             result.JoinPermissions = JoinPermissionsAnalyzer.Analyze(
                 effectiveDomain,
                 effectiveDc,
-                String.IsNullOrWhiteSpace(computerName) ? Environment.MachineName : computerName,
+                effectiveComputerName,
                 user,
                 password,
                 result.Account);
 
+            Step(cancellationToken, progress, "Inspecting Hybrid Microsoft Entra state");
             result.HybridEntra = HybridEntraDiagnosticsService.Analyze();
+
+            Step(cancellationToken, progress, "Inspecting policy sources");
             result.PolicySources = PolicySourceAnalyzer.Analyze();
+
+            Step(cancellationToken, progress, "Running application self-test");
             result.SelfTest = SelfTestService.Run(effectiveDomain, effectiveDc);
 
+            Step(cancellationToken, progress, "Comparing machine-password evidence");
             result.MachinePassword = MachinePasswordAnalyzer.Analyze(
                 result.Account,
                 result.Events,
                 result.Snapshot.SecureChannelApplicable && !result.Snapshot.SecureChannelHealthy);
 
+            Step(cancellationToken, progress, "Prioritizing root causes");
             result.RootCauses = RootCauseEngine.Analyze(
                 result.Snapshot,
                 result.NetSetup,
@@ -147,6 +200,7 @@ namespace DomainMembershipCheckRepair
                 result.SpnCollisions,
                 result.SmbKerberos);
 
+            Step(cancellationToken, progress, "Building recovery plan");
             result.RecoveryPlan = RecoveryPlanService.Build(
                 result.Snapshot,
                 result.NetSetup,
@@ -163,7 +217,18 @@ namespace DomainMembershipCheckRepair
                 result.SmbKerberos,
                 result.Account);
 
+            Step(cancellationToken, progress, "Advanced diagnostics completed");
             return result;
+        }
+
+        private static void Step(
+            CancellationToken cancellationToken,
+            Action<string> progress,
+            string text)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (progress != null)
+                progress(text);
         }
 
         internal static string ToText(AdvancedDiagnosticsResult r)
