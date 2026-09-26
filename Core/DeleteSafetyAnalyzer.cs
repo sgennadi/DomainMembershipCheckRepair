@@ -11,6 +11,7 @@ namespace DomainMembershipCheckRepair
         internal DcMatrixResult DcMatrix;
         internal ReplicationTimelineResult ReplicationTimeline;
         internal IdentityConsistencyResult IdentityConsistency;
+        internal AdRecycleBinStatus RecycleBin;
         internal readonly List<string> BlockingReasons = new List<string>();
         internal readonly List<string> Warnings = new List<string>();
     }
@@ -68,6 +69,28 @@ namespace DomainMembershipCheckRepair
             else
             {
                 r.Warnings.Add("whenChanged could not be parsed; recent-object-change protection is limited.");
+            }
+
+            r.RecycleBin = AdRecycleBinRecoveryService.GetStatus(
+                domain,
+                preferredDc,
+                user,
+                password);
+
+            if (!r.RecycleBin.QuerySucceeded)
+            {
+                r.Warnings.Add(
+                    "Active Directory Recycle Bin status could not be verified. A pre-delete metadata package is still required, but automatic deleted-object restore may be unavailable.");
+            }
+            else if (!r.RecycleBin.Enabled)
+            {
+                r.Warnings.Add(
+                    "Active Directory Recycle Bin is not enabled. Delete remains a last-resort operation and automatic deleted-object restore will not be available.");
+            }
+            else
+            {
+                r.Warnings.Add(
+                    "Active Directory Recycle Bin is enabled. A pre-delete recovery package will be created before deletion.");
             }
 
             r.DcMatrix = DcMatrixService.Analyze(
@@ -205,6 +228,12 @@ namespace DomainMembershipCheckRepair
                 sb.AppendLine("Warnings:");
                 foreach (string warning in r.Warnings)
                     sb.AppendLine("- " + warning);
+            }
+
+            if (r.RecycleBin != null)
+            {
+                sb.AppendLine();
+                sb.AppendLine(AdRecycleBinRecoveryService.ToText(r.RecycleBin));
             }
 
             if (r.DcMatrix != null)
