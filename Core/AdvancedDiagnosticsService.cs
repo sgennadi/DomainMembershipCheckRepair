@@ -96,7 +96,9 @@ namespace DomainMembershipCheckRepair
             result.ReplicationMetadata = ReplicationMetadataService.Analyze(
                 effectiveDomain,
                 effectiveDc,
-                objectDn);
+                objectDn,
+                user,
+                password);
 
             result.SpnCollisions = SpnCollisionAnalyzer.Analyze(
                 effectiveDomain,
@@ -107,7 +109,9 @@ namespace DomainMembershipCheckRepair
 
             result.SmbKerberos = SmbKerberosAuthAnalyzer.Analyze(
                 effectiveDomain,
-                effectiveDc);
+                effectiveDc,
+                user,
+                password);
 
             result.JoinPermissions = JoinPermissionsAnalyzer.Analyze(
                 effectiveDomain,
