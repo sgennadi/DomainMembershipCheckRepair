@@ -310,6 +310,7 @@ namespace DomainMembershipCheckRepair
 
             if (result.Json && (result.Action == "repair" || result.Action == "join" || result.Action == "rename" ||
                                 result.Action == "restart" || result.Action == "mii-disable" ||
+                                result.Action == "safe-fixes" ||
                                 result.Action == "odj-apply" || result.Action == "odj-provision"))
             {
                 error = "--json is supported for read-only/reporting actions only.";
@@ -1914,17 +1915,19 @@ namespace DomainMembershipCheckRepair
             user = String.Empty;
             password = null;
 
+            System.IO.TextWriter prompt = options.Json ? Console.Error : Console.Out;
             string candidate = (options.User ?? String.Empty).Trim();
+
             while (true)
             {
                 if (String.IsNullOrWhiteSpace(candidate))
                 {
-                    Console.WriteLine(@"User format: DOMAIN\username   or   username@example.com");
-                    Console.Write("Domain user: ");
+                    prompt.WriteLine(@"User format: DOMAIN\username   or   username@example.com");
+                    prompt.Write("Domain user: ");
                     candidate = (Console.ReadLine() ?? String.Empty).Trim();
                     if (candidate.Length == 0)
                     {
-                        Console.WriteLine("Cancelled.");
+                        prompt.WriteLine("Cancelled.");
                         return false;
                     }
                 }
@@ -1933,25 +1936,25 @@ namespace DomainMembershipCheckRepair
                 if (TryValidateUserName(candidate, out user, out validationError))
                     break;
 
-                Console.WriteLine("Invalid user name: " + validationError);
-                Console.WriteLine(@"Use: DOMAIN\username   or   username@example.com");
+                prompt.WriteLine("Invalid user name: " + validationError);
+                prompt.WriteLine(@"Use: DOMAIN\username   or   username@example.com");
                 if (!String.IsNullOrWhiteSpace(options.User))
                     return false;
                 candidate = String.Empty;
             }
 
-            Console.Write("Password: ");
+            prompt.Write("Password: ");
             password = ReadPassword();
-            Console.WriteLine();
+            prompt.WriteLine();
 
             if (password == null)
             {
-                Console.WriteLine("Cancelled.");
+                prompt.WriteLine("Cancelled.");
                 return false;
             }
             if (password.Length == 0)
             {
-                Console.WriteLine("Password cannot be empty.");
+                prompt.WriteLine("Password cannot be empty.");
                 return false;
             }
 
