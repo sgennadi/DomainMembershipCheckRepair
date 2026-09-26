@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
+using System.Threading;
 
 namespace DomainMembershipCheckRepair
 {
@@ -13,6 +14,22 @@ namespace DomainMembershipCheckRepair
             string outputPath,
             bool includeApplicationLog)
         {
+            return Export(
+                advanced,
+                outputPath,
+                includeApplicationLog,
+                CancellationToken.None,
+                null);
+        }
+
+        internal static string Export(
+            AdvancedDiagnosticsResult advanced,
+            string outputPath,
+            bool includeApplicationLog,
+            CancellationToken cancellationToken,
+            Action<string> progress)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             if (advanced == null)
                 throw new ArgumentNullException("advanced");
 
@@ -33,6 +50,8 @@ namespace DomainMembershipCheckRepair
 
             try
             {
+                Report(progress, "Support Bundle: writing diagnostic reports");
+                cancellationToken.ThrowIfCancellationRequested();
                 Write(Path.Combine(temp, "advanced-diagnostics.txt"), AdvancedDiagnosticsService.ToText(advanced));
                 Write(Path.Combine(temp, "advanced-diagnostics.json"), JsonReportSerializer.Serialize(advanced));
                 Write(Path.Combine(temp, "diagnostics.json"), DiagnosticsService.ToJson(advanced.Snapshot));
@@ -55,19 +74,19 @@ namespace DomainMembershipCheckRepair
                 Write(Path.Combine(temp, "root-causes.txt"), RootCauseEngine.ToText(advanced.RootCauses));
                 Write(Path.Combine(temp, "recovery-plan.txt"), RecoveryPlanService.ToText(advanced.RecoveryPlan));
 
-                CollectCommand(temp, "ipconfig-all.txt", "ipconfig.exe", "/all");
-                CollectCommand(temp, "route-print.txt", "route.exe", "print");
-                CollectCommand(temp, "w32tm-status.txt", "w32tm.exe", "/query /status");
-                CollectCommand(temp, "w32tm-source.txt", "w32tm.exe", "/query /source");
-                CollectCommand(temp, "dsregcmd-status.txt", "dsregcmd.exe", "/status");
-                CollectCommand(temp, "gpresult-computer.txt", "gpresult.exe", "/scope computer /z");
+                CollectCommand(temp, "ipconfig-all.txt", "ipconfig.exe", "/all", cancellationToken, progress);
+                CollectCommand(temp, "route-print.txt", "route.exe", "print", cancellationToken, progress);
+                CollectCommand(temp, "w32tm-status.txt", "w32tm.exe", "/query /status", cancellationToken, progress);
+                CollectCommand(temp, "w32tm-source.txt", "w32tm.exe", "/query /source", cancellationToken, progress);
+                CollectCommand(temp, "dsregcmd-status.txt", "dsregcmd.exe", "/status", cancellationToken, progress);
+                CollectCommand(temp, "gpresult-computer.txt", "gpresult.exe", "/scope computer /z", cancellationToken, progress);
 
                 string domain = advanced.Snapshot == null ? String.Empty : advanced.Snapshot.TargetDomain;
                 if (!String.IsNullOrWhiteSpace(domain))
                 {
-                    CollectCommand(temp, "nltest-dsgetdc.txt", "nltest.exe", "/dsgetdc:" + domain);
-                    CollectCommand(temp, "nltest-dclist.txt", "nltest.exe", "/dclist:" + domain);
-                    CollectCommand(temp, "nltest-sc-query.txt", "nltest.exe", "/sc_query:" + domain);
+                    CollectCommand(temp, "nltest-dsgetdc.txt", "nltest.exe", "/dsgetdc:" + domain, cancellationToken, progress);
+                    CollectCommand(temp, "nltest-dclist.txt", "nltest.exe", "/dclist:" + domain, cancellationToken, progress);
+                    CollectCommand(temp, "nltest-sc-query.txt", "nltest.exe", "/sc_query:" + domain, cancellationToken, progress);
                 }
 
                 if (File.Exists(DiagnosticsService.NetSetupLogPath))
@@ -81,9 +100,12 @@ namespace DomainMembershipCheckRepair
                     "Entered passwords are never written by the application.\r\n" +
                     "Windows logs and command output can contain environment-specific hostnames, domains, addresses, usernames, or other operational metadata. Review before sharing.\r\n");
 
+                cancellationToken.ThrowIfCancellationRequested();
+                Report(progress, "Support Bundle: creating ZIP archive");
                 if (File.Exists(path))
                     File.Delete(path);
                 ZipFile.CreateFromDirectory(temp, path, CompressionLevel.Optimal, false);
+                cancellationToken.ThrowIfCancellationRequested();
                 return path;
             }
             finally
@@ -92,9 +114,18 @@ namespace DomainMembershipCheckRepair
             }
         }
 
-        private static void CollectCommand(string folder, string name, string exe, string args)
+        private static void CollectCommand(
+            string folder,
+            string name,
+            string exe,
+            string args,
+            CancellationToken cancellationToken,
+            Action<string> progress)
         {
-            CommandResult result = ProcessRunner.Run(exe, args, 10000);
+            cancellationToken.ThrowIfCancellationRequested();
+            Report(progress, "Support Bundle: " + name);
+            CommandResult result = ProcessRunner.Run(exe, args, 10000, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             string output = result.CombinedOutput;
 
             if (result.TimedOut)
@@ -105,6 +136,12 @@ namespace DomainMembershipCheckRepair
                 output += Environment.NewLine + "[Exit code] " + result.ExitCode;
 
             Write(Path.Combine(folder, name), output);
+        }
+
+        private static void Report(Action<string> progress, string text)
+        {
+            if (progress != null)
+                progress(text);
         }
 
         private static void Copy(string source, string destination)
