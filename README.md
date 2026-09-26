@@ -188,7 +188,7 @@ Options:
 --no-restart
 ```
 
-Passwords are never accepted as a command-line argument. When credentials are needed, the CLI asks for the password interactively without echoing it.
+Passwords are never accepted as a command-line argument. When credentials are needed, the CLI asks for the password interactively without echoing it. In `--json` mode password prompts are written to stderr so stdout remains a single machine-readable JSON document.
 
 ### Dry-run
 
@@ -204,17 +204,24 @@ Dry-run does not repair trust, rename the computer, join the domain, delete an A
 
 ### JSON output
 
-JSON is available for read-only/reporting actions:
+JSON is available for all read-only/reporting actions, including the enterprise analyzers:
 
 ```text
 DomainMembershipCheckRepair.exe --cli --action diagnose --json
-DomainMembershipCheckRepair.exe --cli --action status --json
-DomainMembershipCheckRepair.exe --cli --action check --json
-DomainMembershipCheckRepair.exe --cli --action detect --json
+DomainMembershipCheckRepair.exe --cli --action advanced --json
+DomainMembershipCheckRepair.exe --cli --action dc-matrix --json
+DomainMembershipCheckRepair.exe --cli --action protocols --json
+DomainMembershipCheckRepair.exe --cli --action hardening --json
+DomainMembershipCheckRepair.exe --cli --action join-permissions --json
+DomainMembershipCheckRepair.exe --cli --action replication-metadata --json
+DomainMembershipCheckRepair.exe --cli --action spn-collisions --json
+DomainMembershipCheckRepair.exe --cli --action smb-kerberos --json
+DomainMembershipCheckRepair.exe --cli --action recovery-plan --json
+DomainMembershipCheckRepair.exe --cli --action self-test --json
 DomainMembershipCheckRepair.exe --cli --action ad-check --domain example.com --user EXAMPLE\admin --computer PC-042 --json
 ```
 
-This makes the utility easier to consume from RMM, SCCM, PDQ, Intune scripts and other automation.
+The 1.6 enterprise actions use a common envelope containing `action`, `exitCode`, `exitMeaning` and `result`. This makes the utility easier to consume from RMM, SCCM, PDQ, Intune scripts and other automation. Mutating actions such as Repair, Join/Rejoin, MII disable, Safe Fixes and Offline Domain Join intentionally reject `--json`.
 
 ### Preferred DC
 
@@ -222,7 +229,7 @@ This makes the utility easier to consume from RMM, SCCM, PDQ, Intune scripts and
 DomainMembershipCheckRepair.exe --cli --action ad-check --domain example.com --dc dc01.example.com --user EXAMPLE\admin --computer PC-042
 ```
 
-`--dc` affects LDAP lookup/deletion. It does not force the native Windows domain-join API to use that DC.
+`--dc` pins read-only LDAP, replication, SPN and SMB/Kerberos diagnostics to the selected DC when those diagnostics accept a DC target. It does not force the native Windows domain-join API to use that DC.
 
 For read-only troubleshooting on a standalone/workgroup computer, `replication-metadata`, `spn-collisions`, and `smb-kerberos` can use `--dc` directly even when DC Locator cannot determine a domain. Advanced Diagnostics also falls back to the entered Preferred DC when automatic DC discovery is unavailable.
 
@@ -315,14 +322,20 @@ These 1.5 checks feed the prioritized root-cause engine and Recovery Plan rather
 Version 1.6.0 additionally includes:
 
 - AD replication metadata from `repadmin /replsummary`, `/showobjmeta` and `/showattr` when RSAT AD DS tools are installed;
+- LDAP/ADSI fallback for RootDSE and computer-object replication metadata when `repadmin.exe` is not installed;
 - SPN collision checks for HOST, RestrictedKrbHost, TERMSRV and explicit CIFS registrations;
+- per-DC SPN visibility/collision fingerprints in DC Matrix, with cross-DC SPN inconsistency detection;
 - explicit CIFS Kerberos ticket acquisition compared with SMB access and local SMB NTLM/signing policy context;
+- optional network-only credentials for Kerberos/SMB/RPC/repadmin checks using Windows `LOGON_NETCREDENTIALS_ONLY`, without putting passwords in command lines or logs;
+- read-only AD lookup and join-permission analysis under the current Windows security context when explicit credentials are not supplied;
 - Preferred DC precedence: a manually entered DC is used before an automatically discovered DC;
 - standalone/workgroup execution of the replication, SPN and SMB/Kerberos CLI analyzers when `--dc` is supplied;
 - replication Access Denied / 8453 classification as insufficient diagnostic permission instead of a false replication-health failure;
+- structured JSON for all read-only/reporting CLI actions and dedicated diagnostic exit codes;
+- background execution for Advanced GUI reports with live step status and cooperative Cancel support;
 - integration of replication/SPN/SMB findings into Root Cause analysis, Recovery Plan and the Advanced Support Bundle.
 
-The Advanced GUI exposes Replication Metadata, SPN Collisions and SMB / Kerberos as individual reports.
+The Advanced GUI exposes Replication Metadata, SPN Collisions and SMB / Kerberos as individual reports. Long-running read-only diagnostics run off the UI thread; Cancel interrupts cancellation-aware external commands immediately and stops other analyzers after the current Windows/LDAP API call returns.
 
 ### DPI and display scaling
 
@@ -350,9 +363,10 @@ The tool discovers DCs through `_ldap._tcp.dc._msdcs.<domain>` SRV records and c
 - AD site
 - writable vs RODC status when exposed by LDAP
 - synchronization and Global Catalog readiness
-- optional computer-account comparison when valid domain credentials are already supplied
+- computer-account comparison using explicit credentials when supplied, otherwise the current Windows security context
+- expected HOST/RestrictedKrbHost/TERMSRV/CIFS SPN visibility and collision state per DC
 
-When the same computer account is present on some DCs but missing/different on others, the matrix flags likely AD replication inconsistency.
+When the same computer account is present on some DCs but missing/different on others, or expected SPN visibility differs between DCs, the matrix flags likely AD replication inconsistency/stale state.
 
 ### Account Reuse Analyzer
 
@@ -383,6 +397,7 @@ MII disable and Offline Domain Join can register a one-time RunOnce entry in the
 The bundle can include:
 
 - advanced diagnostics report
+- structured advanced diagnostics JSON
 - diagnostics JSON
 - NetSetup.log analysis and original NetSetup.log
 - Windows event timeline
@@ -515,7 +530,7 @@ username@example.com
 
 A short username by itself is intentionally rejected.
 
-The program does not save usernames or passwords to Registry/config files. The optional application log does not record the entered username or password.
+The program does not save usernames or passwords to Registry/config files. The optional application log does not record the entered username or password. When explicit credentials are supplied for read-only Kerberos/SMB/RPC/repadmin tests, Windows starts the diagnostic command with `LOGON_NETCREDENTIALS_ONLY`: the password remains in process memory for the API call and is not included in the child command line.
 
 ## CLI exit codes
 
@@ -534,7 +549,14 @@ The program does not save usernames or passwords to Registry/config files. The o
 11  AD lookup failed
 12  Restart required because a rename is pending
 13  Administrator elevation was cancelled, blocked, or ineffective
+
+20  Diagnostic finding detected (read-only/reporting actions)
+21  Diagnostic was not tested / required capability unavailable
+22  Diagnostic access denied
+23  Partial diagnostic result
 ```
+
+Codes 20-23 are used by the new read-only/reporting analyzers so automation can distinguish a detected problem from an unavailable test or insufficient diagnostic permissions. Existing operational codes 0-13 remain unchanged for domain membership, repair, join and elevation workflows.
 
 ## Local builds
 
