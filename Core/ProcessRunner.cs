@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainMembershipCheckRepair
@@ -8,6 +9,7 @@ namespace DomainMembershipCheckRepair
     {
         internal bool Started;
         internal bool TimedOut;
+        internal bool Cancelled;
         internal int ExitCode = -1;
         internal string StandardOutput = String.Empty;
         internal string StandardError = String.Empty;
@@ -29,6 +31,15 @@ namespace DomainMembershipCheckRepair
     internal static class ProcessRunner
     {
         internal static CommandResult Run(string fileName, string arguments, int timeoutMs)
+        {
+            return Run(fileName, arguments, timeoutMs, CancellationToken.None);
+        }
+
+        internal static CommandResult Run(
+            string fileName,
+            string arguments,
+            int timeoutMs,
+            CancellationToken cancellationToken)
         {
             CommandResult result = new CommandResult();
             Process process = null;
@@ -58,11 +69,32 @@ namespace DomainMembershipCheckRepair
                 Task<string> stderrTask = process.StandardError.ReadToEndAsync();
 
                 int effectiveTimeout = timeoutMs <= 0 ? 30000 : timeoutMs;
-                if (!process.WaitForExit(effectiveTimeout))
+                int elapsed = 0;
+                const int waitSlice = 200;
+
+                while (!process.HasExited)
                 {
-                    result.TimedOut = true;
-                    try { process.Kill(); } catch { }
-                    try { process.WaitForExit(2000); } catch { }
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        result.Cancelled = true;
+                        try { process.Kill(); } catch { }
+                        try { process.WaitForExit(2000); } catch { }
+                        break;
+                    }
+
+                    int remaining = effectiveTimeout - elapsed;
+                    if (remaining <= 0)
+                    {
+                        result.TimedOut = true;
+                        try { process.Kill(); } catch { }
+                        try { process.WaitForExit(2000); } catch { }
+                        break;
+                    }
+
+                    int slice = Math.Min(waitSlice, remaining);
+                    if (process.WaitForExit(slice))
+                        break;
+                    elapsed += slice;
                 }
 
                 try
@@ -83,7 +115,7 @@ namespace DomainMembershipCheckRepair
                     try { result.StandardError = stderrTask.Result ?? String.Empty; } catch { }
                 }
 
-                if (!result.TimedOut && process.HasExited)
+                if (!result.TimedOut && !result.Cancelled && process.HasExited)
                     result.ExitCode = process.ExitCode;
 
                 return result;
