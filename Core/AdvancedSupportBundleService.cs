@@ -34,6 +34,7 @@ namespace DomainMembershipCheckRepair
             try
             {
                 Write(Path.Combine(temp, "advanced-diagnostics.txt"), AdvancedDiagnosticsService.ToText(advanced));
+                Write(Path.Combine(temp, "advanced-diagnostics.json"), JsonReportSerializer.Serialize(advanced));
                 Write(Path.Combine(temp, "diagnostics.json"), DiagnosticsService.ToJson(advanced.Snapshot));
                 Write(Path.Combine(temp, "netsetup-analysis.txt"), NetSetupLogAnalyzer.ToText(advanced.NetSetup));
                 Write(Path.Combine(temp, "dns-diagnostics.txt"), DnsDiagnosticsService.ToText(advanced.Dns));
