@@ -701,7 +701,7 @@ ARM64 local compilation requires Visual Studio 2022/Build Tools, MSBuild, .NET d
 
 ## GitHub Actions and supply-chain security
 
-The repository uses Node.js 24-compatible GitHub Actions. Actions are pinned to immutable commit SHAs.
+The repository uses Node.js 24-compatible GitHub Actions. Actions are pinned to immutable commit SHAs. Workflow orchestration uses `cmd` plus the compiled C#/.NET Framework `Tools/` executable; repository policy rejects both `.ps1` files and PowerShell workflow shells.
 
 The recommended `main` ruleset is documented in `.github/BRANCH_PROTECTION.md`: PR-only changes, required `build` and `Analyze C#` checks, conversation resolution, and force-push/deletion protection.
 
@@ -717,12 +717,14 @@ The recommended `main` ruleset is documented in `.github/BRANCH_PROTECTION.md`: 
 
 `release.yml`:
 
+- uses the compiled native `Tools/` release orchestrator rather than inline PowerShell
 - verifies that the Git tag matches `VersionInfo.cs`
-- runs tests
-- builds all architectures
+- runs tests and builds all architectures
+- prepares the unsigned SignPath input and matching DPI `.exe.config` files
 - signs the EXE files through SignPath
-- includes the matching DPI `.exe.config` files unchanged
-- generates `SHA256SUMS.txt` for all final files
+- validates Authenticode, trusted timestamp evidence, ProductVersion and PE architecture
+- generates and re-verifies `SHA256SUMS.txt`
+- runs x86/x64 GUI/DPI smoke tests on the final release files
 - creates GitHub build-provenance attestations
 - publishes the GitHub Release
 
