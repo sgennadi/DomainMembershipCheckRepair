@@ -156,6 +156,7 @@ namespace DomainMembershipCheckRepair
             AssertFalse(ElevationHelper.RequiresElevation("ad-check"), "ad-check does not require elevation");
             AssertFalse(ElevationHelper.RequiresElevation("diagnose"), "diagnose does not require elevation");
             AssertFalse(ElevationHelper.RequiresElevation("export-diagnostics"), "export diagnostics does not require elevation");
+            AssertFalse(ElevationHelper.RequiresElevation("ui-smoke"), "UI smoke does not require elevation");
         }
 
         private static void TestGuiResumeOptions()
