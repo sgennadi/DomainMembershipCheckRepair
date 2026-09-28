@@ -59,7 +59,9 @@ The workflow is read-only. It does not invoke Repair Trust, Join/Rejoin, AD dele
 - next-action
 - advanced
 
-Each action's JSON and stderr are retained as a workflow artifact for troubleshooting and validation.
+Each action writes local JSON/stderr evidence on the self-hosted runner. Raw lab evidence is **not uploaded by default**. Set the repository variable `LAB_UPLOAD_SANITIZED_ARTIFACTS=true` only when a troubleshooting artifact is required. Before upload, every text artifact passes through the fail-closed lab sanitizer, which redacts secrets and replaces environment identifiers with per-run opaque HMAC tokens. Non-text files are omitted. Uploaded sanitized artifacts are retained for 7 days, and both raw and sanitized working directories are deleted from the self-hosted runner at the end of the workflow.
+
+The normal Build workflow runs a synthetic sanitizer regression test and parses every repository PowerShell script, including the manual lab harnesses, so syntax/privacy regressions are caught even when no self-hosted lab runner is online.
 
 
 ## Disposable destructive AD lab
@@ -82,7 +84,7 @@ Mutating scenarios additionally require the exact workflow confirmation text:
 DESTROY_DISPOSABLE_LAB
 ~~~
 
-The runner must be domain joined, elevated, isolated from production, and dedicated to this repository. The `recycle-bin-restore` scenario additionally requires RSAT / the ActiveDirectory PowerShell module. Recommended repository configuration:
+The runner must be domain joined, elevated, isolated from production, and dedicated to this repository. Destructive-lab runs are serialized with workflow concurrency so two runs cannot mutate the disposable lab simultaneously. The `recycle-bin-restore` scenario additionally requires RSAT / the ActiveDirectory PowerShell module. Recommended repository configuration:
 
 ~~~text
 AD_LAB_DOMAIN=example.com
@@ -118,7 +120,7 @@ Enable it with:
 EPM_LAB_ENABLED=true
 ~~~
 
-For the strongest validation, run the GitHub runner interactively under a standard-user token. The harness first runs the read-only CyberArk/EPM discovery action, then invokes the non-destructive `elevation-probe` action. The probe requests elevation through the normal Windows `runas` broker and succeeds only when the child process is actually elevated. This validates the same elevation path used by Repair, Join, Safe Fixes, Rollback Local, and other administrative actions without changing Windows or Active Directory.
+For the strongest validation, run the GitHub runner interactively under a standard-user token. EPM lab runs are serialized, and raw EPM evidence follows the same local-only-by-default / sanitized-opt-in artifact policy described above. The harness first runs the read-only CyberArk/EPM discovery action, then invokes the non-destructive `elevation-probe` action. The probe requests elevation through the normal Windows `runas` broker and succeeds only when the child process is actually elevated. This validates the same elevation path used by Repair, Join, Safe Fixes, Rollback Local, and other administrative actions without changing Windows or Active Directory.
 
 ## GUI / DPI smoke automation
 
