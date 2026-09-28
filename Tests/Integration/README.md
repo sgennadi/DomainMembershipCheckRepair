@@ -82,7 +82,7 @@ Mutating scenarios additionally require the exact workflow confirmation text:
 DESTROY_DISPOSABLE_LAB
 ~~~
 
-The runner must be domain joined, elevated, isolated from production, and dedicated to this repository. Recommended repository configuration:
+The runner must be domain joined, elevated, isolated from production, and dedicated to this repository. The `recycle-bin-restore` scenario additionally requires RSAT / the ActiveDirectory PowerShell module. Recommended repository configuration:
 
 ~~~text
 AD_LAB_DOMAIN=example.com
