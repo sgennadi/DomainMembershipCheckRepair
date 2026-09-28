@@ -51,6 +51,7 @@ jobs:
           fi
 
   destructive-ad-lab:
+    if: ${{ github.ref == 'refs/heads/main' }}
     needs: gate
     runs-on: [self-hosted, Windows, X64, domain-destructive-lab]
     timeout-minutes: 45
@@ -64,35 +65,12 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3
 
-      - name: Validate disposable runner identity
-        shell: pwsh
-        env:
-          AD_LAB_DOMAIN: ${{ vars.AD_LAB_DOMAIN }}
-          AD_LAB_COMPUTER: ${{ vars.AD_LAB_COMPUTER }}
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:AD_LAB_DOMAIN)) {
-            throw "AD_LAB_DOMAIN is required."
-          }
-
-          $cs = Get-CimInstance Win32_ComputerSystem
-          Write-Host "Disposable self-hosted AD lab runner configuration detected."
-          Write-Host "Domain joined: $($cs.PartOfDomain)"
-
-          if (-not $cs.PartOfDomain) {
-            throw "The destructive lab runner must be domain joined."
-          }
-
-          if (-not [string]::IsNullOrWhiteSpace($env:AD_LAB_COMPUTER) -and
-              -not [string]::Equals($env:COMPUTERNAME, $env:AD_LAB_COMPUTER, [System.StringComparison]::OrdinalIgnoreCase)) {
-            throw "Runner name does not match AD_LAB_COMPUTER."
-          }
-
       - name: Build x64
         shell: cmd
         run: msbuild DomainMembershipCheckRepair.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=x64
 
       - name: Run disposable destructive scenario
-        shell: pwsh
+        shell: cmd
         env:
           AD_LAB_DOMAIN: ${{ vars.AD_LAB_DOMAIN }}
           AD_LAB_DC: ${{ vars.AD_LAB_DC }}
@@ -101,12 +79,11 @@ jobs:
           AD_LAB_USER: ${{ vars.AD_LAB_USER }}
           AD_LAB_PASSWORD: ${{ secrets.AD_LAB_PASSWORD }}
           LAB_SCENARIO: ${{ inputs.scenario }}
-        run: |
-          .\Tests\Integration\Run-ADDestructiveLab.ps1 -ExePath ".\bin\Release\x64\DomainMembershipCheckRepair.exe" -Scenario $env:LAB_SCENARIO -Domain $env:AD_LAB_DOMAIN -PreferredDc $env:AD_LAB_DC -ExpectedComputerName $env:AD_LAB_COMPUTER -TestOuDn $env:AD_LAB_TEST_OU_DN -OutputDirectory ".\destructive-artifacts"
+        run: Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe ad-destructive --exe bin\Release\x64\DomainMembershipCheckRepair.exe --scenario "%LAB_SCENARIO%" --domain "%AD_LAB_DOMAIN%" --dc "%AD_LAB_DC%" --computer "%AD_LAB_COMPUTER%" --test-ou "%AD_LAB_TEST_OU_DN%" --output destructive-artifacts
 
       - name: Sanitize destructive-lab artifacts
         if: always()
-        shell: pwsh
+        shell: cmd
         env:
           AD_LAB_DOMAIN: ${{ vars.AD_LAB_DOMAIN }}
           AD_LAB_DC: ${{ vars.AD_LAB_DC }}
@@ -114,10 +91,7 @@ jobs:
           AD_LAB_TEST_OU_DN: ${{ vars.AD_LAB_TEST_OU_DN }}
           AD_LAB_USER: ${{ vars.AD_LAB_USER }}
           AD_LAB_PASSWORD: ${{ secrets.AD_LAB_PASSWORD }}
-        run: |
-          if (Test-Path ".\destructive-artifacts") {
-            .\Tests\Integration\Sanitize-LabArtifacts.ps1 -InputDirectory ".\destructive-artifacts" -OutputDirectory ".\destructive-artifacts-sanitized"
-          }
+        run: if exist destructive-artifacts Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe sanitize-lab --input destructive-artifacts --output destructive-artifacts-sanitized
 
       - name: Upload sanitized destructive-lab artifacts
         if: ${{ always() && vars.LAB_UPLOAD_SANITIZED_ARTIFACTS == 'true' }}
@@ -130,7 +104,7 @@ jobs:
 
       - name: Clean lab artifacts from self-hosted runner
         if: always()
-        shell: pwsh
+        shell: cmd
         run: |
-          Remove-Item ".\destructive-artifacts" -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item ".\destructive-artifacts-sanitized" -Recurse -Force -ErrorAction SilentlyContinue
+          if exist destructive-artifacts rmdir /s /q destructive-artifacts
+          if exist destructive-artifacts-sanitized rmdir /s /q destructive-artifacts-sanitized
