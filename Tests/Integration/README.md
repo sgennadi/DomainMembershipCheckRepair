@@ -1,6 +1,6 @@
 # Active Directory integration-test harness
 
-This directory contains the live-domain integration harness for DomainMembershipCheckRepair.
+This directory documents the live-domain integration harness for DomainMembershipCheckRepair. The executable harness itself is implemented in the native C#/.NET Framework `Tools/` project; no PowerShell script is required.
 
 The normal GitHub-hosted Build workflow remains deterministic and does not require Active Directory. The AD Integration Lab workflow is intentionally manual and runs only when the repository variable AD_LAB_ENABLED is set to true.
 
@@ -61,7 +61,7 @@ The workflow is read-only. It does not invoke Repair Trust, Join/Rejoin, AD dele
 
 Each action writes local JSON/stderr evidence on the self-hosted runner. Raw lab evidence is **not uploaded by default**. Set the repository variable `LAB_UPLOAD_SANITIZED_ARTIFACTS=true` only when a troubleshooting artifact is required. Before upload, every text artifact passes through the fail-closed lab sanitizer, which redacts secrets and replaces environment identifiers with per-run opaque HMAC tokens. Non-text files are omitted. Uploaded sanitized artifacts are retained for 7 days, and both raw and sanitized working directories are deleted from the self-hosted runner at the end of the workflow.
 
-The normal Build workflow runs a synthetic sanitizer regression test and parses every repository PowerShell script, including the manual lab harnesses, so syntax/privacy regressions are caught even when no self-hosted lab runner is online.
+The normal Build workflow compiles the native `Tools/` project, runs a synthetic sanitizer regression test, and enforces a repository policy that rejects `.ps1` files entirely. The AD/EPM lab harnesses are C#/.NET Framework commands, so they are compiled on every protected build even when no self-hosted lab runner is online.
 
 
 ## Disposable destructive AD lab
