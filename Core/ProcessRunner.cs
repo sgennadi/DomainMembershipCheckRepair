@@ -187,17 +187,27 @@ namespace DomainMembershipCheckRepair
                     return systemPath;
             }
 
-            try
+            if (value.IndexOf(Path.DirectorySeparatorChar) >= 0 ||
+                value.IndexOf(Path.AltDirectorySeparatorChar) >= 0)
             {
-                string current = Path.GetFullPath(value);
-                if (File.Exists(current))
-                    return current;
-            }
-            catch
-            {
+                try
+                {
+                    string relative =
+                        Path.GetFullPath(
+                            Path.Combine(
+                                AppDomain.CurrentDomain.BaseDirectory,
+                                value));
+                    return File.Exists(relative)
+                        ? relative
+                        : String.Empty;
+                }
+                catch
+                {
+                    return String.Empty;
+                }
             }
 
-            return value;
+            return String.Empty;
         }
 
         }
