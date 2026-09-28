@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -33,6 +34,31 @@ namespace DomainMembershipCheckRepair
         internal static CommandResult Run(string fileName, string arguments, int timeoutMs)
         {
             return Run(fileName, arguments, timeoutMs, CancellationToken.None);
+        }
+
+        internal static CommandResult RunArguments(
+            string fileName,
+            IEnumerable<string> arguments,
+            int timeoutMs)
+        {
+            return RunArguments(
+                fileName,
+                arguments,
+                timeoutMs,
+                CancellationToken.None);
+        }
+
+        internal static CommandResult RunArguments(
+            string fileName,
+            IEnumerable<string> arguments,
+            int timeoutMs,
+            CancellationToken cancellationToken)
+        {
+            return Run(
+                fileName,
+                WindowsCommandLine.BuildArguments(arguments),
+                timeoutMs,
+                cancellationToken);
         }
 
         internal static CommandResult Run(
