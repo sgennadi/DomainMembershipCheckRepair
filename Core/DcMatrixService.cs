@@ -227,7 +227,19 @@ namespace DomainMembershipCheckRepair
             if (String.IsNullOrWhiteSpace(domain))
                 return hosts;
 
-            string output = RunProcess("nslookup.exe", "-type=SRV _ldap._tcp.dc._msdcs." + domain, 7000);
+            string domainError = DomainValidation.ValidateDomainArgument(domain);
+            if (domainError != null)
+                return hosts;
+
+            string output = RunProcessArguments(
+                "nslookup.exe",
+                new string[]
+                {
+                    "-type=SRV",
+                    "_ldap._tcp.dc._msdcs." + domain.Trim()
+                },
+                7000,
+                CancellationToken.None);
             if (String.IsNullOrWhiteSpace(output))
                 return hosts;
 
