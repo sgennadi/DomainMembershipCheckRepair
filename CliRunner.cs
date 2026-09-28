@@ -294,7 +294,7 @@ namespace DomainMembershipCheckRepair
             if (!String.IsNullOrWhiteSpace(result.Action))
             {
                 string action = result.Action.Trim().ToLowerInvariant();
-                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "mii-disable" && action != "detect" && action != "ad-check" && action != "ad-recycle-bin" && action != "ad-deleted" && action != "ad-restore" && action != "diagnose" && action != "export-diagnostics" && action != "advanced" && action != "netsetup" && action != "dc-matrix" && action != "site-subnet" && action != "protocols" && action != "hardening" && action != "join-permissions" && action != "hybrid-entra" && action != "policy-source" && action != "replication-metadata" && action != "spn-collisions" && action != "smb-kerberos" && action != "kerberos-deep" && action != "ldap-compatibility" && action != "rpc-endpoints" && action != "replication-timeline" && action != "identity-consistency" && action != "next-action" && action != "history" && action != "history-compare" && action != "transactions" && action != "rollback-local" && action != "self-test" && action != "recovery-plan" && action != "support-bundle" && action != "cyberark" && action != "safe-fixes" && action != "odj-apply" && action != "odj-provision")
+                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "mii-disable" && action != "detect" && action != "ad-check" && action != "ad-recycle-bin" && action != "ad-deleted" && action != "ad-restore" && action != "diagnose" && action != "export-diagnostics" && action != "advanced" && action != "netsetup" && action != "dc-matrix" && action != "site-subnet" && action != "protocols" && action != "hardening" && action != "join-permissions" && action != "hybrid-entra" && action != "policy-source" && action != "replication-metadata" && action != "spn-collisions" && action != "smb-kerberos" && action != "kerberos-deep" && action != "ldap-compatibility" && action != "rpc-endpoints" && action != "replication-timeline" && action != "identity-consistency" && action != "next-action" && action != "transactions" && action != "rollback-local" && action != "self-test" && action != "recovery-plan" && action != "support-bundle" && action != "cyberark" && action != "safe-fixes" && action != "odj-apply" && action != "odj-provision")
                 {
                     error = "Unknown action '" + result.Action + "'. Run --help to see the supported actions.";
                     return result;
@@ -397,8 +397,6 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("  --cli --action replication-timeline");
             Console.WriteLine("  --cli --action identity-consistency");
             Console.WriteLine("  --cli --action next-action");
-            Console.WriteLine("  --cli --action history");
-            Console.WriteLine("  --cli --action history-compare");
             Console.WriteLine("  --cli --action transactions");
             Console.WriteLine("  --cli --action rollback-local");
             Console.WriteLine("  --cli --action self-test");
@@ -609,8 +607,6 @@ namespace DomainMembershipCheckRepair
                     case "ad-recycle-bin": return AdRecycleBinStatusAction();
                     case "ad-deleted": return AdDeletedObject();
                     case "ad-restore": return RestoreDeletedAd();
-                    case "history": return DiagnosticHistory();
-                    case "history-compare": return CompareDiagnosticHistory();
                     case "diagnose": return Diagnostics();
                     case "export-diagnostics": return ExportDiagnostics();
                     default: return 3;
@@ -1002,13 +998,6 @@ namespace DomainMembershipCheckRepair
                 user,
                 password);
 
-            string historyPath;
-            string historyError;
-            if (DiagnosticHistoryService.TrySave(result, out historyPath, out historyError))
-                result.HistoryPath = historyPath;
-            else
-                result.HistoryError = historyError;
-
             int exitCode = ExitFromAdvanced(result);
             return WriteDiagnosticResult(
                 "advanced",
@@ -1186,49 +1175,6 @@ namespace DomainMembershipCheckRepair
                 AdRecycleBinRecoveryService.ToText(result));
 
             return result.Success ? 0 : 14;
-        }
-
-        private static int DiagnosticHistory()
-        {
-            List<DiagnosticHistoryRecord> records =
-                DiagnosticHistoryService.ListRecords(30);
-
-            int exitCode = records.Count == 0
-                ? DiagnosticExitCodes.NotTested
-                : DiagnosticExitCodes.Success;
-
-            return WriteDiagnosticResult(
-                "history",
-                records,
-                DiagnosticHistoryService.ListToText(records),
-                exitCode);
-        }
-
-        private static int CompareDiagnosticHistory()
-        {
-            DiagnosticHistoryComparison comparison;
-            string error;
-
-            if (!DiagnosticHistoryService.TryCompareLatest(
-                out comparison,
-                out error))
-            {
-                Dictionary<string, object> payload =
-                    new Dictionary<string, object>();
-                payload["error"] = error;
-
-                return WriteDiagnosticResult(
-                    "history-compare",
-                    payload,
-                    error,
-                    DiagnosticExitCodes.NotTested);
-            }
-
-            return WriteDiagnosticResult(
-                "history-compare",
-                comparison,
-                DiagnosticHistoryService.ToText(comparison),
-                DiagnosticExitCodes.Success);
         }
 
         private static int AnalyzeNetSetup()

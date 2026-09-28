@@ -55,8 +55,6 @@ namespace DomainMembershipCheckRepair
         private Button adRecoveryButton;
         private Button restoreDeletedAdButton;
         private Button nextActionButton;
-        private Button historyButton;
-        private Button compareHistoryButton;
         private Button transactionsButton;
         private Button rollbackLocalButton;
         private Button restartButton;
@@ -311,8 +309,6 @@ namespace DomainMembershipCheckRepair
             adRecoveryButton = CreateButton("AD Recovery", 110);
             restoreDeletedAdButton = CreateButton("Restore Deleted AD", 145);
             nextActionButton = CreateButton("Next Safe Action", 130);
-            historyButton = CreateButton("History", 90);
-            compareHistoryButton = CreateButton("Compare Runs", 115);
             transactionsButton = CreateButton("Transactions", 110);
             rollbackLocalButton = CreateButton("Rollback Local", 120);
             cancelDiagnosticsButton = CreateButton("Cancel Diagnostics", 135);
@@ -369,8 +365,6 @@ namespace DomainMembershipCheckRepair
             adRecoveryButton.Click += delegate { AdRecoveryWorkflow(); };
             restoreDeletedAdButton.Click += delegate { RestoreDeletedAdWorkflow(); };
             nextActionButton.Click += delegate { NextActionWorkflow(); };
-            historyButton.Click += delegate { HistoryWorkflow(); };
-            compareHistoryButton.Click += delegate { CompareHistoryWorkflow(); };
             transactionsButton.Click += delegate { TransactionsWorkflow(); };
             rollbackLocalButton.Click += delegate { RollbackLocalWorkflow(); };
             cancelDiagnosticsButton.Click += delegate { CancelDiagnosticOperation(); };
@@ -398,8 +392,6 @@ namespace DomainMembershipCheckRepair
                     recoveryPlanButton,
                     supportBundleButton,
                     selfTestButton,
-                    historyButton,
-                    compareHistoryButton,
                     aboutButton),
                 0,
                 0);
@@ -977,24 +969,11 @@ namespace DomainMembershipCheckRepair
                         token,
                         progress);
 
-                    token.ThrowIfCancellationRequested();
-                    progress("Saving diagnostic history");
-                    string historyPath;
-                    string historyError;
-                    if (DiagnosticHistoryService.TrySave(result, out historyPath, out historyError))
-                        result.HistoryPath = historyPath;
-                    else
-                        result.HistoryError = historyError;
-
                     return result;
                 },
                 delegate(AdvancedDiagnosticsResult result)
                 {
                     lastDiagnosticsSnapshot = result.Snapshot;
-                    if (!String.IsNullOrWhiteSpace(result.HistoryPath))
-                        Log("INFO", "Advanced diagnostic history saved: " + result.HistoryPath);
-                    else if (!String.IsNullOrWhiteSpace(result.HistoryError))
-                        Log("WARN", "Advanced diagnostic history was not saved: " + result.HistoryError);
 
                     ReportDialog.ShowReport(
                         this,
@@ -1765,39 +1744,6 @@ namespace DomainMembershipCheckRepair
 
             if (result.Success)
                 RefreshStatus(false);
-        }
-
-        private void HistoryWorkflow()
-        {
-            List<DiagnosticHistoryRecord> records =
-                DiagnosticHistoryService.ListRecords(30);
-
-            ReportDialog.ShowReport(
-                this,
-                "Diagnostic History",
-                DiagnosticHistoryService.ListToText(records));
-        }
-
-        private void CompareHistoryWorkflow()
-        {
-            DiagnosticHistoryComparison comparison;
-            string error;
-
-            if (!DiagnosticHistoryService.TryCompareLatest(
-                out comparison,
-                out error))
-            {
-                ReportDialog.ShowReport(
-                    this,
-                    "Compare Diagnostic Runs",
-                    error);
-                return;
-            }
-
-            ReportDialog.ShowReport(
-                this,
-                "Compare Diagnostic Runs",
-                DiagnosticHistoryService.ToText(comparison));
         }
 
         private void TransactionsWorkflow()
@@ -2898,8 +2844,6 @@ namespace DomainMembershipCheckRepair
             if (adRecoveryButton != null) adRecoveryButton.Enabled = !busy;
             if (restoreDeletedAdButton != null) restoreDeletedAdButton.Enabled = !busy;
             if (nextActionButton != null) nextActionButton.Enabled = !busy;
-            if (historyButton != null) historyButton.Enabled = !busy;
-            if (compareHistoryButton != null) compareHistoryButton.Enabled = !busy;
             if (transactionsButton != null) transactionsButton.Enabled = !busy;
             if (rollbackLocalButton != null) rollbackLocalButton.Enabled = !busy;
             if (restartButton != null) restartButton.Enabled = !busy;

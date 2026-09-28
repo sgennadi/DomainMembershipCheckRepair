@@ -57,18 +57,15 @@ Those Windows logs are produced by the operating system and are outside the dire
 
 ## Diagnostic exports
 
-The operator can explicitly export a diagnostic ZIP package. Depending on availability and the options selected, it may contain:
+The operator can explicitly export a diagnostic ZIP package. Depending on availability and the options selected, it may contain structured diagnostics, Windows command output, `NetSetup.log`, recovery metadata and the optional application log when explicitly requested.
 
-- `diagnostics.txt`
-- `diagnostics.json`
-- `NetSetup.log`
-- the optional application log, but only when explicitly requested
+Before the ZIP archive is created, the application sanitizes every collected text file. Detected password/token assignments and bearer tokens are removed. Environment identifiers such as known machine/domain/DC names, domain accounts, UPNs, IP/MAC addresses, SIDs, GUIDs, distinguished names and host FQDNs are replaced with per-bundle opaque tokens so repeated references can still be correlated without exposing the original value.
 
-The generated diagnostic report does not intentionally include the entered domain username or password. Windows logs or environment-specific diagnostic data may still contain machine names, domain names, server names, paths, IP addresses, account identifiers, or other administrative information.
+Sanitization is fail-closed per file: if collected content cannot be safely read and rewritten, the raw content is not packaged. A `redaction-summary.txt` file records only redaction categories/counts, not the original values.
+
+Automatic redaction is a defense-in-depth measure and cannot guarantee recognition of every possible environment-specific identifier. Operators should still review a bundle before external sharing.
 
 Diagnostic packages are created locally. The application does not automatically upload or transmit them anywhere.
-
-Operators should review diagnostic files before sharing them.
 
 ## Active Directory data
 

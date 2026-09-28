@@ -48,7 +48,6 @@ The release version has one source of truth: `VersionInfo.cs`. Assembly metadata
 - Smart Next Safe Action that highlights one immediate non-destructive next step and can block destructive recovery when evidence is unsafe.
 - Local transaction journal with allowlisted rollback for reversible MII/Netlogon changes.
 - Active Directory Recycle Bin readiness/search/restore workflow with a mandatory pre-delete recovery metadata package.
-- Per-user Advanced Diagnostics history with DC/Kerberos/SPN/replication/root-cause Compare Runs.
 - Hybrid Microsoft Entra diagnostics.
 - Automatic pre/post recovery snapshots and pre-change safety bundles.
 - Destructive AD Delete Safety Gate with cross-DC/RODC/child-object/recent-change checks.
@@ -109,8 +108,6 @@ The GUI provides:
 - AD Recovery
 - Restore Deleted AD
 - Next Safe Action
-- History
-- Compare Runs
 - Transactions
 - Rollback Local
 - About
@@ -188,8 +185,6 @@ DomainMembershipCheckRepair.exe --cli --action rpc-endpoints
 DomainMembershipCheckRepair.exe --cli --action replication-timeline
 DomainMembershipCheckRepair.exe --cli --action identity-consistency
 DomainMembershipCheckRepair.exe --cli --action next-action
-DomainMembershipCheckRepair.exe --cli --action history
-DomainMembershipCheckRepair.exe --cli --action history-compare
 DomainMembershipCheckRepair.exe --cli --action transactions
 DomainMembershipCheckRepair.exe --cli --action rollback-local
 DomainMembershipCheckRepair.exe --cli --action self-test
@@ -389,9 +384,7 @@ Version 1.6.0 additionally includes:
 - Active Directory Recycle Bin status detection through forest optional-feature state, read-only deleted-computer search, and guarded deleted-object restore;
 - a mandatory pre-delete AD recovery package under `%ProgramData%\DomainMembershipCheckRepair\RecoveryPackages`; Delete + Recreate fails closed if the package cannot be created;
 - deleted-object restore safety that requires Recycle Bin enabled, exactly one matching deleted object, a non-recycled/restorable state, the original parent to exist, and the original target DN to be free;
-- per-user Advanced Diagnostics history under `%LocalAppData%\DomainMembershipCheckRepair\History`, keeping a compact credential-free history of DC Matrix, Kerberos, SPN, replication, root-cause and Next Safe Action state;
-- History and Compare Runs reports that highlight tracked changes between the two latest records for the same computer;
-- integration of deep Kerberos/LDAP/RPC/identity/replication findings into Root Cause analysis, Recovery Plan and the Advanced Support Bundle.
+- integration of deep Kerberos/LDAP/RPC/identity/replication findings into Root Cause analysis, Recovery Plan and the sanitized Advanced Support Bundle.
 
 The Advanced GUI exposes the deep analyzers as individual reports. Actions are grouped into **Overview & Reports**, **Identity & Active Directory**, **Network & Protocols**, **Security & Hybrid**, and **Recovery & Operations**. Long-running read-only diagnostics run off the UI thread; Cancel interrupts cancellation-aware external commands immediately and stops other analyzers after the current Windows/LDAP API call returns.
 
@@ -463,7 +456,6 @@ The bundle can include:
 - Identity Consistency report
 - Next Safe Action report
 - latest transaction journal when present
-- latest diagnostic history record when present
 - latest pre-delete AD recovery package when present
 - diagnostics JSON
 - NetSetup.log analysis and original NetSetup.log
@@ -488,7 +480,7 @@ The bundle can include:
 - `nltest /dsgetdc`, `/dclist`, and `/sc_query`
 - optional application log
 
-Review the bundle before sharing because Windows logs and command output can contain environment-specific metadata.
+Before the ZIP is created, all collected text content is sanitized. Detected passwords/tokens are removed, while hostnames, domain/account identifiers, IP/MAC addresses, SIDs, GUIDs and distinguished names are replaced with per-bundle opaque tokens. Sanitization is fail-closed for individual files: content that cannot be sanitized is omitted/replaced rather than included raw. Automatic redaction reduces exposure but cannot guarantee detection of every environment-specific value, so review before external sharing.
 
 ### Machine-password consistency
 
@@ -609,7 +601,7 @@ DomainMembershipCheckRepair.exe --cli --action rollback-local
 
 `rollback-local` requires administrator elevation. The transaction directory is ACL-hardened, and the elevated rollback path independently enforces a fixed allowlist so editing a journal cannot request an arbitrary registry or service change.
 
-### AD Recycle Bin recovery and Diagnostic History
+### AD Recycle Bin recovery
 
 Before **Delete + Recreate** can delete an Active Directory computer object, the tool must successfully write a pre-delete recovery metadata package to:
 
@@ -629,21 +621,6 @@ CLI:
 DomainMembershipCheckRepair.exe --cli --action ad-recycle-bin --domain example.com --json
 DomainMembershipCheckRepair.exe --cli --action ad-deleted --domain example.com --computer PC-042 --json
 DomainMembershipCheckRepair.exe --cli --action ad-restore --domain example.com --computer PC-042
-```
-
-Advanced Diagnostics saves a compact record to:
-
-```text
-%LocalAppData%\DomainMembershipCheckRepair\History
-```
-
-The history record intentionally excludes credentials and raw command output. It tracks secure-channel state, computer GUID/pwdLastSet, DC Matrix state, Kerberos ticket state, SPN ownership, replication timeline, root causes and Next Safe Action. **Compare Runs** compares the newest record with the previous record for the same computer. The history store keeps the most recent 60 records.
-
-CLI:
-
-```text
-DomainMembershipCheckRepair.exe --cli --action history --json
-DomainMembershipCheckRepair.exe --cli --action history-compare --json
 ```
 
 ## Credentials and privacy

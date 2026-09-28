@@ -23,6 +23,8 @@
 - Expanded DC Matrix with per-DC SPN visibility/collision state and cross-DC computer/SPN consistency detection.
 - Moved Advanced GUI diagnostics to background execution with live step status and cooperative Cancel support, including cancellation-aware external command runners.
 - Added `advanced-diagnostics.json` to Advanced Support Bundles and regression tests for JSON, diagnostic exit codes, net-only credential parsing and SPN state fingerprints.
+- Advanced Support Bundles are now sanitized before ZIP packaging: detected secrets are removed and environment identifiers are replaced with per-bundle opaque tokens.
+- Support Bundle sanitization is fail-closed per file, with a redaction summary and regression coverage for secrets, UPNs, domain accounts, IP/MAC addresses, SIDs, GUIDs and DNs.
 - Added Kerberos Deep Analyzer for TGT/HOST/LDAP/CIFS tickets, KDC bindings, ticket encryption, flags, lifetime and time-skew evidence.
 - Added real LDAP compatibility tests for signed LDAP 389, LDAPS authenticated bind and TLS certificate/hostname validation.
 - Added native RPC Endpoint Mapper enumeration and concrete dynamic RPC TCP reachability tests without requiring PortQry.
@@ -43,9 +45,7 @@
 - Added a fail-closed pre-delete AD recovery metadata package under ProgramData; Delete + Recreate is blocked if the package cannot be written.
 - Added guarded deleted-object restore with elevation, explicit confirmation, Recycle Bin enforcement, unambiguous-match checks, original-parent validation and target-DN conflict protection.
 - Added GUI actions for AD Recovery and Restore Deleted AD plus CLI actions `ad-recycle-bin`, `ad-deleted` and `ad-restore`.
-- Added compact per-user Advanced Diagnostics history under LocalAppData and History / Compare Runs reports for DC Matrix, Kerberos, SPN, replication, root-cause and Next Safe Action changes.
-- Added CLI actions `history` and `history-compare`; Advanced Support Bundles now include the latest history record and pre-delete recovery package when present.
-- Expanded the live AD Integration Lab with read-only Recycle Bin/deleted-object readiness and history checks.
+- Expanded the live AD Integration Lab with read-only Recycle Bin/deleted-object readiness checks.
 - Added regression tests for Recycle Bin feature GUID, deleted-object LDAP filters, restore-DN construction/escaping and AD restore elevation/resume behavior.
 
 ## 1.5.0

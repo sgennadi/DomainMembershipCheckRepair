@@ -60,9 +60,7 @@ $actions = @(
     "ad-recycle-bin",
     "ad-deleted",
     "next-action",
-    "advanced",
-    "history",
-    "history-compare"
+    "advanced"
 )
 
 $allowedDiagnosticExitCodes = @(0, 20, 21, 22, 23)

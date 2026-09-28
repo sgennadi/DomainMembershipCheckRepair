@@ -96,6 +96,9 @@
     <Compile Include="..\Core\AdRecycleBinRecoveryService.cs">
       <Link>AdRecycleBinRecoveryService.cs</Link>
     </Compile>
+    <Compile Include="..\Core\SupportBundleSanitizer.cs">
+      <Link>SupportBundleSanitizer.cs</Link>
+    </Compile>
     <Compile Include="..\NativeMethods.cs">
       <Link>NativeMethods.cs</Link>
     </Compile>

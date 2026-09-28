@@ -128,11 +128,11 @@
     <Compile Include="Core\SmartNextActionService.cs" />
     <Compile Include="Core\TransactionJournalService.cs" />
     <Compile Include="Core\AdRecycleBinRecoveryService.cs" />
-    <Compile Include="Core\DiagnosticHistoryService.cs" />
     <Compile Include="Core\DeleteSafetyAnalyzer.cs" />
     <Compile Include="Core\SafetyBundleService.cs" />
     <Compile Include="Core\AdvancedDiagnosticsService.cs" />
     <Compile Include="Core\AdvancedSupportBundleService.cs" />
+    <Compile Include="Core\SupportBundleSanitizer.cs" />
     <Compile Include="Core\AdDirectoryService.cs" />
     <Compile Include="CliRunner.cs" />
     <Compile Include="MainForm.cs" />
