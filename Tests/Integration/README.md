@@ -58,7 +58,5 @@ The workflow is read-only. It does not invoke Repair Trust, Join/Rejoin, AD dele
 - ad-deleted
 - next-action
 - advanced
-- history
-- history-compare
 
-Each action's JSON and stderr are retained as a workflow artifact for later comparison.
+Each action's JSON and stderr are retained as a workflow artifact for troubleshooting and validation.
