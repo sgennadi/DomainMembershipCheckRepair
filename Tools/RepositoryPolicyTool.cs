@@ -93,6 +93,44 @@ namespace DomainMembershipCheckRepair.Tools
                 failures.Add(relative + " uses a self-hosted runner but is not restricted to refs/heads/main.");
             }
 
+            if (String.Equals(
+                Path.GetFileName(path),
+                "release.yml",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                if (Regex.IsMatch(
+                    text,
+                    @"(?m)^\s*workflow_dispatch\s*:",
+                    RegexOptions.IgnoreCase))
+                {
+                    failures.Add(relative + " must remain tag-triggered only; workflow_dispatch is not permitted.");
+                }
+
+                if (text.IndexOf(
+                    "release-validate-origin",
+                    StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    failures.Add(relative + " must validate protected-main release origin before signing.");
+                }
+
+                if (!Regex.IsMatch(
+                    text,
+                    @"(?im)^\s*checks\s*:\s*read\s*$"))
+                {
+                    failures.Add(relative + " must grant checks: read for release-origin validation.");
+                }
+
+                if (text.IndexOf(
+                    "--required-check build",
+                    StringComparison.Ordinal) < 0 ||
+                    text.IndexOf(
+                    "--required-check \"Analyze C#\"",
+                    StringComparison.Ordinal) < 0)
+                {
+                    failures.Add(relative + " must require the build and Analyze C# checks on the release commit.");
+                }
+            }
+
             for (int i = 0; i < lines.Length; i++)
             {
                 Match match = UsesRegex.Match(lines[i]);
