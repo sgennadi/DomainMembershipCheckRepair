@@ -29,8 +29,9 @@ Changes proposed by contributors who do not have commit access must be reviewed 
 7. The workflow verifies each Authenticode signature with `Get-AuthenticodeSignature`.
 8. SHA-256 checksums are generated from the final executables.
 9. GitHub build-provenance attestations are generated for the final release executables.
-10. The recommended protected-`main` ruleset is documented in `.github/BRANCH_PROTECTION.md`; enable it before signed production releases so Build and CodeQL are required before merge.
-10. Only then are the executables and `SHA256SUMS.txt` published to the GitHub Release.
+10. The protected-`main` ruleset requires the Build and CodeQL checks before merge.
+11. The signed release workflow validates Authenticode status, timestamp presence, ProductVersion, PE architecture, x86/x64 GUI/DPI startup, and generated SHA-256 checksums before publication.
+12. Only then are the executables and `SHA256SUMS.txt` published to the GitHub Release.
 
 The SignPath artifact configuration is stored in `.signpath/artifact-configuration.xml`. The repository also contains `.signpath/pipeline-policy.yml`, which requires GitHub-hosted runners. GitHub Actions used by the release workflow are pinned to immutable commits and use Node.js 24-compatible runtimes.
 
