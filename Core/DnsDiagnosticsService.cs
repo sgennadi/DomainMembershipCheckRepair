@@ -30,6 +30,16 @@ namespace DomainMembershipCheckRepair
             DnsDiagnosticsResult result = new DnsDiagnosticsResult();
             result.Domain = (domain ?? String.Empty).Trim();
 
+            string domainError =
+                DomainValidation.ValidateDomainArgument(result.Domain);
+            if (!String.IsNullOrWhiteSpace(result.Domain) &&
+                domainError != null)
+            {
+                result.Findings.Add(
+                    "Target domain is not safe for DNS command diagnostics.");
+                return result;
+            }
+
             HashSet<string> localAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             CollectAdapterDetails(result, localAddresses);
             result.LocalAddresses = JoinSet(localAddresses);
@@ -270,7 +280,11 @@ namespace DomainMembershipCheckRepair
 
         private static string RunNslookup(string name)
         {
-            CommandResult result = ProcessRunner.Run("nslookup.exe", "-type=SRV " + name, 7000);
+            CommandResult result =
+                ProcessRunner.RunArguments(
+                    "nslookup.exe",
+                    new string[] { "-type=SRV", name },
+                    7000);
             if (!String.IsNullOrWhiteSpace(result.Error))
                 return result.Error;
             return result.CombinedOutput.Trim();
