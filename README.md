@@ -281,9 +281,10 @@ The ZIP can contain:
 - `diagnostics.json`
 - `NetSetup.log`, when present
 - `DomainMembershipRepair.log`, only when explicitly requested with `--include-app-log`
+- `redaction-summary.txt`
 - a small README explaining the package
 
-The diagnostic report intentionally does not contain the entered domain username or password. Windows and third-party logs can still contain environment-specific information, so review exported logs before sharing them.
+Standard Export Diagnostics and Advanced Support Bundle now use the same fail-closed redaction pipeline before ZIP creation. Detected passwords/tokens are removed, while machine/domain/DC names and common account/network/AD identifiers are replaced with per-bundle opaque tokens. If a collected file cannot be sanitized, its raw content is not packaged. The default diagnostic ZIP name no longer contains the computer name. Automatic redaction is defense in depth, so review a bundle before external sharing.
 
 ## Root-cause diagnostics
 
@@ -690,6 +691,8 @@ ARM64 local compilation requires Visual Studio 2022/Build Tools, MSBuild, .NET d
 ## GitHub Actions and supply-chain security
 
 The repository uses Node.js 24-compatible GitHub Actions. Actions are pinned to immutable commit SHAs.
+
+The recommended `main` ruleset is documented in `.github/BRANCH_PROTECTION.md`: PR-only changes, required `build` and `Analyze C#` checks, conversation resolution, and force-push/deletion protection.
 
 `build.yml`:
 
