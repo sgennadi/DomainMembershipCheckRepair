@@ -210,6 +210,5 @@ namespace DomainMembershipCheckRepair
             return String.Empty;
         }
 
-        }
     }
 }
