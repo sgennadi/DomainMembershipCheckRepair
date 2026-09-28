@@ -25,37 +25,36 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3
 
+      - name: Build native repository tools
+        shell: cmd
+        run: msbuild Tools\DomainMembershipCheckRepair.Tools.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU
+
+      - name: Validate repository policies
+        shell: cmd
+        run: Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe validate-repository --root .
+
       - name: Validate release tag
-        shell: pwsh
-        run: |
-          $source = Get-Content .\VersionInfo.cs -Raw
-          $match = [regex]::Match($source, 'ProductVersion\s*=\s*"([^"]+)"')
-          if (-not $match.Success) { throw "Could not read ProductVersion from VersionInfo.cs" }
-          $expected = "v$($match.Groups[1].Value)"
-          if ($env:GITHUB_REF_NAME -ne $expected) {
-            throw "Tag $env:GITHUB_REF_NAME does not match VersionInfo.cs ($expected)"
-          }
+        shell: cmd
+        run: Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe release-validate-tag --root .
 
       - name: Verify .NET Framework targeting packs
-        shell: pwsh
+        shell: cmd
         run: |
-          $base = "${env:ProgramFiles(x86)}\Reference Assemblies\Microsoft\Framework\.NETFramework"
-          if (-not (Test-Path "$base\v4.8\mscorlib.dll")) { throw ".NET Framework 4.8 targeting pack is missing" }
-          if (-not (Test-Path "$base\v4.8.1\mscorlib.dll")) { throw ".NET Framework 4.8.1 targeting pack is missing (required for ARM64)" }
+          if not exist "%ProgramFiles(x86)%\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\mscorlib.dll" exit /b 1
+          if not exist "%ProgramFiles(x86)%\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8.1\mscorlib.dll" exit /b 1
 
       - name: Build unit tests
         shell: cmd
         run: msbuild Tests\DomainMembershipCheckRepair.Tests.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU
 
       - name: Run unit tests
-        shell: pwsh
-        run: |
-          & .\Tests\bin\Release\DomainMembershipCheckRepair.Tests.exe
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        shell: cmd
+        run: Tests\bin\Release\DomainMembershipCheckRepair.Tests.exe
 
       - name: Build x86
         shell: cmd
@@ -71,42 +70,8 @@ jobs:
 
       - name: Prepare unsigned release files
         id: prepare
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force unsigned | Out-Null
-          New-Item -ItemType Directory -Force release-configs | Out-Null
-          $configs = @(
-            ".\bin\Release\x86\DomainMembershipCheckRepair.exe.config",
-            ".\bin\Release\x64\DomainMembershipCheckRepair.exe.config",
-            ".\bin\Release\ARM64\DomainMembershipCheckRepair.exe.config"
-          )
-          foreach ($config in $configs) {
-            if (-not (Test-Path $config)) { throw "Required DPI config is missing: $config" }
-            $configText = Get-Content $config -Raw
-            if ($configText -notmatch 'PerMonitorV2') { throw "PerMonitorV2 is missing from: $config" }
-          }
-
-          Copy-Item .\bin\Release\x86\DomainMembershipCheckRepair.exe .\unsigned\DomainMembershipCheckRepair-x86.exe
-          Copy-Item .\bin\Release\x64\DomainMembershipCheckRepair.exe .\unsigned\DomainMembershipCheckRepair-x64.exe
-          Copy-Item .\bin\Release\ARM64\DomainMembershipCheckRepair.exe .\unsigned\DomainMembershipCheckRepair-arm64.exe
-          Copy-Item .\bin\Release\x86\DomainMembershipCheckRepair.exe.config .\release-configs\DomainMembershipCheckRepair-x86.exe.config
-          Copy-Item .\bin\Release\x64\DomainMembershipCheckRepair.exe.config .\release-configs\DomainMembershipCheckRepair-x64.exe.config
-          Copy-Item .\bin\Release\ARM64\DomainMembershipCheckRepair.exe.config .\release-configs\DomainMembershipCheckRepair-arm64.exe.config
-
-          $version = (Get-Item .\bin\Release\x64\DomainMembershipCheckRepair.exe).VersionInfo.ProductVersion
-          if ([string]::IsNullOrWhiteSpace($version)) {
-            throw "Unable to read ProductVersion from the built executable."
-          }
-
-          $source = Get-Content .\VersionInfo.cs -Raw
-          $match = [regex]::Match($source, 'ProductVersion\s*=\s*"([^"]+)"')
-          if (-not $match.Success) { throw "Could not read ProductVersion from VersionInfo.cs" }
-          if ($version -ne $match.Groups[1].Value) {
-            throw "Built ProductVersion '$version' does not match VersionInfo.cs '$($match.Groups[1].Value)'"
-          }
-
-          Write-Host "ProductVersion: $version"
-          "product_version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        shell: cmd
+        run: Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe release-prepare --root . --unsigned unsigned --configs release-configs --github-output "%GITHUB_OUTPUT%"
 
       - name: Upload unsigned artifact for SignPath origin verification
         id: upload-unsigned
@@ -118,16 +83,10 @@ jobs:
           retention-days: 14
 
       - name: Validate mandatory SignPath configuration
-        shell: pwsh
+        shell: cmd
         env:
           SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:SIGNPATH_ORGANIZATION_ID)) {
-            throw "SIGNPATH_ORGANIZATION_ID repository variable is required. Future releases are signing-required and will not publish unsigned binaries."
-          }
-          if ([string]::IsNullOrWhiteSpace($env:SIGNPATH_API_TOKEN)) {
-            throw "SIGNPATH_API_TOKEN repository secret is required. Future releases are signing-required and will not publish unsigned binaries."
-          }
+        run: Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe release-validate-signpath
 
       - name: Submit mandatory SignPath signing request
         uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3, Node.js 24
@@ -144,144 +103,19 @@ jobs:
             version: ${{ toJSON(steps.prepare.outputs.product_version) }}
 
       - name: Validate SignPath-signed executables
-        shell: pwsh
+        shell: cmd
         env:
           EXPECTED_VERSION: ${{ steps.prepare.outputs.product_version }}
-          EXPECTED_SIGNER_SUBJECT: ${{ vars.SIGNPATH_EXPECTED_SIGNER_SUBJECT }}
-        run: |
-          function Get-PeMachine([string]$Path) {
-            $bytes = [System.IO.File]::ReadAllBytes($Path)
-            if ($bytes.Length -lt 0x40) { throw "Invalid PE file: $Path" }
-            $peOffset = [BitConverter]::ToInt32($bytes, 0x3c)
-            if ($peOffset -lt 0 -or ($peOffset + 6) -ge $bytes.Length) {
-              throw "Invalid PE header offset: $Path"
-            }
-            return [BitConverter]::ToUInt16($bytes, $peOffset + 4)
-          }
-
-          $expectedMachines = @{
-            "DomainMembershipCheckRepair-x86.exe" = 0x014c
-            "DomainMembershipCheckRepair-x64.exe" = 0x8664
-            "DomainMembershipCheckRepair-arm64.exe" = 0xaa64
-          }
-
-          foreach ($name in $expectedMachines.Keys) {
-            $file = Get-ChildItem -Path .\signed -Recurse -File -Filter $name | Select-Object -First 1
-            if (-not $file) {
-              throw "Signed artifact is missing $name"
-            }
-
-            $sig = Get-AuthenticodeSignature -FilePath $file.FullName
-            Write-Host "$name : $($sig.Status) : $($sig.SignerCertificate.Subject)"
-            if ($sig.Status -ne "Valid") {
-              throw "Authenticode validation failed for $name. Status: $($sig.Status)"
-            }
-            if ($null -eq $sig.SignerCertificate) {
-              throw "Signer certificate is missing for $name"
-            }
-            if ($null -eq $sig.TimeStamperCertificate) {
-              throw "Trusted timestamp certificate is missing for $name"
-            }
-
-            if (-not [string]::IsNullOrWhiteSpace($env:EXPECTED_SIGNER_SUBJECT) -and
-                $sig.SignerCertificate.Subject -notlike ("*" + $env:EXPECTED_SIGNER_SUBJECT + "*")) {
-              throw "Signer subject for $name does not match SIGNPATH_EXPECTED_SIGNER_SUBJECT. Actual: $($sig.SignerCertificate.Subject)"
-            }
-
-            $version = $file.VersionInfo.ProductVersion
-            if ($version -ne $env:EXPECTED_VERSION) {
-              throw "$name ProductVersion '$version' does not match expected '$env:EXPECTED_VERSION'"
-            }
-
-            $machine = Get-PeMachine $file.FullName
-            if ($machine -ne $expectedMachines[$name]) {
-              throw ("$name has unexpected PE machine 0x{0:x4}" -f $machine)
-            }
-          }
+          SIGNPATH_EXPECTED_SIGNER_SUBJECT: ${{ vars.SIGNPATH_EXPECTED_SIGNER_SUBJECT }}
+        run: Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe release-validate-signed --signed signed --expected-version "%EXPECTED_VERSION%"
 
       - name: Finalize release files and checksums
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force release-files | Out-Null
-          $names = @(
-            "DomainMembershipCheckRepair-x86.exe",
-            "DomainMembershipCheckRepair-x64.exe",
-            "DomainMembershipCheckRepair-arm64.exe"
-          )
-
-          foreach ($name in $names) {
-            $file = Get-ChildItem -Path .\signed -Recurse -File -Filter $name | Select-Object -First 1
-            if (-not $file) { throw "Signed file not found: $name" }
-            Copy-Item $file.FullName (Join-Path .\release-files $name)
-          }
-
-          Copy-Item .\release-configs\DomainMembershipCheckRepair-x86.exe.config .\release-files\DomainMembershipCheckRepair-x86.exe.config
-          Copy-Item .\release-configs\DomainMembershipCheckRepair-x64.exe.config .\release-files\DomainMembershipCheckRepair-x64.exe.config
-          Copy-Item .\release-configs\DomainMembershipCheckRepair-arm64.exe.config .\release-files\DomainMembershipCheckRepair-arm64.exe.config
-
-          $signingStatus = "These release executables are Authenticode-signed using SignPath.io with a certificate provided by SignPath Foundation. The workflow refuses to publish unsigned release binaries."
-
-          $lines = Get-ChildItem .\release-files\DomainMembershipCheckRepair-* -File | Sort-Object Name | ForEach-Object {
-            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-            "$hash  $($_.Name)"
-          }
-          $lines | Set-Content -Encoding ascii .\release-files\SHA256SUMS.txt
-
-          @"
-          ## Code signing policy
-
-          Free code signing provided by [SignPath.io](https://signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
-
-          $signingStatus
-
-          See the repository [Code signing policy](https://github.com/sgennadi/DomainMembershipCheckRepair/blob/main/SIGNING.md) for build, approval, privacy, and verification details.
-
-          ## Supply-chain verification
-
-          SHA-256 checksums are attached to this release. GitHub build-provenance attestations are generated for the final release files.
-
-          Keep the matching .exe.config file next to the executable. It contains the required WinForms PerMonitorV2/high-DPI configuration.
-
-          ## Source
-
-          Tag: $env:GITHUB_REF_NAME
-
-          Full changelog: https://github.com/sgennadi/DomainMembershipCheckRepair/commits/$env:GITHUB_REF_NAME
-          "@ | Set-Content -Encoding utf8 .\release-files\RELEASE_NOTES.md
+        shell: cmd
+        run: Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe release-finalize --signed signed --configs release-configs --output release-files
 
       - name: Smoke-test signed release files
-        shell: pwsh
-        run: |
-          foreach ($name in @(
-            "DomainMembershipCheckRepair-x86.exe",
-            "DomainMembershipCheckRepair-x64.exe"
-          )) {
-            $path = Join-Path .\release-files $name
-            Write-Host "Running GUI/DPI smoke test: $name"
-            & $path --cli --action ui-smoke --json
-            if ($LASTEXITCODE -ne 0) {
-              throw "$name GUI/DPI smoke test failed with exit code $LASTEXITCODE"
-            }
-          }
-
-          $sumFile = ".\release-files\SHA256SUMS.txt"
-          foreach ($line in Get-Content $sumFile) {
-            if ([string]::IsNullOrWhiteSpace($line) -or $line.Length -lt 67) {
-              throw "Invalid SHA256SUMS line: $line"
-            }
-
-            $expected = $line.Substring(0, 64).ToLowerInvariant()
-            $fileName = $line.Substring(66)
-            $path = Join-Path .\release-files $fileName
-            if (-not (Test-Path $path)) {
-              throw "Checksum entry references missing file: $fileName"
-            }
-
-            $actual = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($actual -ne $expected) {
-              throw "Checksum verification failed for $fileName"
-            }
-          }
+        shell: cmd
+        run: Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe release-smoke --directory release-files
 
       - name: Attest final release files
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
@@ -289,17 +123,7 @@ jobs:
           subject-checksums: release-files/SHA256SUMS.txt
 
       - name: Publish GitHub Release
-        shell: pwsh
+        shell: cmd
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "$env:GITHUB_REF_NAME" `
-            .\release-files\DomainMembershipCheckRepair-x86.exe `
-            .\release-files\DomainMembershipCheckRepair-x86.exe.config `
-            .\release-files\DomainMembershipCheckRepair-x64.exe `
-            .\release-files\DomainMembershipCheckRepair-x64.exe.config `
-            .\release-files\DomainMembershipCheckRepair-arm64.exe `
-            .\release-files\DomainMembershipCheckRepair-arm64.exe.config `
-            .\release-files\SHA256SUMS.txt `
-            --notes-file .\release-files\RELEASE_NOTES.md `
-            --title "$env:GITHUB_REF_NAME"
+        run: gh release create "%GITHUB_REF_NAME%" release-files\DomainMembershipCheckRepair-x86.exe release-files\DomainMembershipCheckRepair-x86.exe.config release-files\DomainMembershipCheckRepair-x64.exe release-files\DomainMembershipCheckRepair-x64.exe.config release-files\DomainMembershipCheckRepair-arm64.exe release-files\DomainMembershipCheckRepair-arm64.exe.config release-files\SHA256SUMS.txt --notes-file release-files\RELEASE_NOTES.md --title "%GITHUB_REF_NAME%"
