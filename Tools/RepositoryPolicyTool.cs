@@ -120,6 +120,13 @@ namespace DomainMembershipCheckRepair.Tools
                     failures.Add(relative + " must grant checks: read for release-origin validation.");
                 }
 
+                if (!Regex.IsMatch(
+                    text,
+                    @"(?im)^\s*actions\s*:\s*read\s*$"))
+                {
+                    failures.Add(relative + " must grant actions: read for main-push workflow correlation.");
+                }
+
                 if (text.IndexOf(
                     "--required-check build",
                     StringComparison.Ordinal) < 0 ||
