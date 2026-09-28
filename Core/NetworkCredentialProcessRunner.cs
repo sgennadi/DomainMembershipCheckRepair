@@ -297,11 +297,6 @@ namespace DomainMembershipCheckRepair
             return new StreamReader(stream, Encoding.Default, true);
         }
 
-        private static string Quote(string value)
-        {
-            return "\"" + (value ?? String.Empty).Replace("\"", "\\\"") + "\"";
-        }
-
         private static void CloseHandleSafe(ref IntPtr handle)
         {
             if (handle == IntPtr.Zero || handle == new IntPtr(-1))
