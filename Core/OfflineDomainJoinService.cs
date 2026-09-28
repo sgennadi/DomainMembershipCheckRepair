@@ -17,7 +17,10 @@ namespace DomainMembershipCheckRepair
             }
 
             string full = Path.GetFullPath(blobPath);
-            return RunDjoin("/requestODJ /loadfile " + Quote(full) + " /windowspath " + Quote(Environment.GetFolderPath(Environment.SpecialFolder.Windows)) + " /localos", out output);
+            string arguments = BuildApplyArguments(
+                full,
+                Environment.GetFolderPath(Environment.SpecialFolder.Windows));
+            return RunDjoin(arguments, out output);
         }
 
         internal static int ProvisionBlob(string domain, string machine, string outputPath, bool reuse, out string output)
@@ -29,11 +32,36 @@ namespace DomainMembershipCheckRepair
                 return 3;
             }
 
-            string args = "/provision /domain " + Quote(domain) +
-                          " /machine " + Quote(machine) +
-                          " /savefile " + Quote(Path.GetFullPath(outputPath));
-            if (reuse)
-                args += " /reuse";
+            string domainError = DomainValidation.ValidateDomainArgument(domain);
+            if (domainError != null)
+            {
+                output = "Invalid domain: " + domainError;
+                return 3;
+            }
+
+            string machineError = DomainValidation.ValidateComputerName(machine);
+            if (machineError != null)
+            {
+                output = "Invalid computer name: " + machineError;
+                return 3;
+            }
+
+            string fullOutputPath;
+            try
+            {
+                fullOutputPath = Path.GetFullPath(outputPath);
+            }
+            catch (Exception ex)
+            {
+                output = "Invalid output path: " + ex.Message;
+                return 3;
+            }
+
+            string args = BuildProvisionArguments(
+                domain.Trim(),
+                machine.Trim(),
+                fullOutputPath,
+                reuse);
 
             return RunDjoin(args, out output);
         }
@@ -59,9 +87,35 @@ namespace DomainMembershipCheckRepair
             return result.ExitCode;
         }
 
-        private static string Quote(string value)
+        internal static string BuildApplyArguments(
+            string blobPath,
+            string windowsPath)
         {
-            return "\"" + (value ?? String.Empty).Replace("\"", "\\\"") + "\"";
+            return "/requestODJ /loadfile " +
+                   WindowsCommandLine.QuoteArgument(blobPath) +
+                   " /windowspath " +
+                   WindowsCommandLine.QuoteArgument(windowsPath) +
+                   " /localos";
+        }
+
+        internal static string BuildProvisionArguments(
+            string domain,
+            string machine,
+            string outputPath,
+            bool reuse)
+        {
+            string arguments =
+                "/provision /domain " +
+                WindowsCommandLine.QuoteArgument(domain) +
+                " /machine " +
+                WindowsCommandLine.QuoteArgument(machine) +
+                " /savefile " +
+                WindowsCommandLine.QuoteArgument(outputPath);
+
+            if (reuse)
+                arguments += " /reuse";
+
+            return arguments;
         }
     }
 }
