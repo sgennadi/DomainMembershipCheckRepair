@@ -165,13 +165,13 @@ foreach ($file in $files) {
             }
         }
 
-        $text = Replace-Pattern -Text $text -Pattern '(?im)\b(?:password|passwd|pwd|client[_-]?secret|access[_-]?token|refresh[_-]?token|authorization)\b\s*[:=]\s*[^\s,;]+' -Category "SECRET" -Secret
         $text = Replace-Pattern -Text $text -Pattern '(?i)\bBearer\s+[A-Za-z0-9._~+\-/]+=*' -Category "BEARER" -Secret
+        $text = Replace-Pattern -Text $text -Pattern '(?im)\b(?:password|passwd|pwd|client[_-]?secret|access[_-]?token|refresh[_-]?token|authorization)\b\s*[:=]\s*[^\s,;]+' -Category "SECRET" -Secret
         $text = Replace-Pattern -Text $text -Pattern '(?i)\bS-1-(?:\d+-){1,14}\d+\b' -Category "SID"
         $text = Replace-Pattern -Text $text -Pattern '(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b' -Category "GUID"
         $text = Replace-Pattern -Text $text -Pattern '(?i)\b(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}\b' -Category "MAC"
         $text = Replace-Pattern -Text $text -Pattern '(?i)\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b' -Category "IPV4"
-        $text = Replace-Pattern -Text $text -Pattern '(?i)(?:^|\s)(?:[0-9a-f]{1,4}:){2,7}[0-9a-f]{0,4}(?=$|\s|[,;\]\)])' -Category "IPV6"
+        $text = Replace-Pattern -Text $text -Pattern '(?i)(?<![0-9a-f:])(?=[0-9a-f:]*:)[0-9a-f]{0,4}(?::[0-9a-f]{0,4}){2,7}(?![0-9a-f:])' -Category "IPV6"
         $text = Replace-Pattern -Text $text -Pattern '(?i)\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,63}\b' -Category "UPN"
         $text = Replace-Pattern -Text $text -Pattern '(?i)\b[A-Za-z0-9._-]{1,64}\\[A-Za-z0-9.$_-]{1,64}\b' -Category "DOMAIN_ACCOUNT"
         $text = Replace-Pattern -Text $text -Pattern '(?i)(?:CN|OU|DC)=[^,\r\n]+(?:,(?:CN|OU|DC)=[^,\r\n]+)+' -Category "DN"
