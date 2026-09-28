@@ -536,12 +536,6 @@ namespace DomainMembershipCheckRepair
             return result.ExitCode != 0;
         }
 
-        private static string Quote(string value)
-        {
-            string text = value ?? String.Empty;
-            return "\"" + text.Replace("\"", "\\\"") + "\"";
-        }
-
         private static string First(string value, string fallback)
         {
             return String.IsNullOrWhiteSpace(value) ? fallback : value;
