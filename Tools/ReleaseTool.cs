@@ -454,7 +454,6 @@ namespace DomainMembershipCheckRepair.Tools
             foreach (string required in requiredChecks)
             {
                 Dictionary<string, object> latest = null;
-                DateTimeOffset latestCompleted = DateTimeOffset.MinValue;
                 long latestId = -1;
 
                 foreach (object raw in runs)
@@ -493,30 +492,14 @@ namespace DomainMembershipCheckRepair.Tools
                         continue;
                     }
 
-                    DateTimeOffset completed = DateTimeOffset.MinValue;
-                    object completedValue;
-                    if (run.TryGetValue("completed_at", out completedValue))
-                    {
-                        DateTimeOffset parsed;
-                        if (DateTimeOffset.TryParse(
-                            Convert.ToString(completedValue),
-                            out parsed))
-                        {
-                            completed = parsed;
-                        }
-                    }
-
                     long id = 0;
                     object idValue;
                     if (run.TryGetValue("id", out idValue))
                         Int64.TryParse(Convert.ToString(idValue), out id);
 
-                    if (latest == null ||
-                        completed > latestCompleted ||
-                        (completed == latestCompleted && id > latestId))
+                    if (latest == null || id > latestId)
                     {
                         latest = run;
-                        latestCompleted = completed;
                         latestId = id;
                     }
                 }
