@@ -4,7 +4,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
-using System.Text;
 using System.Windows.Forms;
 
 namespace DomainMembershipCheckRepair
@@ -112,7 +111,7 @@ namespace DomainMembershipCheckRepair
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = Application.ExecutablePath;
-                psi.Arguments = BuildArgumentString(args);
+                psi.Arguments = BuildElevationArguments(args);
                 psi.WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory;
                 psi.Verb = "runas";
                 psi.UseShellExecute = true;
@@ -172,63 +171,10 @@ namespace DomainMembershipCheckRepair
             return (args[index] ?? String.Empty).Trim();
         }
 
-        private static string BuildArgumentString(IEnumerable<string> args)
+        internal static string BuildElevationArguments(
+            IEnumerable<string> args)
         {
-            StringBuilder builder = new StringBuilder();
-            if (args != null)
-            {
-                foreach (string arg in args)
-                {
-                    if (builder.Length > 0)
-                        builder.Append(' ');
-                    builder.Append(QuoteArgument(arg ?? String.Empty));
-                }
-            }
-            return builder.ToString();
-        }
-
-        private static string QuoteArgument(string value)
-        {
-            if (value.Length == 0)
-                return "\"\"";
-
-            bool needsQuotes = value.IndexOfAny(new char[] { ' ', '\t', '"' }) >= 0;
-            if (!needsQuotes)
-                return value;
-
-            StringBuilder result = new StringBuilder();
-            result.Append('"');
-            int slashes = 0;
-
-            foreach (char c in value)
-            {
-                if (c == '\\')
-                {
-                    slashes++;
-                    continue;
-                }
-
-                if (c == '"')
-                {
-                    result.Append('\\', slashes * 2 + 1);
-                    result.Append('"');
-                    slashes = 0;
-                    continue;
-                }
-
-                if (slashes > 0)
-                {
-                    result.Append('\\', slashes);
-                    slashes = 0;
-                }
-                result.Append(c);
-            }
-
-            if (slashes > 0)
-                result.Append('\\', slashes * 2);
-
-            result.Append('"');
-            return result.ToString();
+            return WindowsCommandLine.BuildArguments(args);
         }
 
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
