@@ -20,6 +20,10 @@ permissions:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
+concurrency:
+  group: epm-integration-lab
+  cancel-in-progress: false
+
 jobs:
   epm-integration:
     if: ${{ vars.EPM_LAB_ENABLED == 'true' }}
@@ -38,8 +42,7 @@ jobs:
       - name: Validate interactive EPM runner
         shell: pwsh
         run: |
-          Write-Host "Computer: $env:COMPUTERNAME"
-          Write-Host "Identity: $([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)"
+          Write-Host "Interactive EPM lab runner check."
           Write-Host "UserInteractive: $([Environment]::UserInteractive)"
           if (-not [Environment]::UserInteractive) {
             throw "The epm-lab runner must run interactively so CyberArk/UAC elevation can be brokered."
@@ -60,11 +63,26 @@ jobs:
           $detected = [System.Convert]::ToBoolean($env:REQUIRE_CYBERARK_DETECTION)
           .\Tests\Integration\Run-EpmIntegrationTests.ps1 -ExePath ".\bin\Release\x64\DomainMembershipCheckRepair.exe" -OutputDirectory ".\epm-artifacts" -RequireStandardUser $standard -RequireCyberArkDetection $detected
 
-      - name: Upload EPM validation artifacts
+      - name: Sanitize EPM validation artifacts
         if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path ".\epm-artifacts") {
+            .\Tests\Integration\Sanitize-LabArtifacts.ps1 -InputDirectory ".\epm-artifacts" -OutputDirectory ".\epm-artifacts-sanitized"
+          }
+
+      - name: Upload sanitized EPM validation artifacts
+        if: ${{ always() && vars.LAB_UPLOAD_SANITIZED_ARTIFACTS == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: epm-integration-${{ github.run_id }}
-          path: epm-artifacts/*
+          name: epm-integration-sanitized-${{ github.run_id }}
+          path: epm-artifacts-sanitized/*
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 7
+
+      - name: Clean lab artifacts from self-hosted runner
+        if: always()
+        shell: pwsh
+        run: |
+          Remove-Item ".\epm-artifacts" -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item ".\epm-artifacts-sanitized" -Recurse -Force -ErrorAction SilentlyContinue
