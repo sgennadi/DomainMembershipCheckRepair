@@ -300,7 +300,7 @@ namespace DomainMembershipCheckRepair
             if (!String.IsNullOrWhiteSpace(result.Action))
             {
                 string action = result.Action.Trim().ToLowerInvariant();
-                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "mii-disable" && action != "detect" && action != "ad-check" && action != "ad-recycle-bin" && action != "ad-deleted" && action != "ad-restore" && action != "diagnose" && action != "export-diagnostics" && action != "advanced" && action != "netsetup" && action != "dc-matrix" && action != "site-subnet" && action != "protocols" && action != "hardening" && action != "join-permissions" && action != "hybrid-entra" && action != "policy-source" && action != "replication-metadata" && action != "spn-collisions" && action != "smb-kerberos" && action != "kerberos-deep" && action != "ldap-compatibility" && action != "rpc-endpoints" && action != "replication-timeline" && action != "identity-consistency" && action != "next-action" && action != "transactions" && action != "rollback-local" && action != "self-test" && action != "recovery-plan" && action != "support-bundle" && action != "cyberark" && action != "elevation-probe" && action != "safe-fixes" && action != "odj-apply" && action != "odj-provision")
+                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "mii-disable" && action != "detect" && action != "ad-check" && action != "ad-recycle-bin" && action != "ad-deleted" && action != "ad-restore" && action != "diagnose" && action != "export-diagnostics" && action != "advanced" && action != "netsetup" && action != "dc-matrix" && action != "site-subnet" && action != "protocols" && action != "hardening" && action != "join-permissions" && action != "hybrid-entra" && action != "policy-source" && action != "replication-metadata" && action != "spn-collisions" && action != "smb-kerberos" && action != "kerberos-deep" && action != "ldap-compatibility" && action != "rpc-endpoints" && action != "replication-timeline" && action != "identity-consistency" && action != "next-action" && action != "transactions" && action != "rollback-local" && action != "self-test" && action != "recovery-plan" && action != "support-bundle" && action != "cyberark" && action != "elevation-probe" && action != "ui-smoke" && action != "safe-fixes" && action != "odj-apply" && action != "odj-provision")
                 {
                     error = "Unknown action '" + result.Action + "'. Run --help to see the supported actions.";
                     return result;
@@ -410,6 +410,7 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("  --cli --action support-bundle");
             Console.WriteLine("  --cli --action cyberark");
             Console.WriteLine("  --cli --action elevation-probe");
+            Console.WriteLine("  --cli --action ui-smoke");
             Console.WriteLine("  --cli --action safe-fixes");
             Console.WriteLine("  --cli --action odj-apply --blob PATH");
             Console.WriteLine("  --cli --action odj-provision --domain DOMAIN --computer NAME --output PATH [--reuse]");
@@ -608,6 +609,7 @@ namespace DomainMembershipCheckRepair
                     case "support-bundle": return SupportBundle();
                     case "cyberark": return CyberArkHealth();
                     case "elevation-probe": return ElevationProbe();
+                    case "ui-smoke": return MainForm.RunUiSmokeTests(options.Json);
                     case "safe-fixes": return SafeFixes();
                     case "odj-apply": return ApplyOfflineDomainJoin();
                     case "odj-provision": return ProvisionOfflineDomainJoin();
