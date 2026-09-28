@@ -290,6 +290,12 @@ namespace DomainMembershipCheckRepair
                 String.Empty,
                 ProcessRunner.ResolveExecutable(missing),
                 "Process runner rejects a missing absolute executable path");
+
+            AssertEqual(
+                String.Empty,
+                ProcessRunner.ResolveExecutable(
+                    "dmcr-definitely-missing-tool.exe"),
+                "Process runner does not fall back to PATH/current directory for an unresolved bare executable");
         }
 
         private static void TestElevationActions()
@@ -338,6 +344,20 @@ namespace DomainMembershipCheckRepair
             AssertFalse(
                 ElevationHelper.RedirectedPasswordRequiresPreElevation("ad-restore", false, false),
                 "interactive password can use normal elevation broker");
+
+            AssertEqual(
+                "--resume-action join --domain example.com --user \"EXAMPLE\\admin user\"",
+                ElevationHelper.BuildElevationArguments(
+                    new string[]
+                    {
+                        "--resume-action",
+                        "join",
+                        "--domain",
+                        "example.com",
+                        "--user",
+                        @"EXAMPLE\admin user"
+                    }),
+                "elevation relaunch uses shared canonical argv quoting");
         }
 
         private static void TestGuiResumeOptions()
