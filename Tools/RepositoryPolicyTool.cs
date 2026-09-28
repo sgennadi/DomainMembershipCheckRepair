@@ -80,6 +80,12 @@ namespace DomainMembershipCheckRepair.Tools
             if (!Regex.IsMatch(text, @"(?m)^permissions\s*:", RegexOptions.IgnoreCase))
                 failures.Add(relative + " must declare explicit top-level permissions.");
 
+            if (Regex.IsMatch(text, @"(?im)^\s*shell\s*:\s*(?:pwsh|powershell)\s*$") ||
+                text.IndexOf("powershell.exe", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                failures.Add(relative + " uses PowerShell. Repository workflow orchestration must use native tools/cmd instead.");
+            }
+
             bool selfHosted = text.IndexOf("self-hosted", StringComparison.OrdinalIgnoreCase) >= 0;
             if (selfHosted &&
                 text.IndexOf("github.ref == 'refs/heads/main'", StringComparison.Ordinal) < 0)

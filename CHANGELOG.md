@@ -37,6 +37,9 @@
 - Hardened `--password-stdin` so automation must supply `--user`, preventing redirected password input from being misinterpreted as an interactive username.
 - Hardened signed release validation with timestamp, ProductVersion, PE architecture, signer-subject pinning support, x86/x64 GUI/DPI smoke execution, and SHA-256 self-verification before publication.
 - Replaced repository/lab PowerShell helpers with a compiled C#/.NET Framework `Tools/` project and added a policy gate that rejects `.ps1` files entirely.
+- Made GitHub Actions orchestration PowerShell-free: workflows use `cmd` plus compiled native tools, and CI rejects `shell: pwsh`, `shell: powershell`, or `powershell.exe` in workflow files.
+- Moved release tag/version checks, unsigned staging, signed-PE validation, timestamp/version/architecture checks, final assembly, SHA-256 verification and release smoke tests into the compiled C# release orchestrator.
+- Added protected-Build coverage for the native release prepare/finalize/smoke path so release orchestration is exercised before a SignPath-enabled tag is ever created.
 - Added repository policy validation for immutable remote GitHub Action SHAs, explicit workflow permissions, rejection of `pull_request_target`, `persist-credentials: false` on checkout, and protected-`main` restriction for self-hosted workflows.
 - Rebuilt the Disposable AD Destructive Lab as a compiled C# harness so manual lab code is type-checked on every protected build instead of being skipped when lab runners are offline.
 - Hardened self-hosted AD/EPM lab privacy: removed internal identity/domain details from public workflow logs, serialized live lab runs, made artifact upload opt-in, added fail-closed text redaction with per-run opaque HMAC identifiers, shortened optional artifact retention to 7 days, and clean raw evidence from runner workspaces after each run.
@@ -55,7 +58,7 @@
 - Added known RPC interface mapping plus functional Netlogon, LSA Policy, SAMR and DRSUAPI probes on top of Endpoint Mapper/dynamic-port testing.
 - Expanded Self Test with Kerberos TGT, signed LDAP/StartTLS/LDAPS, RPC interface, replication-metadata and transaction-storage ACL checks.
 - Reorganized the Advanced GUI into workflow groups while preserving DPI-aware sizing, scrolling and background cancellation.
-- Added a manual self-hosted AD Integration Lab GitHub Actions workflow and PowerShell harness for live-domain read-only smoke/healthy validation without storing domain credentials.
+- Added a manual self-hosted AD Integration Lab GitHub Actions workflow for live-domain read-only smoke/healthy validation without storing domain credentials; the harness now runs through the compiled C#/.NET Framework `Tools/` project.
 - Added regression tests for the known Netlogon/LSA/SAMR/DRSUAPI interface UUID mappings.
 - Added Active Directory Recycle Bin readiness detection and read-only deleted-computer-object discovery.
 - Added a fail-closed pre-delete AD recovery metadata package under ProgramData; Delete + Recreate is blocked if the package cannot be written.

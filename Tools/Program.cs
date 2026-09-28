@@ -39,6 +39,18 @@ namespace DomainMembershipCheckRepair.Tools
                         return InternalSigningTool.Sign(options);
                     case "hash-dist":
                         return HashTool.Run(options);
+                    case "release-validate-tag":
+                        return ReleaseTool.ValidateTag(options);
+                    case "release-prepare":
+                        return ReleaseTool.Prepare(options);
+                    case "release-validate-signpath":
+                        return ReleaseTool.ValidateSignPathConfiguration(options);
+                    case "release-validate-signed":
+                        return ReleaseTool.ValidateSigned(options);
+                    case "release-finalize":
+                        return ReleaseTool.FinalizeFiles(options);
+                    case "release-smoke":
+                        return ReleaseTool.Smoke(options);
                     case "help":
                     case "--help":
                     case "-h":
@@ -72,6 +84,12 @@ namespace DomainMembershipCheckRepair.Tools
             Console.WriteLine("  internal-cert       Create an internal code-signing certificate");
             Console.WriteLine("  internal-sign       Sign local binaries with signtool");
             Console.WriteLine("  hash-dist           Generate SHA256SUMS.txt for local dist");
+            Console.WriteLine("  release-validate-tag Validate the release tag against VersionInfo.cs");
+            Console.WriteLine("  release-prepare     Prepare unsigned SignPath input and configs");
+            Console.WriteLine("  release-validate-signpath Validate mandatory SignPath configuration");
+            Console.WriteLine("  release-validate-signed Validate signed PE files and timestamps");
+            Console.WriteLine("  release-finalize    Assemble final release files and checksums");
+            Console.WriteLine("  release-smoke       Smoke-test final release files and checksums");
         }
     }
 }

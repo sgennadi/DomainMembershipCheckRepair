@@ -74,6 +74,13 @@ jobs:
         shell: cmd
         run: msbuild DomainMembershipCheckRepair.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=ARM64
 
+      - name: Smoke-test native release orchestration
+        shell: cmd
+        run: |
+          Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe release-prepare --root . --unsigned ci-release-unsigned --configs ci-release-configs
+          Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe release-finalize --signed ci-release-unsigned --configs ci-release-configs --output ci-release-files
+          Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe release-smoke --directory ci-release-files
+
       - name: Prepare artifacts and checksums
         shell: cmd
         run: |

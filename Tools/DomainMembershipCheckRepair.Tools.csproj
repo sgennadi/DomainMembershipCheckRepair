@@ -42,6 +42,7 @@
     <Compile Include="IconTool.cs" />
     <Compile Include="InternalSigningTool.cs" />
     <Compile Include="HashTool.cs" />
+    <Compile Include="ReleaseTool.cs" />
     <Compile Include="..\Core\SupportBundleSanitizer.cs">
       <Link>SupportBundleSanitizer.cs</Link>
     </Compile>
