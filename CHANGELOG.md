@@ -31,6 +31,8 @@
 - Updated release provenance attestation to `actions/attest-build-provenance` v4.2.2 and documented the recommended protected-`main` ruleset.
 - Added protected-build WinForms GUI/DPI smoke automation for x86/x64 across 100-250% synthetic scaling profiles, plus a manual native ARM64 UI lab workflow.
 - Added a non-destructive `elevation-probe` action and manual CyberArk EPM integration workflow to validate the real Windows `runas` broker path from a standard-user session.
+- Hardened elevation semantics: recovery snapshots are now limited to actual recovery mutations, so `elevation-probe` and plain Restart no longer create persistent snapshot files.
+- Hardened `--password-stdin` across privilege boundaries: administrative redirected-password automation must already be elevated instead of attempting to carry redirected stdin through Windows `runas`/CyberArk EPM.
 - Added `--password-stdin` for controlled automation so lab credentials can be supplied through redirected standard input without placing passwords on command lines.
 - Added a separately gated Disposable AD Destructive Lab with preflight, Safe Fixes, repair-if-broken, MII disable/rollback, and disposable Recycle Bin restore scenarios.
 - Hardened the disposable Recycle Bin lab to require RSAT, resolve the created/restored computer strictly by exact sAMAccountName, and require exactly one match before GUID verification.

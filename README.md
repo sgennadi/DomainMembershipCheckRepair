@@ -144,7 +144,7 @@ The domain password is never placed in the elevation command line and is never t
 
 If elevation is cancelled, blocked, or returns without an administrator token, mutating actions stop safely while read-only functions remain available. CLI returns exit code `13`.
 
-The non-destructive `elevation-probe` CLI action uses the same Windows `runas` elevation path but performs no repair, join, registry, service, or AD modification after elevation. It is used by the manual CyberArk EPM lab to validate privilege brokering safely.
+The non-destructive `elevation-probe` CLI action uses the same Windows `runas` elevation path but performs no repair, join, registry, service, AD, recovery-snapshot, or other persistent state modification after elevation. It is used by the manual CyberArk EPM lab to validate privilege brokering safely.
 
 For an EPM application rule, prefer matching the trusted installed executable using multiple attributes, such as trusted path plus product/signature metadata, instead of granting elevation to every binary signed by a shared publisher.
 
@@ -226,7 +226,7 @@ Options:
 --no-restart
 ```
 
-Passwords are never accepted as a command-line argument. When credentials are needed, the CLI asks for the password interactively without echoing it. For controlled automation, `--password-stdin` reads the password only from redirected standard input and requires the username to be supplied separately; the password still never appears in the command line. In `--json` mode password prompts are written to stderr so stdout remains a single machine-readable JSON document.
+Passwords are never accepted as a command-line argument. When credentials are needed, the CLI asks for the password interactively without echoing it. For controlled automation, `--password-stdin` reads the password only from redirected standard input and requires the username to be supplied separately; the password still never appears in the command line. For administrative actions, the caller must already be elevated because redirected stdin is deliberately never forwarded through Windows `runas`/CyberArk elevation. In `--json` mode password prompts are written to stderr so stdout remains a single machine-readable JSON document.
 
 ### Dry-run
 

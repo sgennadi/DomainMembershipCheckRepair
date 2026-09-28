@@ -513,8 +513,24 @@ namespace DomainMembershipCheckRepair
         {
             exitCode = 0;
 
-            if (!ElevationHelper.RequiresElevation(action) || options.DryRun || ElevationHelper.IsAdministrator())
+            bool requiresElevation = ElevationHelper.RequiresElevation(action);
+            bool isAdministrator = ElevationHelper.IsAdministrator();
+
+            if (!requiresElevation || options.DryRun || isAdministrator)
                 return false;
+
+            if (ElevationHelper.RedirectedPasswordRequiresPreElevation(
+                action,
+                options.PasswordFromStdin,
+                options.DryRun))
+            {
+                logger.Log(
+                    "ERROR",
+                    "--password-stdin cannot be forwarded securely through Windows runas/CyberArk elevation. " +
+                    "Start the CLI from an already elevated process when using redirected-password automation for an administrative action.");
+                exitCode = ElevationHelper.ElevationFailureExitCode;
+                return true;
+            }
 
             if (options.ElevationAttempted)
             {
@@ -571,7 +587,7 @@ namespace DomainMembershipCheckRepair
             RecoverySnapshotScope snapshot = null;
             try
             {
-                if (ElevationHelper.RequiresElevation(action) && !options.DryRun)
+                if (ElevationHelper.RequiresRecoverySnapshot(action) && !options.DryRun)
                 {
                     snapshot = new RecoverySnapshotScope(
                         action,

@@ -157,6 +157,32 @@ namespace DomainMembershipCheckRepair
             AssertFalse(ElevationHelper.RequiresElevation("diagnose"), "diagnose does not require elevation");
             AssertFalse(ElevationHelper.RequiresElevation("export-diagnostics"), "export diagnostics does not require elevation");
             AssertFalse(ElevationHelper.RequiresElevation("ui-smoke"), "UI smoke does not require elevation");
+
+            AssertTrue(ElevationHelper.RequiresRecoverySnapshot("repair"), "repair captures recovery snapshot");
+            AssertTrue(ElevationHelper.RequiresRecoverySnapshot("join"), "join captures recovery snapshot");
+            AssertTrue(ElevationHelper.RequiresRecoverySnapshot("rename"), "rename captures recovery snapshot");
+            AssertTrue(ElevationHelper.RequiresRecoverySnapshot("mii-disable"), "mii-disable captures recovery snapshot");
+            AssertTrue(ElevationHelper.RequiresRecoverySnapshot("odj-apply"), "odj-apply captures recovery snapshot");
+            AssertTrue(ElevationHelper.RequiresRecoverySnapshot("safe-fixes"), "safe-fixes captures recovery snapshot");
+            AssertTrue(ElevationHelper.RequiresRecoverySnapshot("rollback-local"), "rollback-local captures recovery snapshot");
+            AssertTrue(ElevationHelper.RequiresRecoverySnapshot("ad-restore"), "ad-restore captures recovery snapshot");
+
+            AssertFalse(ElevationHelper.RequiresRecoverySnapshot("restart"), "restart does not create recovery snapshot");
+            AssertFalse(ElevationHelper.RequiresRecoverySnapshot("elevation-probe"), "elevation probe remains side-effect free");
+            AssertFalse(ElevationHelper.RequiresRecoverySnapshot("status"), "status does not create recovery snapshot");
+
+            AssertTrue(
+                ElevationHelper.RedirectedPasswordRequiresPreElevation("ad-restore", true, false),
+                "redirected password on elevated action requires caller to pre-elevate");
+            AssertFalse(
+                ElevationHelper.RedirectedPasswordRequiresPreElevation("ad-restore", true, true),
+                "dry-run does not require pre-elevation for redirected password");
+            AssertFalse(
+                ElevationHelper.RedirectedPasswordRequiresPreElevation("status", true, false),
+                "read-only action does not require pre-elevation for redirected password");
+            AssertFalse(
+                ElevationHelper.RedirectedPasswordRequiresPreElevation("ad-restore", false, false),
+                "interactive password can use normal elevation broker");
         }
 
         private static void TestGuiResumeOptions()
