@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   ad-integration:
-    if: ${{ vars.AD_LAB_ENABLED == 'true' }}
+    if: ${{ vars.AD_LAB_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
     runs-on: [self-hosted, Windows, X64, domain-lab]
     timeout-minutes: 45
 
@@ -37,62 +37,27 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3
 
-      - name: Validate AD lab configuration
-        shell: pwsh
-        env:
-          AD_LAB_DOMAIN: ${{ vars.AD_LAB_DOMAIN }}
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:AD_LAB_DOMAIN)) {
-            throw "Repository variable AD_LAB_DOMAIN is required when AD_LAB_ENABLED=true."
-          }
-
-          $cs = Get-CimInstance Win32_ComputerSystem
-          Write-Host "Self-hosted AD lab runner configuration detected."
-          Write-Host "Domain joined: $($cs.PartOfDomain)"
-
-          if (-not $cs.PartOfDomain) {
-            throw "The self-hosted domain-lab runner must be domain joined."
-          }
-
       - name: Build x64
         shell: cmd
         run: msbuild DomainMembershipCheckRepair.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=x64
 
       - name: Run AD integration diagnostics
-        shell: pwsh
+        shell: cmd
         env:
           AD_LAB_DOMAIN: ${{ vars.AD_LAB_DOMAIN }}
           AD_LAB_DC: ${{ vars.AD_LAB_DC }}
           AD_LAB_COMPUTER: ${{ vars.AD_LAB_COMPUTER }}
           AD_LAB_PROFILE: ${{ inputs.profile }}
-        run: |
-          $computer = $env:AD_LAB_COMPUTER
-          if ([string]::IsNullOrWhiteSpace($computer)) {
-            $computer = $env:COMPUTERNAME
-          }
-
-          $params = @{
-            ExePath = ".\bin\Release\x64\DomainMembershipCheckRepair.exe"
-            Domain = $env:AD_LAB_DOMAIN
-            PreferredDc = $env:AD_LAB_DC
-            ComputerName = $computer
-            Profile = $env:AD_LAB_PROFILE
-            OutputDirectory = ".\integration-artifacts"
-          }
-
-          .\Tests\Integration\Run-ADIntegrationTests.ps1 @params
+        run: Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe ad-integration --exe bin\Release\x64\DomainMembershipCheckRepair.exe --domain "%AD_LAB_DOMAIN%" --dc "%AD_LAB_DC%" --computer "%AD_LAB_COMPUTER%" --profile "%AD_LAB_PROFILE%" --output integration-artifacts
 
       - name: Sanitize integration artifacts
         if: always()
-        shell: pwsh
+        shell: cmd
         env:
           AD_LAB_DOMAIN: ${{ vars.AD_LAB_DOMAIN }}
           AD_LAB_DC: ${{ vars.AD_LAB_DC }}
           AD_LAB_COMPUTER: ${{ vars.AD_LAB_COMPUTER }}
-        run: |
-          if (Test-Path ".\integration-artifacts") {
-            .\Tests\Integration\Sanitize-LabArtifacts.ps1 -InputDirectory ".\integration-artifacts" -OutputDirectory ".\integration-artifacts-sanitized"
-          }
+        run: if exist integration-artifacts Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe sanitize-lab --input integration-artifacts --output integration-artifacts-sanitized
 
       - name: Upload sanitized integration diagnostics
         if: ${{ always() && vars.LAB_UPLOAD_SANITIZED_ARTIFACTS == 'true' }}
@@ -105,7 +70,7 @@ jobs:
 
       - name: Clean lab artifacts from self-hosted runner
         if: always()
-        shell: pwsh
+        shell: cmd
         run: |
-          Remove-Item ".\integration-artifacts" -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item ".\integration-artifacts-sanitized" -Recurse -Force -ErrorAction SilentlyContinue
+          if exist integration-artifacts rmdir /s /q integration-artifacts
+          if exist integration-artifacts-sanitized rmdir /s /q integration-artifacts-sanitized
