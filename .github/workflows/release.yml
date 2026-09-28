@@ -4,10 +4,10 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
 
 permissions:
   actions: read
+  checks: read
   contents: write
   id-token: write
   attestations: write
@@ -41,6 +41,12 @@ jobs:
       - name: Validate release tag
         shell: cmd
         run: Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe release-validate-tag --root .
+
+      - name: Validate protected-main release origin
+        shell: cmd
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe release-validate-origin --repository "%GITHUB_REPOSITORY%" --sha "%GITHUB_SHA%" --required-check build --required-check "Analyze C#"
 
       - name: Verify .NET Framework targeting packs
         shell: cmd

@@ -40,6 +40,10 @@ jobs:
         shell: cmd
         run: Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe test-sanitizer
 
+      - name: Test release origin/check validation
+        shell: cmd
+        run: Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe release-origin-selftest
+
       - name: Verify .NET Framework targeting packs
         shell: cmd
         run: |

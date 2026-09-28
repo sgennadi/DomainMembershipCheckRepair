@@ -41,6 +41,10 @@ namespace DomainMembershipCheckRepair.Tools
                         return HashTool.Run(options);
                     case "release-validate-tag":
                         return ReleaseTool.ValidateTag(options);
+                    case "release-validate-origin":
+                        return ReleaseTool.ValidateOrigin(options);
+                    case "release-origin-selftest":
+                        return ReleaseTool.SelfTestOriginValidation(options);
                     case "release-prepare":
                         return ReleaseTool.Prepare(options);
                     case "release-validate-signpath":
@@ -85,6 +89,8 @@ namespace DomainMembershipCheckRepair.Tools
             Console.WriteLine("  internal-sign       Sign local binaries with signtool");
             Console.WriteLine("  hash-dist           Generate SHA256SUMS.txt for local dist");
             Console.WriteLine("  release-validate-tag Validate the release tag against VersionInfo.cs");
+            Console.WriteLine("  release-validate-origin Require protected-main ancestry and green checks");
+            Console.WriteLine("  release-origin-selftest Test release check-run validation logic");
             Console.WriteLine("  release-prepare     Prepare unsigned SignPath input and configs");
             Console.WriteLine("  release-validate-signpath Validate mandatory SignPath configuration");
             Console.WriteLine("  release-validate-signed Validate signed PE files and timestamps");
