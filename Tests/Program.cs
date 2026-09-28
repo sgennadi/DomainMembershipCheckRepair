@@ -37,6 +37,7 @@ namespace DomainMembershipCheckRepair
             TestIdentityConsistencyFilter();
             TestTransactionJournalParsing();
             TestAdRecoveryHelpers();
+            TestSupportBundleSanitizer();
 
             if (failures == 0)
             {
@@ -626,6 +627,73 @@ namespace DomainMembershipCheckRepair
                     "CN=PC01",
                     String.Empty),
                 "restore DN requires last known parent");
+        }
+
+        private static void TestSupportBundleSanitizer()
+        {
+            SupportBundleSanitizer sanitizer =
+                new SupportBundleSanitizer(
+                    new string[]
+                    {
+                        "PC01",
+                        "example.com",
+                        "dc01.example.com",
+                        @"EXAMPLE\admin",
+                        "CN=PC01,OU=Computers,DC=example,DC=com"
+                    });
+
+            string input =
+                "Computer=PC01\r\n" +
+                "Domain=example.com\r\n" +
+                "DC=dc01.example.com\r\n" +
+                "User=EXAMPLE\\admin\r\n" +
+                "UPN=admin@example.com\r\n" +
+                "DN=CN=PC01,OU=Computers,DC=example,DC=com\r\n" +
+                "IPv4=10.20.30.40\r\n" +
+                "MAC=00-11-22-33-44-55\r\n" +
+                "SID=S-1-5-21-111-222-333-444\r\n" +
+                "GUID=12345678-1234-1234-1234-1234567890ab\r\n" +
+                "password=Secret123!\r\n" +
+                "Authorization: Bearer abcdefghijklmnopqrstuvwxyz0123456789\r\n" +
+                "Repeat=dc01.example.com\r\n";
+
+            string output = sanitizer.Sanitize(input);
+
+            AssertTrue(
+                output.IndexOf("Secret123", StringComparison.OrdinalIgnoreCase) < 0,
+                "support bundle secret redacted");
+            AssertTrue(
+                output.IndexOf("admin@example.com", StringComparison.OrdinalIgnoreCase) < 0,
+                "support bundle UPN redacted");
+            AssertTrue(
+                output.IndexOf("10.20.30.40", StringComparison.OrdinalIgnoreCase) < 0,
+                "support bundle IPv4 redacted");
+            AssertTrue(
+                output.IndexOf("00-11-22-33-44-55", StringComparison.OrdinalIgnoreCase) < 0,
+                "support bundle MAC redacted");
+            AssertTrue(
+                output.IndexOf("S-1-5-21-111-222-333-444", StringComparison.OrdinalIgnoreCase) < 0,
+                "support bundle SID redacted");
+            AssertTrue(
+                output.IndexOf("12345678-1234-1234-1234-1234567890ab", StringComparison.OrdinalIgnoreCase) < 0,
+                "support bundle GUID redacted");
+            AssertTrue(
+                output.IndexOf(@"EXAMPLE\admin", StringComparison.OrdinalIgnoreCase) < 0,
+                "support bundle domain account redacted");
+            AssertTrue(
+                output.IndexOf("CN=PC01,OU=Computers,DC=example,DC=com", StringComparison.OrdinalIgnoreCase) < 0,
+                "support bundle DN redacted");
+            AssertTrue(
+                output.IndexOf("[REDACTED]", StringComparison.Ordinal) >= 0,
+                "support bundle redaction marker present");
+
+            string repeated = sanitizer.Sanitize(
+                "dc01.example.com dc01.example.com");
+            int firstTokenStart = repeated.IndexOf("<HOST:", StringComparison.Ordinal);
+            AssertTrue(
+                firstTokenStart >= 0 &&
+                repeated.IndexOf(repeated.Substring(firstTokenStart, 17), firstTokenStart + 1, StringComparison.Ordinal) >= 0,
+                "support bundle opaque token stable within bundle");
         }
 
         private static void TestUiLayoutMath()
