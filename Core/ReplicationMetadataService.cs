@@ -78,9 +78,9 @@ namespace DomainMembershipCheckRepair
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            CommandResult summary = NetworkCredentialProcessRunner.Run(
+            CommandResult summary = NetworkCredentialProcessRunner.RunArguments(
                 repadmin,
-                BuildReplSummaryArguments(r.Dc),
+                BuildReplSummaryArgumentList(r.Dc),
                 30000,
                 user,
                 password,
@@ -92,9 +92,9 @@ namespace DomainMembershipCheckRepair
             CommandResult attr = null;
             if (!String.IsNullOrWhiteSpace(r.Dc) && !String.IsNullOrWhiteSpace(r.ObjectDn))
             {
-                meta = NetworkCredentialProcessRunner.Run(
+                meta = NetworkCredentialProcessRunner.RunArguments(
                     repadmin,
-                    "/showobjmeta " + Quote(r.Dc) + " " + Quote(r.ObjectDn),
+                    BuildShowObjectMetadataArgumentList(r.Dc, r.ObjectDn),
                     30000,
                     user,
                     password,
@@ -102,10 +102,9 @@ namespace DomainMembershipCheckRepair
                 cancellationToken.ThrowIfCancellationRequested();
                 r.ObjectMetadata = FormatCommand(meta);
 
-                attr = NetworkCredentialProcessRunner.Run(
+                attr = NetworkCredentialProcessRunner.RunArguments(
                     repadmin,
-                    "/showattr " + Quote(r.Dc) + " " + Quote(r.ObjectDn) +
-                    " /atts:objectGUID,pwdLastSet,whenChanged,uSNChanged,servicePrincipalName",
+                    BuildShowAttributesArgumentList(r.Dc, r.ObjectDn),
                     30000,
                     user,
                     password,
@@ -421,10 +420,57 @@ namespace DomainMembershipCheckRepair
 
         internal static string BuildReplSummaryArguments(string dc)
         {
+            return WindowsCommandLine.BuildArguments(
+                BuildReplSummaryArgumentList(dc));
+        }
+
+        internal static string BuildShowObjectMetadataArguments(
+            string dc,
+            string objectDn)
+        {
+            return WindowsCommandLine.BuildArguments(
+                BuildShowObjectMetadataArgumentList(dc, objectDn));
+        }
+
+        internal static string BuildShowAttributesArguments(
+            string dc,
+            string objectDn)
+        {
+            return WindowsCommandLine.BuildArguments(
+                BuildShowAttributesArgumentList(dc, objectDn));
+        }
+
+        private static string[] BuildReplSummaryArgumentList(string dc)
+        {
             string server = DomainValidation.NormalizeDirectoryServer(dc);
             return String.IsNullOrWhiteSpace(server)
-                ? "/replsummary"
-                : "/replsummary " + Quote(server);
+                ? new string[] { "/replsummary" }
+                : new string[] { "/replsummary", server };
+        }
+
+        private static string[] BuildShowObjectMetadataArgumentList(
+            string dc,
+            string objectDn)
+        {
+            return new string[]
+            {
+                "/showobjmeta",
+                DomainValidation.NormalizeDirectoryServer(dc),
+                objectDn ?? String.Empty
+            };
+        }
+
+        private static string[] BuildShowAttributesArgumentList(
+            string dc,
+            string objectDn)
+        {
+            return new string[]
+            {
+                "/showattr",
+                DomainValidation.NormalizeDirectoryServer(dc),
+                objectDn ?? String.Empty,
+                "/atts:objectGUID,pwdLastSet,whenChanged,uSNChanged,servicePrincipalName"
+            };
         }
 
         internal static bool HasReplicationFailures(string text)
