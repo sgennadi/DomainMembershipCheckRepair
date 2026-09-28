@@ -23,6 +23,8 @@ namespace DomainMembershipCheckRepair
             TestWindowsCommandLineQuoting();
             TestWindowsArgumentListBuilding();
             TestOfflineDomainJoinArguments();
+            TestSafeRecoveryArguments();
+            TestProcessExecutableResolution();
             TestElevationActions();
             TestGuiResumeOptions();
             TestNetSetupErrorMapping();
@@ -241,6 +243,53 @@ namespace DomainMembershipCheckRepair
                     @"C:\Temp\pc.txt",
                     false),
                 "ODJ provision omits reuse when not requested");
+        }
+
+        private static void TestSafeRecoveryArguments()
+        {
+            AssertEqual(
+                "/dsgetdc:example.com /force",
+                SafeRecoveryService.BuildDcRediscoveryArguments("example.com"),
+                "Safe Recovery DC rediscovery uses separate canonical argv tokens");
+
+            bool rejected = false;
+            try
+            {
+                SafeRecoveryService.BuildDcRediscoveryArguments(
+                    "example.com /force");
+            }
+            catch (ArgumentException)
+            {
+                rejected = true;
+            }
+
+            AssertTrue(
+                rejected,
+                "Safe Recovery rejects injected domain options before nltest");
+        }
+
+        private static void TestProcessExecutableResolution()
+        {
+            string systemCmd =
+                Path.Combine(Environment.SystemDirectory, "cmd.exe");
+
+            if (File.Exists(systemCmd))
+            {
+                AssertEqual(
+                    systemCmd,
+                    ProcessRunner.ResolveExecutable("cmd.exe"),
+                    "Process runner prefers trusted System32 executable");
+            }
+
+            string missing =
+                Path.Combine(
+                    Path.GetTempPath(),
+                    "dmcr-missing-" + Guid.NewGuid().ToString("N") + ".exe");
+
+            AssertEqual(
+                String.Empty,
+                ProcessRunner.ResolveExecutable(missing),
+                "Process runner rejects a missing absolute executable path");
         }
 
         private static void TestElevationActions()
