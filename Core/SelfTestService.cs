@@ -296,7 +296,11 @@ namespace DomainMembershipCheckRepair
                 return;
             }
 
-            CommandResult result = ProcessRunner.Run("klist.exe", "tgt", 8000);
+            CommandResult result =
+                ProcessRunner.RunArguments(
+                    "klist.exe",
+                    new string[] { "tgt" },
+                    8000);
             if (result == null || !result.Started)
             {
                 Add(r, "Kerberos TGT", "WARN", "klist.exe could not be started.");
