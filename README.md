@@ -61,8 +61,10 @@ The release version has one source of truth: `VersionInfo.cs`. Assembly metadata
 - Offline Domain Join apply/provision workflows.
 - Safe post-reboot recovery resume without storing credentials.
 - Unit tests, CodeQL, Dependabot, SHA-256 checksums and release build provenance.
+- CI parses every PowerShell script and enforces repository supply-chain policy: immutable action SHAs, explicit workflow permissions and non-persisted checkout credentials.
 - Protected-branch CI includes real WinForms GUI/DPI smoke tests for x86/x64; native ARM64 GUI smoke has a separate self-hosted lab workflow.
 - Manual disposable AD and CyberArk EPM integration labs are available for explicitly gated live validation outside production.
+- Self-hosted lab artifacts are local-only by default; optional uploads are fail-closed sanitized, short-retention copies and are never raw lab evidence.
 
 ## Architectures
 
