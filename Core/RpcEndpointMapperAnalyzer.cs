@@ -527,9 +527,13 @@ namespace DomainMembershipCheckRepair
                 return;
             }
 
-            CommandResult command = NetworkCredentialProcessRunner.Run(
+            CommandResult command = NetworkCredentialProcessRunner.RunArguments(
                 "nltest.exe",
-                "/server:" + result.Dc + " /query",
+                new string[]
+                {
+                    "/server:" + result.Dc,
+                    "/query"
+                },
                 10000,
                 user,
                 password,
@@ -556,9 +560,14 @@ namespace DomainMembershipCheckRepair
                 return;
             }
 
-            CommandResult command = NetworkCredentialProcessRunner.Run(
+            CommandResult command = NetworkCredentialProcessRunner.RunArguments(
                 repadmin,
-                "/showrepl \"" + result.Dc.Replace("\"", "\\\"") + "\" /errorsonly",
+                new string[]
+                {
+                    "/showrepl",
+                    result.Dc,
+                    "/errorsonly"
+                },
                 20000,
                 user,
                 password,
