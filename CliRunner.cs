@@ -2831,22 +2831,49 @@ namespace DomainMembershipCheckRepair
                 return 0;
             }
 
-            try
+            CommandResult restart =
+                ProcessRunner.RunArguments(
+                    "shutdown.exe",
+                    new string[]
+                    {
+                        "/r",
+                        "/t",
+                        "15",
+                        "/c",
+                        "Domain membership repair operation completed. Restarting Windows."
+                    },
+                    10000);
+
+            if (!String.IsNullOrWhiteSpace(restart.Error))
             {
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = "shutdown.exe";
-                psi.Arguments = "/r /t 15 /c \"Domain membership repair operation completed. Restarting Windows.\"";
-                psi.UseShellExecute = false;
-                psi.CreateNoWindow = true;
-                Process.Start(psi);
-                logger.Log("INFO", "Windows restart scheduled in 15 seconds. Use 'shutdown /a' to cancel.");
-                return 0;
-            }
-            catch (Exception ex)
-            {
-                logger.Log("ERROR", "Unable to schedule restart: " + ex.Message);
+                logger.Log(
+                    "ERROR",
+                    "Unable to schedule restart: " +
+                    restart.Error);
                 return 1;
             }
+
+            if (restart.TimedOut)
+            {
+                logger.Log(
+                    "ERROR",
+                    "Unable to schedule restart: shutdown.exe timed out.");
+                return 1;
+            }
+
+            if (restart.ExitCode != 0)
+            {
+                logger.Log(
+                    "ERROR",
+                    "Unable to schedule restart: shutdown.exe returned exit code " +
+                    restart.ExitCode + ".");
+                return 1;
+            }
+
+            logger.Log(
+                "INFO",
+                "Windows restart scheduled in 15 seconds. Use 'shutdown /a' to cancel.");
+            return 0;
         }
 
         private static bool AskYesNo(string question, bool defaultYes)
