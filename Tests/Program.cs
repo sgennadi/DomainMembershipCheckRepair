@@ -19,6 +19,9 @@ namespace DomainMembershipCheckRepair
             TestDirectoryServerNormalization();
             TestDirectoryServerSelection();
             TestDnToDnsConversion();
+            TestDomainArgumentValidation();
+            TestWindowsCommandLineQuoting();
+            TestOfflineDomainJoinArguments();
             TestElevationActions();
             TestGuiResumeOptions();
             TestNetSetupErrorMapping();
@@ -135,6 +138,87 @@ namespace DomainMembershipCheckRepair
                 String.Empty,
                 DomainValidation.DnToDns(String.Empty),
                 "empty DN converts to empty DNS");
+        }
+
+        private static void TestDomainArgumentValidation()
+        {
+            AssertNull(
+                DomainValidation.ValidateDomainArgument("example.com"),
+                "DNS domain argument accepted");
+            AssertNull(
+                DomainValidation.ValidateDomainArgument("EXAMPLE"),
+                "NetBIOS domain argument accepted");
+            AssertNotNull(
+                DomainValidation.ValidateDomainArgument("example.com /reuse"),
+                "domain argument with injected option rejected");
+            AssertNotNull(
+                DomainValidation.ValidateDomainArgument("example.com\" /reuse"),
+                "domain argument with quote rejected");
+            AssertNotNull(
+                DomainValidation.ValidateDomainArgument(@"example\child"),
+                "domain argument with slash rejected");
+            AssertNotNull(
+                DomainValidation.ValidateDomainArgument(".example.com"),
+                "domain argument with leading dot rejected");
+            AssertNotNull(
+                DomainValidation.ValidateDomainArgument("example..com"),
+                "domain argument with empty DNS label rejected");
+        }
+
+        private static void TestWindowsCommandLineQuoting()
+        {
+            AssertEqual(
+                "simple",
+                WindowsCommandLine.QuoteArgument("simple"),
+                "simple Windows argument stays unquoted");
+
+            AssertEqual(
+                "\"C:\\Path With Space\\file.txt\"",
+                WindowsCommandLine.QuoteArgument(@"C:\Path With Space\file.txt"),
+                "Windows argument with spaces is quoted");
+
+            AssertEqual(
+                "\"C:\\Path With Space\\\\\"",
+                WindowsCommandLine.QuoteArgument("C:\\Path With Space\\"),
+                "trailing backslash is doubled before closing quote");
+
+            AssertEqual(
+                "\"a\\\"b\"",
+                WindowsCommandLine.QuoteArgument("a\"b"),
+                "embedded quote is escaped using Windows argv rules");
+
+            AssertEqual(
+                "\"\"",
+                WindowsCommandLine.QuoteArgument(String.Empty),
+                "empty Windows argument is quoted");
+        }
+
+        private static void TestOfflineDomainJoinArguments()
+        {
+            AssertEqual(
+                "/requestODJ /loadfile \"C:\\ODJ Files\\pc.txt\" /windowspath C:\\Windows /localos",
+                OfflineDomainJoinService.BuildApplyArguments(
+                    @"C:\ODJ Files\pc.txt",
+                    @"C:\Windows"),
+                "ODJ apply arguments use canonical quoting");
+
+            AssertEqual(
+                "/provision /domain example.com /machine PC-01 /savefile \"C:\\ODJ Files\\pc.txt\" /reuse",
+                OfflineDomainJoinService.BuildProvisionArguments(
+                    "example.com",
+                    "PC-01",
+                    @"C:\ODJ Files\pc.txt",
+                    true),
+                "ODJ provision arguments use canonical quoting and reuse flag");
+
+            AssertEqual(
+                "/provision /domain EXAMPLE /machine PC-01 /savefile C:\\Temp\\pc.txt",
+                OfflineDomainJoinService.BuildProvisionArguments(
+                    "EXAMPLE",
+                    "PC-01",
+                    @"C:\Temp\pc.txt",
+                    false),
+                "ODJ provision omits reuse when not requested");
         }
 
         private static void TestElevationActions()

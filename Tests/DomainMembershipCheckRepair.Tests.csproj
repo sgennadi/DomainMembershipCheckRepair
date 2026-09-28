@@ -59,6 +59,12 @@
     <Compile Include="..\Core\ProcessRunner.cs">
       <Link>ProcessRunner.cs</Link>
     </Compile>
+    <Compile Include="..\Core\WindowsCommandLine.cs">
+      <Link>WindowsCommandLine.cs</Link>
+    </Compile>
+    <Compile Include="..\Core\OfflineDomainJoinService.cs">
+      <Link>OfflineDomainJoinService.cs</Link>
+    </Compile>
     <Compile Include="..\Core\NetworkCredentialProcessRunner.cs">
       <Link>NetworkCredentialProcessRunner.cs</Link>
     </Compile>

@@ -59,6 +59,7 @@ The release version has one source of truth: `VersionInfo.cs`. Assembly metadata
 - Advanced support bundle export.
 - CyberArk/EPM local health discovery.
 - Offline Domain Join apply/provision workflows.
+- Offline Domain Join external-tool arguments use canonical Windows quoting; provisioning validates the target domain token and computer name before invoking `djoin.exe`.
 - Safe post-reboot recovery resume without storing credentials.
 - Unit tests, CodeQL, Dependabot, SHA-256 checksums and release build provenance.
 - Repository tooling and live-lab harnesses are C#/.NET Framework; CI rejects `.ps1` files and enforces supply-chain policy: immutable action SHAs, explicit workflow permissions and non-persisted checkout credentials.
