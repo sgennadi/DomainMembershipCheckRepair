@@ -33,6 +33,8 @@
 - Added a non-destructive `elevation-probe` action and manual CyberArk EPM integration workflow to validate the real Windows `runas` broker path from a standard-user session.
 - Added `--password-stdin` for controlled automation so lab credentials can be supplied through redirected standard input without placing passwords on command lines.
 - Added a separately gated Disposable AD Destructive Lab with preflight, Safe Fixes, repair-if-broken, MII disable/rollback, and disposable Recycle Bin restore scenarios.
+- Hardened the disposable Recycle Bin lab to require RSAT, resolve the created/restored computer strictly by exact sAMAccountName, and require exactly one match before GUID verification.
+- Hardened `--password-stdin` so automation must supply `--user`, preventing redirected password input from being misinterpreted as an interactive username.
 - Hardened signed release validation with timestamp, ProductVersion, PE architecture, signer-subject pinning support, x86/x64 GUI/DPI smoke execution, and SHA-256 self-verification before publication.
 - Added Kerberos Deep Analyzer for TGT/HOST/LDAP/CIFS tickets, KDC bindings, ticket encryption, flags, lifetime and time-skew evidence.
 - Added real LDAP compatibility tests for signed LDAP 389, LDAPS authenticated bind and TLS certificate/hostname validation.
