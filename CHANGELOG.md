@@ -36,8 +36,9 @@
 - Hardened the disposable Recycle Bin lab to require RSAT, resolve the created/restored computer strictly by exact sAMAccountName, and require exactly one match before GUID verification.
 - Hardened `--password-stdin` so automation must supply `--user`, preventing redirected password input from being misinterpreted as an interactive username.
 - Hardened signed release validation with timestamp, ProductVersion, PE architecture, signer-subject pinning support, x86/x64 GUI/DPI smoke execution, and SHA-256 self-verification before publication.
-- Added repository policy validation to parse every PowerShell script in CI, reject unpinned remote GitHub Actions, require explicit workflow permissions, reject `pull_request_target`, and require `persist-credentials: false` on checkout.
-- Fixed a previously undetected syntax corruption in the manual Disposable AD Destructive Lab harness and rebuilt the script cleanly; the new PowerShell parser gate prevents a recurrence.
+- Replaced repository/lab PowerShell helpers with a compiled C#/.NET Framework `Tools/` project and added a policy gate that rejects `.ps1` files entirely.
+- Added repository policy validation for immutable remote GitHub Action SHAs, explicit workflow permissions, rejection of `pull_request_target`, `persist-credentials: false` on checkout, and protected-`main` restriction for self-hosted workflows.
+- Rebuilt the Disposable AD Destructive Lab as a compiled C# harness so manual lab code is type-checked on every protected build instead of being skipped when lab runners are offline.
 - Hardened self-hosted AD/EPM lab privacy: removed internal identity/domain details from public workflow logs, serialized live lab runs, made artifact upload opt-in, added fail-closed text redaction with per-run opaque HMAC identifiers, shortened optional artifact retention to 7 days, and clean raw evidence from runner workspaces after each run.
 - Added a GitHub-hosted regression test that verifies representative lab passwords/tokens, host/domain identifiers, UPNs, IPs, SIDs, GUIDs, MACs, DNs and UNC paths do not survive artifact sanitization.
 - Added Kerberos Deep Analyzer for TGT/HOST/LDAP/CIFS tickets, KDC bindings, ticket encryption, flags, lifetime and time-skew evidence.
