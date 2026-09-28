@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -72,8 +73,17 @@ namespace DomainMembershipCheckRepair
 
             try
             {
+                string executable = ResolveExecutable(fileName);
+                if (String.IsNullOrWhiteSpace(executable))
+                {
+                    result.Error =
+                        "Executable was not found: " +
+                        (fileName ?? String.Empty);
+                    return result;
+                }
+
                 ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = fileName;
+                psi.FileName = executable;
                 psi.Arguments = arguments ?? String.Empty;
                 psi.UseShellExecute = false;
                 psi.RedirectStandardOutput = true;
@@ -156,6 +166,38 @@ namespace DomainMembershipCheckRepair
                 if (process != null)
                     process.Dispose();
             }
+        internal static string ResolveExecutable(string fileName)
+        {
+            if (String.IsNullOrWhiteSpace(fileName))
+                return String.Empty;
+
+            string value = fileName.Trim().Trim('"');
+
+            if (Path.IsPathRooted(value))
+                return File.Exists(value) ? value : String.Empty;
+
+            if (value.IndexOf(Path.DirectorySeparatorChar) < 0 &&
+                value.IndexOf(Path.AltDirectorySeparatorChar) < 0)
+            {
+                string systemPath =
+                    Path.Combine(Environment.SystemDirectory, value);
+                if (File.Exists(systemPath))
+                    return systemPath;
+            }
+
+            try
+            {
+                string current = Path.GetFullPath(value);
+                if (File.Exists(current))
+                    return current;
+            }
+            catch
+            {
+            }
+
+            return value;
+        }
+
         }
     }
 }
