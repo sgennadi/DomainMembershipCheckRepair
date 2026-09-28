@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -26,6 +27,39 @@ namespace DomainMembershipCheckRepair
             string password)
         {
             return Run(fileName, arguments, timeoutMs, user, password, CancellationToken.None);
+        }
+
+        internal static CommandResult RunArguments(
+            string fileName,
+            IEnumerable<string> arguments,
+            int timeoutMs,
+            string user,
+            string password)
+        {
+            return RunArguments(
+                fileName,
+                arguments,
+                timeoutMs,
+                user,
+                password,
+                CancellationToken.None);
+        }
+
+        internal static CommandResult RunArguments(
+            string fileName,
+            IEnumerable<string> arguments,
+            int timeoutMs,
+            string user,
+            string password,
+            CancellationToken cancellationToken)
+        {
+            return Run(
+                fileName,
+                WindowsCommandLine.BuildArguments(arguments),
+                timeoutMs,
+                user,
+                password,
+                cancellationToken);
         }
 
         internal static CommandResult Run(
@@ -89,7 +123,7 @@ namespace DomainMembershipCheckRepair
                 startup.hStdInput = IntPtr.Zero;
 
                 StringBuilder commandLine = new StringBuilder();
-                commandLine.Append(Quote(executable));
+                commandLine.Append(WindowsCommandLine.QuoteArgument(executable));
                 if (!String.IsNullOrWhiteSpace(arguments))
                 {
                     commandLine.Append(' ');
