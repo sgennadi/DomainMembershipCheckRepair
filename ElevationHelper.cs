@@ -48,6 +48,29 @@ namespace DomainMembershipCheckRepair
             return value == "repair" || value == "join" || value == "rename" || value == "restart" || value == "mii-disable" || value == "odj-apply" || value == "safe-fixes" || value == "rollback-local" || value == "ad-restore" || value == "elevation-probe";
         }
 
+        internal static bool RequiresRecoverySnapshot(string action)
+        {
+            string value = (action ?? String.Empty).Trim().ToLowerInvariant();
+            return value == "repair" ||
+                   value == "join" ||
+                   value == "rename" ||
+                   value == "mii-disable" ||
+                   value == "odj-apply" ||
+                   value == "safe-fixes" ||
+                   value == "rollback-local" ||
+                   value == "ad-restore";
+        }
+
+        internal static bool RedirectedPasswordRequiresPreElevation(
+            string action,
+            bool passwordFromStdin,
+            bool dryRun)
+        {
+            return passwordFromStdin &&
+                   !dryRun &&
+                   RequiresElevation(action);
+        }
+
         internal static GuiResumeOptions ParseGuiResumeOptions(string[] args)
         {
             GuiResumeOptions result = new GuiResumeOptions();
