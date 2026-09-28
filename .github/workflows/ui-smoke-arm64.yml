@@ -11,32 +11,29 @@ env:
 
 jobs:
   ui-smoke-arm64:
-    if: ${{ vars.ARM64_UI_LAB_ENABLED == 'true' }}
+    if: ${{ vars.ARM64_UI_LAB_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
     runs-on: [self-hosted, Windows, ARM64, ui-lab]
     timeout-minutes: 30
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3
 
       - name: Verify ARM64 runner
-        shell: pwsh
+        shell: cmd
         run: |
-          Write-Host "PROCESSOR_ARCHITECTURE=$env:PROCESSOR_ARCHITECTURE"
-          Write-Host "PROCESSOR_IDENTIFIER=$env:PROCESSOR_IDENTIFIER"
-          if ($env:PROCESSOR_ARCHITECTURE -ne "ARM64") {
-            throw "This workflow must run on a native Windows ARM64 runner."
-          }
+          echo PROCESSOR_ARCHITECTURE=%PROCESSOR_ARCHITECTURE%
+          if /I not "%PROCESSOR_ARCHITECTURE%"=="ARM64" exit /b 1
 
       - name: Build ARM64
         shell: cmd
         run: msbuild DomainMembershipCheckRepair.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=ARM64
 
       - name: Run ARM64 GUI/DPI smoke test
-        shell: pwsh
-        run: |
-          & .\bin\Release\ARM64\DomainMembershipCheckRepair.exe --cli --action ui-smoke --json
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        shell: cmd
+        run: bin\Release\ARM64\DomainMembershipCheckRepair.exe --cli --action ui-smoke --json

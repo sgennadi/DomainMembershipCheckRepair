@@ -20,49 +20,54 @@ permissions:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
+concurrency:
+  group: epm-integration-lab
+  cancel-in-progress: false
+
 jobs:
   epm-integration:
-    if: ${{ vars.EPM_LAB_ENABLED == 'true' }}
+    if: ${{ vars.EPM_LAB_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
     runs-on: [self-hosted, Windows, X64, epm-lab]
     timeout-minutes: 20
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3
-
-      - name: Validate interactive EPM runner
-        shell: pwsh
-        run: |
-          Write-Host "Computer: $env:COMPUTERNAME"
-          Write-Host "Identity: $([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)"
-          Write-Host "UserInteractive: $([Environment]::UserInteractive)"
-          if (-not [Environment]::UserInteractive) {
-            throw "The epm-lab runner must run interactively so CyberArk/UAC elevation can be brokered."
-          }
 
       - name: Build x64
         shell: cmd
         run: msbuild DomainMembershipCheckRepair.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=x64
 
       - name: Run CyberArk EPM validation
-        shell: pwsh
+        shell: cmd
         timeout-minutes: 10
         env:
           REQUIRE_STANDARD_USER: ${{ inputs.require_standard_user }}
           REQUIRE_CYBERARK_DETECTION: ${{ inputs.require_cyberark_detection }}
-        run: |
-          $standard = [System.Convert]::ToBoolean($env:REQUIRE_STANDARD_USER)
-          $detected = [System.Convert]::ToBoolean($env:REQUIRE_CYBERARK_DETECTION)
-          .\Tests\Integration\Run-EpmIntegrationTests.ps1 -ExePath ".\bin\Release\x64\DomainMembershipCheckRepair.exe" -OutputDirectory ".\epm-artifacts" -RequireStandardUser $standard -RequireCyberArkDetection $detected
+        run: Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe epm-integration --exe bin\Release\x64\DomainMembershipCheckRepair.exe --output epm-artifacts --require-standard-user "%REQUIRE_STANDARD_USER%" --require-cyberark-detection "%REQUIRE_CYBERARK_DETECTION%"
 
-      - name: Upload EPM validation artifacts
+      - name: Sanitize EPM validation artifacts
         if: always()
+        shell: cmd
+        run: if exist epm-artifacts Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe sanitize-lab --input epm-artifacts --output epm-artifacts-sanitized
+
+      - name: Upload sanitized EPM validation artifacts
+        if: ${{ always() && vars.LAB_UPLOAD_SANITIZED_ARTIFACTS == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: epm-integration-${{ github.run_id }}
-          path: epm-artifacts/*
+          name: epm-integration-sanitized-${{ github.run_id }}
+          path: epm-artifacts-sanitized/*
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 7
+
+      - name: Clean lab artifacts from self-hosted runner
+        if: always()
+        shell: cmd
+        run: |
+          if exist epm-artifacts rmdir /s /q epm-artifacts
+          if exist epm-artifacts-sanitized rmdir /s /q epm-artifacts-sanitized

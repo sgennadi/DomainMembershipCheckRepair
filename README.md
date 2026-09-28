@@ -61,8 +61,10 @@ The release version has one source of truth: `VersionInfo.cs`. Assembly metadata
 - Offline Domain Join apply/provision workflows.
 - Safe post-reboot recovery resume without storing credentials.
 - Unit tests, CodeQL, Dependabot, SHA-256 checksums and release build provenance.
+- Repository tooling and live-lab harnesses are C#/.NET Framework; CI rejects `.ps1` files and enforces supply-chain policy: immutable action SHAs, explicit workflow permissions and non-persisted checkout credentials.
 - Protected-branch CI includes real WinForms GUI/DPI smoke tests for x86/x64; native ARM64 GUI smoke has a separate self-hosted lab workflow.
 - Manual disposable AD and CyberArk EPM integration labs are available for explicitly gated live validation outside production.
+- Self-hosted lab artifacts are local-only by default; optional uploads are fail-closed sanitized, short-retention copies and are never raw lab evidence.
 
 ## Architectures
 
@@ -726,7 +728,7 @@ The recommended `main` ruleset is documented in `.github/BRANCH_PROTECTION.md`: 
 
 Dependabot checks GitHub Actions updates weekly.
 
-`ad-integration.yml` is a manual, opt-in workflow for a dedicated self-hosted Windows runner in a test AD domain. It is gated by `AD_LAB_ENABLED=true`, uses the runner's domain security context rather than a stored password, executes the deep read-only CLI analyzers, validates their JSON envelopes/diagnostic exit codes, and uploads the resulting integration diagnostics. See [Tests/Integration/README.md](Tests/Integration/README.md).
+`ad-integration.yml` is a manual, opt-in workflow for a dedicated self-hosted Windows runner in a test AD domain. It is gated by `AD_LAB_ENABLED=true`, runs only from protected `main`, uses the native C# tools harness and the runner's domain security context rather than a stored password, and validates the deep read-only CLI analyzers. Raw lab evidence stays local by default; optional GitHub artifacts are sanitized before upload. See [Tests/Integration/README.md](Tests/Integration/README.md).
 
 ## Release process
 

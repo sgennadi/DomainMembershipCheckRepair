@@ -23,7 +23,7 @@ if errorlevel 1 exit /b 1
 
 echo.
 echo Generating SHA-256 checksums...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$files = Get-ChildItem -Path '%~dp0dist' -Recurse -File | Where-Object { $_.Name -like 'DomainMembershipCheckRepair-*' -and ($_.Extension -eq '.exe' -or $_.Name -like '*.exe.config') } | Sort-Object FullName; $lines = $files | ForEach-Object { $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(); $relative = $_.FullName.Substring(('%~dp0dist').Length).TrimStart('\'); \"$hash  $relative\" }; $lines | Set-Content -Encoding ascii '%~dp0dist\SHA256SUMS.txt'"
+"%~dp0Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe" hash-dist --directory "%~dp0dist"
 if errorlevel 1 exit /b 1
 
 echo.

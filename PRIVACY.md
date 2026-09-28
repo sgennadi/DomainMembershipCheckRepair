@@ -69,6 +69,14 @@ Default diagnostic and pre-change support-bundle filenames do not include the lo
 
 Diagnostic packages are created locally. The application does not automatically upload or transmit them anywhere.
 
+### Repository integration-lab artifacts
+
+The repository contains optional manual self-hosted GitHub Actions workflows for live AD and CyberArk EPM validation. These workflows are development/test infrastructure and are not part of normal end-user application runtime.
+
+Raw lab diagnostics remain on the self-hosted runner by default and are not uploaded to GitHub. Artifact upload is opt-in through the repository variable `LAB_UPLOAD_SANITIZED_ARTIFACTS=true`. When enabled, text artifacts are passed through a fail-closed sanitizer before upload: configured environment values and detected accounts, UPNs, IP/MAC addresses, SIDs, GUIDs, distinguished names, UNC paths, FQDNs and secret/token patterns are redacted or replaced with per-run opaque HMAC tokens. Non-text artifacts are omitted. The HMAC key is random for each run and is not stored.
+
+Optional sanitized lab artifacts use a 7-day retention period. Raw and sanitized working artifact directories are deleted from the self-hosted runner at workflow completion. As with application diagnostic bundles, automated redaction is defense in depth; operators should avoid using production infrastructure for these lab workflows.
+
 ## Active Directory data
 
 Read-only account checks may retrieve Active Directory computer-object properties required for display or troubleshooting, such as:
