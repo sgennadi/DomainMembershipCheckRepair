@@ -22,16 +22,16 @@ Changes proposed by contributors who do not have commit access must be reviewed 
 
 1. GitHub Actions checks out the tagged source revision.
 2. The workflow builds x86, x64, and ARM64 from source on a GitHub-hosted Windows runner.
-3. The three unsigned executables are uploaded as a GitHub Actions artifact.
-4. The workflow submits that GitHub artifact to SignPath using the SignPath GitHub connector and origin verification.
-5. A release signing request is manually approved in SignPath.
-6. SignPath Authenticode-signs the three executables and returns the signed artifact.
-7. The compiled C# release validator invokes Windows SDK `signtool verify /pa /v`, requires concrete trusted-timestamp evidence, reads the signer certificate, and validates ProductVersion plus PE architecture.
-8. SHA-256 checksums are generated from the final executables.
-9. GitHub build-provenance attestations are generated for the final release executables.
-10. The protected-`main` ruleset requires the Build and CodeQL checks before merge.
-11. The signed release workflow validates Authenticode status, timestamp presence, ProductVersion, PE architecture, x86/x64 GUI/DPI startup, and generated SHA-256 checksums before publication.
-12. Only then are the executables and `SHA256SUMS.txt` published to the GitHub Release.
+4. The three unsigned executables are uploaded as a GitHub Actions artifact.
+5. The workflow submits that GitHub artifact to SignPath using the SignPath GitHub connector and origin verification.
+6. A release signing request is manually approved in SignPath.
+7. SignPath Authenticode-signs the three executables and returns the signed artifact.
+8. The compiled C# release validator invokes Windows SDK `signtool verify /pa /v`, requires concrete trusted-timestamp evidence, reads the signer certificate, and validates ProductVersion plus PE architecture.
+9. SHA-256 checksums are generated from the final executables.
+10. GitHub build-provenance attestations are generated for the final release executables.
+11. The protected-`main` ruleset requires the Build and CodeQL checks before merge.
+12. The signed release workflow validates Authenticode status, timestamp presence, ProductVersion, PE architecture, x86/x64 GUI/DPI startup, and generated SHA-256 checksums before publication.
+13. Only then are the executables and `SHA256SUMS.txt` published to the GitHub Release.
 
 The SignPath artifact configuration is stored in `.signpath/artifact-configuration.xml`. The repository also contains `.signpath/pipeline-policy.yml`, which requires GitHub-hosted runners. GitHub Actions used by the release workflow are pinned to immutable commits and use Node.js 24-compatible runtimes. Release orchestration itself uses `cmd` plus the compiled C#/.NET Framework `Tools/` executable; repository policy rejects PowerShell workflow shells.
 
