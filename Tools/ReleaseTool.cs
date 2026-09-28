@@ -135,7 +135,10 @@ namespace DomainMembershipCheckRepair.Tools
                     throw new InvalidOperationException("Authenticode verification failed for " + binary.Name + ".");
 
                 string verificationText = (verify.StandardOutput ?? String.Empty) + Environment.NewLine + (verify.StandardError ?? String.Empty);
-                if (verificationText.IndexOf("timestamp", StringComparison.OrdinalIgnoreCase) < 0)
+                bool timestamped =
+                    verificationText.IndexOf("The signature is timestamped", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    verificationText.IndexOf("Timestamp Verified by", StringComparison.OrdinalIgnoreCase) >= 0;
+                if (!timestamped)
                     throw new InvalidOperationException("Trusted timestamp evidence is missing for " + binary.Name + ".");
 
                 X509Certificate2 signer;
