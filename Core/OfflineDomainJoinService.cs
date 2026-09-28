@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
@@ -17,9 +18,10 @@ namespace DomainMembershipCheckRepair
             }
 
             string full = Path.GetFullPath(blobPath);
-            string arguments = BuildApplyArguments(
+            string[] arguments = BuildApplyArgumentList(
                 full,
-                Environment.GetFolderPath(Environment.SpecialFolder.Windows));
+                Environment.GetFolderPath(
+                    Environment.SpecialFolder.Windows));
             return RunDjoin(arguments, out output);
         }
 
@@ -57,7 +59,7 @@ namespace DomainMembershipCheckRepair
                 return 3;
             }
 
-            string args = BuildProvisionArguments(
+            string[] args = BuildProvisionArgumentList(
                 domain.Trim(),
                 machine.Trim(),
                 fullOutputPath,
@@ -66,10 +68,19 @@ namespace DomainMembershipCheckRepair
             return RunDjoin(args, out output);
         }
 
-        private static int RunDjoin(string args, out string output)
+        private static int RunDjoin(
+            IEnumerable<string> arguments,
+            out string output)
         {
-            string djoin = Path.Combine(Environment.SystemDirectory, "djoin.exe");
-            CommandResult result = ProcessRunner.Run(djoin, args, 120000);
+            string djoin =
+                Path.Combine(
+                    Environment.SystemDirectory,
+                    "djoin.exe");
+            CommandResult result =
+                ProcessRunner.RunArguments(
+                    djoin,
+                    arguments,
+                    120000);
 
             output = result.CombinedOutput;
             if (!String.IsNullOrWhiteSpace(result.Error))
@@ -91,11 +102,8 @@ namespace DomainMembershipCheckRepair
             string blobPath,
             string windowsPath)
         {
-            return "/requestODJ /loadfile " +
-                   WindowsCommandLine.QuoteArgument(blobPath) +
-                   " /windowspath " +
-                   WindowsCommandLine.QuoteArgument(windowsPath) +
-                   " /localos";
+            return WindowsCommandLine.BuildArguments(
+                BuildApplyArgumentList(blobPath, windowsPath));
         }
 
         internal static string BuildProvisionArguments(
@@ -104,18 +112,48 @@ namespace DomainMembershipCheckRepair
             string outputPath,
             bool reuse)
         {
-            string arguments =
-                "/provision /domain " +
-                WindowsCommandLine.QuoteArgument(domain) +
-                " /machine " +
-                WindowsCommandLine.QuoteArgument(machine) +
-                " /savefile " +
-                WindowsCommandLine.QuoteArgument(outputPath);
+            return WindowsCommandLine.BuildArguments(
+                BuildProvisionArgumentList(
+                    domain,
+                    machine,
+                    outputPath,
+                    reuse));
+        }
+        private static string[] BuildApplyArgumentList(
+            string blobPath,
+            string windowsPath)
+        {
+            return new string[]
+            {
+                "/requestODJ",
+                "/loadfile",
+                blobPath ?? String.Empty,
+                "/windowspath",
+                windowsPath ?? String.Empty,
+                "/localos"
+            };
+        }
+
+        private static string[] BuildProvisionArgumentList(
+            string domain,
+            string machine,
+            string outputPath,
+            bool reuse)
+        {
+            List<string> arguments = new List<string>();
+            arguments.Add("/provision");
+            arguments.Add("/domain");
+            arguments.Add(domain ?? String.Empty);
+            arguments.Add("/machine");
+            arguments.Add(machine ?? String.Empty);
+            arguments.Add("/savefile");
+            arguments.Add(outputPath ?? String.Empty);
 
             if (reuse)
-                arguments += " /reuse";
+                arguments.Add("/reuse");
 
-            return arguments;
+            return arguments.ToArray();
         }
+
     }
 }
