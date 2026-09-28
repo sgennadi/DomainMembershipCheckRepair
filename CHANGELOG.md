@@ -29,6 +29,11 @@
 - Removed computer names from default diagnostic ZIP and pre-change Safety Bundle filenames.
 - Added an end-to-end ZIP regression test that reopens a generated archive and verifies that representative secrets and environment identifiers are absent.
 - Updated release provenance attestation to `actions/attest-build-provenance` v4.2.2 and documented the recommended protected-`main` ruleset.
+- Added protected-build WinForms GUI/DPI smoke automation for x86/x64 across 100-250% synthetic scaling profiles, plus a manual native ARM64 UI lab workflow.
+- Added a non-destructive `elevation-probe` action and manual CyberArk EPM integration workflow to validate the real Windows `runas` broker path from a standard-user session.
+- Added `--password-stdin` for controlled automation so lab credentials can be supplied through redirected standard input without placing passwords on command lines.
+- Added a separately gated Disposable AD Destructive Lab with preflight, Safe Fixes, repair-if-broken, MII disable/rollback, and disposable Recycle Bin restore scenarios.
+- Hardened signed release validation with timestamp, ProductVersion, PE architecture, signer-subject pinning support, x86/x64 GUI/DPI smoke execution, and SHA-256 self-verification before publication.
 - Added Kerberos Deep Analyzer for TGT/HOST/LDAP/CIFS tickets, KDC bindings, ticket encryption, flags, lifetime and time-skew evidence.
 - Added real LDAP compatibility tests for signed LDAP 389, LDAPS authenticated bind and TLS certificate/hostname validation.
 - Added native RPC Endpoint Mapper enumeration and concrete dynamic RPC TCP reachability tests without requiring PortQry.
