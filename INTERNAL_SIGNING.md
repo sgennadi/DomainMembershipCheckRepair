@@ -4,6 +4,8 @@ This is an optional signing path for managed Windows endpoints while public Sign
 
 It does **not** replace public Authenticode trust for GitHub users. Internal certificates are trusted only on endpoints where the organization deploys the corresponding trust chain.
 
+The repository does not use PowerShell helper scripts. Internal signing support is implemented in the native .NET Framework tools project under `Tools/`.
+
 ## Preferred option: Active Directory Certificate Services
 
 If the organization has an Enterprise CA:
@@ -18,49 +20,73 @@ If the organization has an Enterprise CA:
 
 For CyberArk EPM, prefer an application definition that combines publisher/signature information with product metadata and a protected install path. Do not grant elevation to every executable signed by a broad/shared publisher.
 
-## Free fallback: self-signed organizational certificate
+## Free fallback: local self-signed organizational certificate
 
-For managed endpoints only, `tools/New-InternalCodeSigningCertificate.ps1` can create a self-signed Code Signing certificate.
+Build the native repository tools first:
 
-The public certificate/chain must then be deployed to managed endpoints through Group Policy or another device-management system. A self-signed certificate generally needs trust in:
+~~~text
+msbuild Tools\DomainMembershipCheckRepair.Tools.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU
+~~~
 
-- Trusted Root Certification Authorities
-- Trusted Publishers
+From an elevated command prompt, create a local Code Signing certificate:
 
-Do not publish the generated PFX or its password in GitHub, source control, release artifacts, tickets, logs, or chat.
+~~~text
+Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe internal-cert
+~~~
 
-Example:
+The helper uses the Windows `certreq.exe` API path to create a 3072-bit RSA/SHA-256 Code Signing certificate in `LocalMachine\My`. The private key is non-exportable. A public `InternalCodeSigning.cer` is written to the `internal-signing` directory for controlled trust deployment.
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\New-InternalCodeSigningCertificate.ps1
-```
+Optional parameters:
 
-The script prompts securely for the PFX password.
+~~~text
+--subject "CN=DomainMembershipCheckRepair Internal Code Signing"
+--friendly-name "DomainMembershipCheckRepair Internal Code Signing"
+--valid-years 2
+--output C:\Secure\InternalSigning
+~~~
+
+Deploy only the public certificate/CA chain to managed endpoints. Never publish a private signing key.
 
 ## Sign a local release
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Sign-InternalRelease.ps1 -PfxPath C:\Secure\InternalCodeSigning.pfx -Files .\DomainMembershipCheckRepair-x86.exe,.\DomainMembershipCheckRepair-x64.exe,.\DomainMembershipCheckRepair-arm64.exe
-```
+Sign by certificate thumbprint from the LocalMachine certificate store:
 
-The signing helper prompts securely for the PFX password. It can also sign by certificate thumbprint from the LocalMachine certificate store.
+~~~text
+Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe internal-sign --thumbprint THUMBPRINT --machine-store true --file DomainMembershipCheckRepair-x86.exe --file DomainMembershipCheckRepair-x64.exe --file DomainMembershipCheckRepair-arm64.exe
+~~~
+
+An existing PFX is also supported:
+
+~~~text
+Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe internal-sign --pfx C:\Secure\CodeSigning.pfx --file DomainMembershipCheckRepair-x64.exe
+~~~
+
+When a PFX is used, the helper asks for the password without echoing it. The password is used only to import the certificate temporarily into the current user's certificate store; the password is **not** passed to `signtool.exe` on its command line. The temporary imported certificate is removed after signing.
+
+Optional RFC3161 timestamping:
+
+~~~text
+--timestamp-url https://timestamp.example.invalid
+~~~
+
+Every file is verified with `signtool verify /pa /v` after signing.
 
 ## Trust deployment
 
 Recommended Group Policy paths are under:
 
-```text
+~~~text
 Computer Configuration
   Policies
     Windows Settings
       Security Settings
         Public Key Policies
-```
+~~~
 
-Deploy only the public certificate/CA chain. Never deploy the private key/PFX to workstations.
+Deploy only the public certificate/CA chain. Never deploy signing private keys to workstations.
 
 ## Separation from public releases
 
-The GitHub Release workflow remains **SignPath signing-required**. The internal workflow is intentionally manual/offline and does not weaken the public release policy.
+The GitHub Release workflow remains **SignPath signing-required**. The internal workflow is intentionally local and does not weaken the public release policy.
 
 Internal builds may be signed for managed endpoints while the public release remains blocked until SignPath Foundation is configured.
