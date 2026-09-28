@@ -44,7 +44,7 @@ if (-not $computerSystem.PartOfDomain) {
 }
 
 if (-not [string]::Equals($computerSystem.Domain, $Domain, [System.StringComparison]::OrdinalIgnoreCase)) {
-    Write-Warning "Runner domain '$($computerSystem.Domain)' differs from requested test domain '$Domain'."
+    Write-Warning "Runner domain differs from the configured test domain."
 }
 
 $actions = @(
@@ -94,7 +94,7 @@ foreach ($action in $actions) {
     }
     catch {
         $parseError = $_.Exception.Message
-        $failures.Add("$action did not return valid JSON: $parseError")
+        $failures.Add("$action did not return valid JSON")
     }
 
     if ($allowedDiagnosticExitCodes -notcontains $exitCode) {
@@ -125,7 +125,7 @@ foreach ($action in $actions) {
         ExitCode = $exitCode
         ExitMeaning = if ($null -ne $parsed) { [string]$parsed.exitMeaning } else { "" }
         JsonValid = ($null -ne $parsed)
-        StdErr = $stderr
+        StdErrPresent = (-not [string]::IsNullOrWhiteSpace($stderr))
     })
 
     Write-Host "$action -> exit $exitCode"
