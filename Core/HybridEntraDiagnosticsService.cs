@@ -25,7 +25,11 @@ namespace DomainMembershipCheckRepair
         internal static HybridEntraDiagnosticsResult Analyze()
         {
             HybridEntraDiagnosticsResult r = new HybridEntraDiagnosticsResult();
-            CommandResult command = ProcessRunner.Run("dsregcmd.exe", "/status", 15000);
+            CommandResult command =
+                ProcessRunner.RunArguments(
+                    "dsregcmd.exe",
+                    new string[] { "/status" },
+                    15000);
 
             if (!String.IsNullOrWhiteSpace(command.Error))
             {
