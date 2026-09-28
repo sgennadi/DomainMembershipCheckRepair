@@ -65,6 +65,8 @@ Sanitization is fail-closed per file: if collected content cannot be safely read
 
 Automatic redaction is a defense-in-depth measure and cannot guarantee recognition of every possible environment-specific identifier. Operators should still review a bundle before external sharing.
 
+Default diagnostic and pre-change support-bundle filenames do not include the local computer name.
+
 Diagnostic packages are created locally. The application does not automatically upload or transmit them anywhere.
 
 ## Active Directory data

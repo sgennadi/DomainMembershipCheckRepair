@@ -26,8 +26,8 @@ namespace DomainMembershipCheckRepair
                 path = Path.Combine(
                     folder,
                     DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-" +
-                    Environment.MachineName + "-" +
-                    Sanitize(operation) + "-prechange.zip");
+                    Sanitize(operation) +
+                    "-prechange-sanitized.zip");
 
                 AdvancedDiagnosticsResult advanced = AdvancedDiagnosticsService.Analyze(
                     domain,
