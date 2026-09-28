@@ -51,6 +51,18 @@ jobs:
         shell: cmd
         run: msbuild DomainMembershipCheckRepair.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=x64
 
+      - name: Run GUI/DPI smoke tests (x86)
+        shell: pwsh
+        run: |
+          & .\bin\Release\x86\DomainMembershipCheckRepair.exe --cli --action ui-smoke --json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run GUI/DPI smoke tests (x64)
+        shell: pwsh
+        run: |
+          & .\bin\Release\x64\DomainMembershipCheckRepair.exe --cli --action ui-smoke --json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Build ARM64
         shell: cmd
         run: msbuild DomainMembershipCheckRepair.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=ARM64

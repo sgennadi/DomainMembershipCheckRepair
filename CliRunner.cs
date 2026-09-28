@@ -29,6 +29,7 @@ namespace DomainMembershipCheckRepair
         internal bool DryRun;
         internal bool IncludeApplicationLog;
         internal bool ElevationAttempted;
+        internal bool PasswordFromStdin;
         internal bool Help;
     }
 
@@ -212,6 +213,11 @@ namespace DomainMembershipCheckRepair
                     result.ElevationAttempted = true;
                     continue;
                 }
+                if (EqualsArg(arg, "--password-stdin"))
+                {
+                    result.PasswordFromStdin = true;
+                    continue;
+                }
 
                 if (EqualsArg(arg, "--action"))
                 {
@@ -294,7 +300,7 @@ namespace DomainMembershipCheckRepair
             if (!String.IsNullOrWhiteSpace(result.Action))
             {
                 string action = result.Action.Trim().ToLowerInvariant();
-                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "mii-disable" && action != "detect" && action != "ad-check" && action != "ad-recycle-bin" && action != "ad-deleted" && action != "ad-restore" && action != "diagnose" && action != "export-diagnostics" && action != "advanced" && action != "netsetup" && action != "dc-matrix" && action != "site-subnet" && action != "protocols" && action != "hardening" && action != "join-permissions" && action != "hybrid-entra" && action != "policy-source" && action != "replication-metadata" && action != "spn-collisions" && action != "smb-kerberos" && action != "kerberos-deep" && action != "ldap-compatibility" && action != "rpc-endpoints" && action != "replication-timeline" && action != "identity-consistency" && action != "next-action" && action != "transactions" && action != "rollback-local" && action != "self-test" && action != "recovery-plan" && action != "support-bundle" && action != "cyberark" && action != "safe-fixes" && action != "odj-apply" && action != "odj-provision")
+                if (action != "status" && action != "check" && action != "repair" && action != "join" && action != "rename" && action != "restart" && action != "mii-disable" && action != "detect" && action != "ad-check" && action != "ad-recycle-bin" && action != "ad-deleted" && action != "ad-restore" && action != "diagnose" && action != "export-diagnostics" && action != "advanced" && action != "netsetup" && action != "dc-matrix" && action != "site-subnet" && action != "protocols" && action != "hardening" && action != "join-permissions" && action != "hybrid-entra" && action != "policy-source" && action != "replication-metadata" && action != "spn-collisions" && action != "smb-kerberos" && action != "kerberos-deep" && action != "ldap-compatibility" && action != "rpc-endpoints" && action != "replication-timeline" && action != "identity-consistency" && action != "next-action" && action != "transactions" && action != "rollback-local" && action != "self-test" && action != "recovery-plan" && action != "support-bundle" && action != "cyberark" && action != "elevation-probe" && action != "ui-smoke" && action != "safe-fixes" && action != "odj-apply" && action != "odj-provision")
                 {
                     error = "Unknown action '" + result.Action + "'. Run --help to see the supported actions.";
                     return result;
@@ -403,6 +409,8 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("  --cli --action recovery-plan");
             Console.WriteLine("  --cli --action support-bundle");
             Console.WriteLine("  --cli --action cyberark");
+            Console.WriteLine("  --cli --action elevation-probe");
+            Console.WriteLine("  --cli --action ui-smoke");
             Console.WriteLine("  --cli --action safe-fixes");
             Console.WriteLine("  --cli --action odj-apply --blob PATH");
             Console.WriteLine("  --cli --action odj-provision --domain DOMAIN --computer NAME --output PATH [--reuse]");
@@ -420,6 +428,7 @@ namespace DomainMembershipCheckRepair
             Console.WriteLine("  --blob PATH                   Offline Domain Join provisioning blob to apply");
             Console.WriteLine("  --reuse                       allow djoin /provision to reuse an existing computer account");
             Console.WriteLine("  --include-app-log             include optional application log in diagnostic ZIP");
+            Console.WriteLine("  --password-stdin              read the password from redirected stdin (automation only; requires --user)");
             Console.WriteLine("  --log                         write application log file");
             Console.WriteLine("  --no-log                      disable application log file (default)");
             Console.WriteLine("  --restart                     restart automatically after success");
@@ -599,6 +608,8 @@ namespace DomainMembershipCheckRepair
                     case "recovery-plan": return RecoveryPlan();
                     case "support-bundle": return SupportBundle();
                     case "cyberark": return CyberArkHealth();
+                    case "elevation-probe": return ElevationProbe();
+                    case "ui-smoke": return MainForm.RunUiSmokeTests(options.Json);
                     case "safe-fixes": return SafeFixes();
                     case "odj-apply": return ApplyOfflineDomainJoin();
                     case "odj-provision": return ProvisionOfflineDomainJoin();
@@ -1810,6 +1821,35 @@ namespace DomainMembershipCheckRepair
             return WriteDiagnosticResult("cyberark", result, report, exitCode);
         }
 
+        private static int ElevationProbe()
+        {
+            bool elevated = ElevationHelper.IsAdministrator();
+            CyberArkDiagnosticsResult cyberArk = CyberArkDiagnosticsService.Analyze();
+
+            if (options.Json)
+            {
+                Dictionary<string, object> payload = new Dictionary<string, object>();
+                payload["elevated"] = elevated;
+                payload["identity"] = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
+                payload["cyberArkDetected"] = cyberArk.Detected;
+                payload["privilege"] = cyberArk.Privilege;
+                Console.WriteLine(JsonReportSerializer.SerializeAction(
+                    "elevation-probe",
+                    elevated ? 0 : ElevationHelper.ElevationFailureExitCode,
+                    payload));
+            }
+            else
+            {
+                Console.WriteLine("Elevation probe");
+                Console.WriteLine("================");
+                Console.WriteLine("Identity:  " + System.Security.Principal.WindowsIdentity.GetCurrent().Name);
+                Console.WriteLine("Elevated:  " + (elevated ? "Yes" : "No"));
+                Console.WriteLine("CyberArk/EPM detected: " + (cyberArk.Detected ? "Yes" : "No/Unknown"));
+            }
+
+            return elevated ? 0 : ElevationHelper.ElevationFailureExitCode;
+        }
+
 
         private static int SafeFixes()
         {
@@ -2349,6 +2389,17 @@ namespace DomainMembershipCheckRepair
 
         private static string ReadPassword()
         {
+            if (options != null && options.PasswordFromStdin)
+            {
+                if (!Console.IsInputRedirected)
+                {
+                    Console.Error.WriteLine("--password-stdin requires redirected standard input.");
+                    return null;
+                }
+
+                return Console.ReadLine();
+            }
+
             StringBuilder password = new StringBuilder();
             while (true)
             {

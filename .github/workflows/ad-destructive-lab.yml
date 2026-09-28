@@ -1,0 +1,110 @@
+name: Disposable AD Destructive Lab
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: Destructive/disposable scenario to run
+        type: choice
+        options:
+          - preflight
+          - safe-fixes
+          - repair-if-broken
+          - mii-disable-rollback
+          - recycle-bin-restore
+        default: preflight
+        required: true
+      confirmation:
+        description: Type DESTROY_DISPOSABLE_LAB to unlock mutating scenarios
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate destructive-lab gate
+        shell: bash
+        env:
+          ENABLED: ${{ vars.AD_DESTRUCTIVE_LAB_ENABLED }}
+          SCENARIO: ${{ inputs.scenario }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          if [ "$ENABLED" != "true" ]; then
+            echo "AD_DESTRUCTIVE_LAB_ENABLED must be set to true."
+            exit 1
+          fi
+
+          if [ "$SCENARIO" != "preflight" ] && [ "$CONFIRMATION" != "DESTROY_DISPOSABLE_LAB" ]; then
+            echo "Mutating scenarios require the exact confirmation string DESTROY_DISPOSABLE_LAB."
+            exit 1
+          fi
+
+  destructive-ad-lab:
+    needs: gate
+    runs-on: [self-hosted, Windows, X64, domain-destructive-lab]
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3
+
+      - name: Validate disposable runner identity
+        shell: pwsh
+        env:
+          AD_LAB_DOMAIN: ${{ vars.AD_LAB_DOMAIN }}
+          AD_LAB_COMPUTER: ${{ vars.AD_LAB_COMPUTER }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:AD_LAB_DOMAIN)) {
+            throw "AD_LAB_DOMAIN is required."
+          }
+
+          $cs = Get-CimInstance Win32_ComputerSystem
+          Write-Host "Runner: $env:COMPUTERNAME"
+          Write-Host "Identity: $([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)"
+          Write-Host "PartOfDomain: $($cs.PartOfDomain)"
+          Write-Host "Domain: $($cs.Domain)"
+
+          if (-not $cs.PartOfDomain) {
+            throw "The destructive lab runner must be domain joined."
+          }
+
+          if (-not [string]::IsNullOrWhiteSpace($env:AD_LAB_COMPUTER) -and
+              -not [string]::Equals($env:COMPUTERNAME, $env:AD_LAB_COMPUTER, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Runner name does not match AD_LAB_COMPUTER."
+          }
+
+      - name: Build x64
+        shell: cmd
+        run: msbuild DomainMembershipCheckRepair.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=x64
+
+      - name: Run disposable destructive scenario
+        shell: pwsh
+        env:
+          AD_LAB_DOMAIN: ${{ vars.AD_LAB_DOMAIN }}
+          AD_LAB_DC: ${{ vars.AD_LAB_DC }}
+          AD_LAB_COMPUTER: ${{ vars.AD_LAB_COMPUTER }}
+          AD_LAB_TEST_OU_DN: ${{ vars.AD_LAB_TEST_OU_DN }}
+          AD_LAB_USER: ${{ vars.AD_LAB_USER }}
+          AD_LAB_PASSWORD: ${{ secrets.AD_LAB_PASSWORD }}
+          LAB_SCENARIO: ${{ inputs.scenario }}
+        run: |
+          .\Tests\Integration\Run-ADDestructiveLab.ps1 -ExePath ".\bin\Release\x64\DomainMembershipCheckRepair.exe" -Scenario $env:LAB_SCENARIO -Domain $env:AD_LAB_DOMAIN -PreferredDc $env:AD_LAB_DC -ExpectedComputerName $env:AD_LAB_COMPUTER -TestOuDn $env:AD_LAB_TEST_OU_DN -OutputDirectory ".\destructive-artifacts"
+
+      - name: Upload destructive-lab artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ad-destructive-lab-${{ github.run_id }}
+          path: destructive-artifacts/*
+          if-no-files-found: warn
+          retention-days: 14

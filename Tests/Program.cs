@@ -148,6 +148,7 @@ namespace DomainMembershipCheckRepair
             AssertTrue(ElevationHelper.RequiresElevation("safe-fixes"), "safe-fixes requires elevation");
             AssertTrue(ElevationHelper.RequiresElevation("rollback-local"), "rollback-local requires elevation");
             AssertTrue(ElevationHelper.RequiresElevation("ad-restore"), "ad-restore requires elevation");
+            AssertTrue(ElevationHelper.RequiresElevation("elevation-probe"), "elevation probe requires elevation");
 
             AssertFalse(ElevationHelper.RequiresElevation("status"), "status does not require elevation");
             AssertFalse(ElevationHelper.RequiresElevation("check"), "check does not require elevation");
@@ -155,6 +156,7 @@ namespace DomainMembershipCheckRepair
             AssertFalse(ElevationHelper.RequiresElevation("ad-check"), "ad-check does not require elevation");
             AssertFalse(ElevationHelper.RequiresElevation("diagnose"), "diagnose does not require elevation");
             AssertFalse(ElevationHelper.RequiresElevation("export-diagnostics"), "export diagnostics does not require elevation");
+            AssertFalse(ElevationHelper.RequiresElevation("ui-smoke"), "UI smoke does not require elevation");
         }
 
         private static void TestGuiResumeOptions()

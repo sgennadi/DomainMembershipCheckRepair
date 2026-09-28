@@ -6,7 +6,7 @@ This file contains the public project information needed for the SignPath Founda
 
 - Project name: DomainMembershipCheckRepair
 - Repository: https://github.com/sgennadi/DomainMembershipCheckRepair
-- Current release: https://github.com/sgennadi/DomainMembershipCheckRepair/releases/tag/v1.2.1
+- Latest published release: https://github.com/sgennadi/DomainMembershipCheckRepair/releases/tag/v1.2.1
 - License: MIT
 - Privacy policy: https://github.com/sgennadi/DomainMembershipCheckRepair/blob/main/PRIVACY.md
 - Maintainer / repository owner: sgennadi
@@ -68,6 +68,7 @@ The repository already contains:
 - GitHub build-provenance attestations
 - immutable action SHAs
 - Node.js 24-compatible GitHub Actions
+- signed release smoke validation for Authenticode timestamp, ProductVersion, PE architecture, x86/x64 GUI/DPI startup, and SHA-256 re-verification
 
 ## Items that require the maintainer / SignPath web UI
 

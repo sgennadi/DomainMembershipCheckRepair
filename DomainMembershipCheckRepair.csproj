@@ -139,6 +139,7 @@
     <Compile Include="MainForm.cs" />
     <Compile Include="MainForm.Polish.cs" />
     <Compile Include="MainForm.AsyncDiagnostics.cs" />
+    <Compile Include="MainForm.UiSmoke.cs" />
     <Compile Include="NativeMethods.cs" />
     <Compile Include="Models.cs" />
     <Compile Include="Dialogs.cs" />

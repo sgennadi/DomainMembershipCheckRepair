@@ -61,6 +61,7 @@ namespace DomainMembershipCheckRepair
         private Button aboutButton;
         private TextBox logBox;
         private CheckBox fileLogBox;
+        private Panel scrollHost;
         private readonly bool initialFileLogging;
         private readonly GuiResumeOptions startupOptions;
 
@@ -68,7 +69,7 @@ namespace DomainMembershipCheckRepair
         private bool settingDomainBox;
         private bool domainManuallyEdited;
 
-        internal MainForm(bool enableFileLogging, string[] args)
+        internal MainForm(bool enableFileLogging, string[] args, bool skipInitialDiagnostics = false)
         {
             initialFileLogging = enableFileLogging;
             startupOptions = ElevationHelper.ParseGuiResumeOptions(args);
@@ -91,20 +92,24 @@ namespace DomainMembershipCheckRepair
 
             BuildUi();
             ApplyStartupOptions();
-            RefreshStatus(true);
 
-            if (startupOptions != null && !String.IsNullOrWhiteSpace(startupOptions.Action))
+            if (!skipInitialDiagnostics)
             {
-                Shown += delegate
+                RefreshStatus(true);
+
+                if (startupOptions != null && !String.IsNullOrWhiteSpace(startupOptions.Action))
                 {
-                    BeginInvoke(new MethodInvoker(ResumeElevatedAction));
-                };
+                    Shown += delegate
+                    {
+                        BeginInvoke(new MethodInvoker(ResumeElevatedAction));
+                    };
+                }
             }
         }
 
         private void BuildUi()
         {
-            Panel scrollHost = new Panel();
+            scrollHost = new Panel();
             scrollHost.Dock = DockStyle.Fill;
             scrollHost.AutoScroll = true;
 

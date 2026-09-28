@@ -1,0 +1,68 @@
+name: CyberArk EPM Integration Lab
+
+on:
+  workflow_dispatch:
+    inputs:
+      require_standard_user:
+        description: Require the runner to start from a standard-user token
+        type: boolean
+        default: true
+        required: true
+      require_cyberark_detection:
+        description: Fail if CyberArk/EPM cannot be detected locally
+        type: boolean
+        default: true
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  epm-integration:
+    if: ${{ vars.EPM_LAB_ENABLED == 'true' }}
+    runs-on: [self-hosted, Windows, X64, epm-lab]
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3
+
+      - name: Validate interactive EPM runner
+        shell: pwsh
+        run: |
+          Write-Host "Computer: $env:COMPUTERNAME"
+          Write-Host "Identity: $([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)"
+          Write-Host "UserInteractive: $([Environment]::UserInteractive)"
+          if (-not [Environment]::UserInteractive) {
+            throw "The epm-lab runner must run interactively so CyberArk/UAC elevation can be brokered."
+          }
+
+      - name: Build x64
+        shell: cmd
+        run: msbuild DomainMembershipCheckRepair.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=x64
+
+      - name: Run CyberArk EPM validation
+        shell: pwsh
+        timeout-minutes: 10
+        env:
+          REQUIRE_STANDARD_USER: ${{ inputs.require_standard_user }}
+          REQUIRE_CYBERARK_DETECTION: ${{ inputs.require_cyberark_detection }}
+        run: |
+          $standard = [System.Convert]::ToBoolean($env:REQUIRE_STANDARD_USER)
+          $detected = [System.Convert]::ToBoolean($env:REQUIRE_CYBERARK_DETECTION)
+          .\Tests\Integration\Run-EpmIntegrationTests.ps1 -ExePath ".\bin\Release\x64\DomainMembershipCheckRepair.exe" -OutputDirectory ".\epm-artifacts" -RequireStandardUser $standard -RequireCyberArkDetection $detected
+
+      - name: Upload EPM validation artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: epm-integration-${{ github.run_id }}
+          path: epm-artifacts/*
+          if-no-files-found: warn
+          retention-days: 14
