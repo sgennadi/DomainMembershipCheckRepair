@@ -29,12 +29,14 @@ Deleting an Active Directory computer object is destructive and always requires 
 
 ## Validation infrastructure
 
-The protected `main` branch requires Build and CodeQL. Build runs unit tests, x86/x64 GUI/DPI smoke tests, and all three architecture builds.
+The protected `main` branch requires Build and CodeQL. Build runs unit tests, x86/x64 GUI/DPI smoke tests, all three architecture builds, a PowerShell syntax pass across repository scripts, a lab-artifact redaction regression test, and repository supply-chain policy validation. All remote GitHub Actions are pinned to immutable 40-character commit SHAs, checkout credentials are not persisted after source retrieval, and workflows declare explicit top-level token permissions.
 
 Manual live-domain workflows are intentionally separated from normal CI:
 
 - the read-only AD Integration Lab performs live diagnostic validation;
 - the Disposable AD Destructive Lab is disabled by default and requires a dedicated self-hosted lab runner plus an explicit confirmation gate;
 - the CyberArk EPM Integration Lab validates the standard-user-to-elevated broker path using a non-destructive elevation probe.
+
+Self-hosted live-lab evidence remains on the runner by default. Optional GitHub artifact upload requires `LAB_UPLOAD_SANITIZED_ARTIFACTS=true`; only the fail-closed sanitized copy is uploaded, with a 7-day retention period. Raw and sanitized working directories are removed from the runner after each workflow.
 
 Do not point destructive lab workflows at production Active Directory.
