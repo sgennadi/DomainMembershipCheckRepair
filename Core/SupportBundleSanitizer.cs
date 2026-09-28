@@ -282,7 +282,7 @@ namespace DomainMembershipCheckRepair
                 value.IndexOf("CN=", StringComparison.OrdinalIgnoreCase) >= 0)
                 return "DN";
 
-            if (value.IndexOf('\') >= 0)
+            if (value.IndexOf('\\') >= 0)
                 return "ACCOUNT";
 
             if (value.IndexOf('.') >= 0)
