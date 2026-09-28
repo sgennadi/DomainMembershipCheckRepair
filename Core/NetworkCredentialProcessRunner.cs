@@ -282,12 +282,32 @@ namespace DomainMembershipCheckRepair
             if (Path.IsPathRooted(value))
                 return File.Exists(value) ? value : String.Empty;
 
-            string systemPath = Path.Combine(Environment.SystemDirectory, value);
-            if (File.Exists(systemPath))
-                return systemPath;
+            if (value.IndexOf(Path.DirectorySeparatorChar) < 0 &&
+                value.IndexOf(Path.AltDirectorySeparatorChar) < 0)
+            {
+                string systemPath =
+                    Path.Combine(Environment.SystemDirectory, value);
+                if (File.Exists(systemPath))
+                    return systemPath;
 
-            string current = Path.GetFullPath(value);
-            return File.Exists(current) ? current : String.Empty;
+                return String.Empty;
+            }
+
+            try
+            {
+                string relative =
+                    Path.GetFullPath(
+                        Path.Combine(
+                            AppDomain.CurrentDomain.BaseDirectory,
+                            value));
+                return File.Exists(relative)
+                    ? relative
+                    : String.Empty;
+            }
+            catch
+            {
+                return String.Empty;
+            }
         }
 
         private static StreamReader CreateReader(IntPtr handle)
