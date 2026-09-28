@@ -21,6 +21,7 @@ namespace DomainMembershipCheckRepair
             TestDnToDnsConversion();
             TestDomainArgumentValidation();
             TestWindowsCommandLineQuoting();
+            TestWindowsArgumentListBuilding();
             TestOfflineDomainJoinArguments();
             TestElevationActions();
             TestGuiResumeOptions();
@@ -191,6 +192,27 @@ namespace DomainMembershipCheckRepair
                 "\"\"",
                 WindowsCommandLine.QuoteArgument(String.Empty),
                 "empty Windows argument is quoted");
+        }
+
+        private static void TestWindowsArgumentListBuilding()
+        {
+            AssertEqual(
+                "one \"two words\" three",
+                WindowsCommandLine.BuildArguments(
+                    new string[] { "one", "two words", "three" }),
+                "Windows argv builder quotes only the argument that needs it");
+
+            AssertEqual(
+                "get cifs/dc01.example.com \"\"",
+                WindowsCommandLine.BuildArguments(
+                    new string[] { "get", "cifs/dc01.example.com", String.Empty }),
+                "Windows argv builder preserves an empty argument");
+
+            AssertEqual(
+                "a \"C:\\Path With Space\\\\\"",
+                WindowsCommandLine.BuildArguments(
+                    new string[] { "a", "C:\\Path With Space\\" }),
+                "Windows argv builder preserves trailing backslashes");
         }
 
         private static void TestOfflineDomainJoinArguments()
@@ -377,9 +399,23 @@ namespace DomainMembershipCheckRepair
                 "repadmin replication access denied is recognized");
 
             AssertEqual(
-                "/replsummary \"dc01.example.com\"",
+                "/replsummary dc01.example.com",
                 ReplicationMetadataService.BuildReplSummaryArguments(@"\\dc01.example.com"),
                 "repadmin summary targets preferred DC");
+
+            AssertEqual(
+                "/showobjmeta dc01.example.com \"CN=PC 01,OU=Lab,DC=example,DC=com\"",
+                ReplicationMetadataService.BuildShowObjectMetadataArguments(
+                    "dc01.example.com",
+                    "CN=PC 01,OU=Lab,DC=example,DC=com"),
+                "repadmin object metadata quotes a DN as one argv token");
+
+            AssertEqual(
+                "/showattr dc01.example.com \"CN=PC 01,OU=Lab,DC=example,DC=com\" /atts:objectGUID,pwdLastSet,whenChanged,uSNChanged,servicePrincipalName",
+                ReplicationMetadataService.BuildShowAttributesArguments(
+                    "dc01.example.com",
+                    "CN=PC 01,OU=Lab,DC=example,DC=com"),
+                "repadmin attribute query preserves the DN as one argv token");
         }
 
         private static void TestExpectedSpns()
