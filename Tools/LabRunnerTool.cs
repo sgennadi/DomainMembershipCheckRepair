@@ -584,7 +584,7 @@ namespace DomainMembershipCheckRepair.Tools
                 .Replace("\\", "\\5c")
                 .Replace(",", "\\2c")
                 .Replace("+", "\\2b")
-                .Replace(""", "\\22")
+                .Replace("\\\"", "\\22")
                 .Replace("<", "\\3c")
                 .Replace(">", "\\3e")
                 .Replace(";", "\\3b")
