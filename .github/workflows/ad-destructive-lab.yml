@@ -25,6 +25,10 @@ permissions:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
+concurrency:
+  group: ad-destructive-lab
+  cancel-in-progress: false
+
 jobs:
   gate:
     runs-on: ubuntu-latest
@@ -71,10 +75,8 @@ jobs:
           }
 
           $cs = Get-CimInstance Win32_ComputerSystem
-          Write-Host "Runner: $env:COMPUTERNAME"
-          Write-Host "Identity: $([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)"
-          Write-Host "PartOfDomain: $($cs.PartOfDomain)"
-          Write-Host "Domain: $($cs.Domain)"
+          Write-Host "Disposable self-hosted AD lab runner configuration detected."
+          Write-Host "Domain joined: $($cs.PartOfDomain)"
 
           if (-not $cs.PartOfDomain) {
             throw "The destructive lab runner must be domain joined."
@@ -102,11 +104,33 @@ jobs:
         run: |
           .\Tests\Integration\Run-ADDestructiveLab.ps1 -ExePath ".\bin\Release\x64\DomainMembershipCheckRepair.exe" -Scenario $env:LAB_SCENARIO -Domain $env:AD_LAB_DOMAIN -PreferredDc $env:AD_LAB_DC -ExpectedComputerName $env:AD_LAB_COMPUTER -TestOuDn $env:AD_LAB_TEST_OU_DN -OutputDirectory ".\destructive-artifacts"
 
-      - name: Upload destructive-lab artifacts
+      - name: Sanitize destructive-lab artifacts
         if: always()
+        shell: pwsh
+        env:
+          AD_LAB_DOMAIN: ${{ vars.AD_LAB_DOMAIN }}
+          AD_LAB_DC: ${{ vars.AD_LAB_DC }}
+          AD_LAB_COMPUTER: ${{ vars.AD_LAB_COMPUTER }}
+          AD_LAB_TEST_OU_DN: ${{ vars.AD_LAB_TEST_OU_DN }}
+          AD_LAB_USER: ${{ vars.AD_LAB_USER }}
+          AD_LAB_PASSWORD: ${{ secrets.AD_LAB_PASSWORD }}
+        run: |
+          if (Test-Path ".\destructive-artifacts") {
+            .\Tests\Integration\Sanitize-LabArtifacts.ps1 -InputDirectory ".\destructive-artifacts" -OutputDirectory ".\destructive-artifacts-sanitized"
+          }
+
+      - name: Upload sanitized destructive-lab artifacts
+        if: ${{ always() && vars.LAB_UPLOAD_SANITIZED_ARTIFACTS == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: ad-destructive-lab-${{ github.run_id }}
-          path: destructive-artifacts/*
+          name: ad-destructive-lab-sanitized-${{ github.run_id }}
+          path: destructive-artifacts-sanitized/*
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 7
+
+      - name: Clean lab artifacts from self-hosted runner
+        if: always()
+        shell: pwsh
+        run: |
+          Remove-Item ".\destructive-artifacts" -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item ".\destructive-artifacts-sanitized" -Recurse -Force -ErrorAction SilentlyContinue
