@@ -119,8 +119,15 @@ namespace DomainMembershipCheckRepair
                 cancellationToken.ThrowIfCancellationRequested();
                 Report(progress, "Support Bundle: sanitizing collected data");
                 SupportBundleSanitizer sanitizer = CreateSanitizer(advanced);
-                SanitizeDirectory(temp, sanitizer, cancellationToken, progress);
-                Write(Path.Combine(temp, "redaction-summary.txt"), sanitizer.GetSummary());
+                SupportBundleRedactionService.SanitizeDirectory(
+                    temp,
+                    sanitizer,
+                    cancellationToken,
+                    delegate(string item)
+                    {
+                        Report(progress, "Support Bundle: " + item);
+                    });
+                SupportBundleRedactionService.WriteSummary(temp, sanitizer);
 
                 cancellationToken.ThrowIfCancellationRequested();
                 Report(progress, "Support Bundle: creating ZIP archive");
@@ -175,40 +182,6 @@ namespace DomainMembershipCheckRepair
         {
             if (!String.IsNullOrWhiteSpace(value))
                 values.Add(value.Trim());
-        }
-
-        private static void SanitizeDirectory(
-            string folder,
-            SupportBundleSanitizer sanitizer,
-            CancellationToken cancellationToken,
-            Action<string> progress)
-        {
-            foreach (string file in Directory.GetFiles(folder, "*", SearchOption.AllDirectories))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                Report(progress, "Support Bundle: sanitizing " + Path.GetFileName(file));
-
-                try
-                {
-                    string raw = File.ReadAllText(file);
-                    string sanitized = sanitizer.Sanitize(raw);
-                    File.WriteAllText(file, sanitized, new UTF8Encoding(false));
-                }
-                catch
-                {
-                    try
-                    {
-                        File.WriteAllText(
-                            file,
-                            "[Content omitted because support-bundle sanitization failed.]\r\n",
-                            new UTF8Encoding(false));
-                    }
-                    catch
-                    {
-                        try { File.Delete(file); } catch { }
-                    }
-                }
-            }
         }
 
         private static void CollectCommand(
