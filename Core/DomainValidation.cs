@@ -109,6 +109,37 @@ namespace DomainMembershipCheckRepair
             return null;
         }
 
+        internal static string ValidateDomainArgument(string domain)
+        {
+            if (String.IsNullOrWhiteSpace(domain))
+                return "Domain cannot be empty.";
+
+            string value = domain.Trim();
+            if (value.Length > 255)
+                return "Domain must be 255 characters or fewer.";
+
+            foreach (char c in value)
+            {
+                if (Char.IsWhiteSpace(c) ||
+                    Char.IsControl(c) ||
+                    c == '"' ||
+                    c == '\\' ||
+                    c == '/')
+                {
+                    return "Domain contains characters that are not safe for Windows domain operations.";
+                }
+            }
+
+            if (value.StartsWith(".", StringComparison.Ordinal) ||
+                value.EndsWith(".", StringComparison.Ordinal) ||
+                value.IndexOf("..", StringComparison.Ordinal) >= 0)
+            {
+                return "Domain contains an invalid DNS label boundary.";
+            }
+
+            return null;
+        }
+
         internal static string CreateSuggestedName(string currentName)
         {
             string suffix = "-2";
