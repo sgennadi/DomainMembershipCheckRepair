@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Net;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Web.Script.Serialization;
 
 namespace DomainMembershipCheckRepair.Tools
 {
@@ -55,6 +57,130 @@ namespace DomainMembershipCheckRepair.Tools
                 throw new InvalidOperationException("Release tag '" + refName + "' does not match VersionInfo.cs ('" + expected + "').");
 
             Console.WriteLine("Release tag validated: " + refName);
+            return 0;
+        }
+
+        internal static int ValidateOrigin(CommandLine options)
+        {
+            string repository = options.Get(
+                "repository",
+                Environment.GetEnvironmentVariable("GITHUB_REPOSITORY") ?? String.Empty);
+            string sha = options.Get(
+                "sha",
+                Environment.GetEnvironmentVariable("GITHUB_SHA") ?? String.Empty);
+            string token = Environment.GetEnvironmentVariable("GITHUB_TOKEN") ?? String.Empty;
+
+            if (!Regex.IsMatch(repository, @"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))
+                throw new InvalidOperationException("A valid owner/repository value is required.");
+
+            if (!Regex.IsMatch(sha, @"^[0-9a-fA-F]{40}$"))
+                throw new InvalidOperationException("A full 40-character release commit SHA is required.");
+
+            if (String.IsNullOrWhiteSpace(token))
+                throw new InvalidOperationException("GITHUB_TOKEN is required to validate release origin and required checks.");
+
+            ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
+
+            Dictionary<string, object> branch =
+                GetGitHubJson(
+                    "https://api.github.com/repos/" + repository + "/branches/main",
+                    token);
+
+            string mainSha = GetNestedString(branch, "commit", "sha");
+            if (!Regex.IsMatch(mainSha ?? String.Empty, @"^[0-9a-fA-F]{40}$"))
+                throw new InvalidOperationException("Unable to determine the protected main branch commit.");
+
+            if (!String.Equals(sha, mainSha, StringComparison.OrdinalIgnoreCase))
+            {
+                Dictionary<string, object> compare =
+                    GetGitHubJson(
+                        "https://api.github.com/repos/" + repository +
+                        "/compare/" + sha + "..." + mainSha,
+                        token);
+
+                string mergeBaseSha =
+                    GetNestedString(compare, "merge_base_commit", "sha");
+
+                if (!String.Equals(sha, mergeBaseSha, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        "Release commit is not contained in the protected main branch history.");
+                }
+            }
+
+            IList<string> requestedChecks = options.GetAll("required-check");
+            List<string> requiredChecks = new List<string>();
+
+            if (requestedChecks.Count == 0)
+            {
+                requiredChecks.Add("build");
+                requiredChecks.Add("Analyze C#");
+            }
+            else
+            {
+                foreach (string check in requestedChecks)
+                {
+                    if (!String.IsNullOrWhiteSpace(check))
+                        requiredChecks.Add(check.Trim());
+                }
+            }
+
+            if (requiredChecks.Count == 0)
+                throw new InvalidOperationException("At least one required check context must be configured.");
+
+            Dictionary<string, object> checks =
+                GetGitHubJson(
+                    "https://api.github.com/repos/" + repository +
+                    "/commits/" + sha + "/check-runs?per_page=100",
+                    token);
+
+            string checkError;
+            if (!ValidateRequiredCheckRuns(checks, requiredChecks, out checkError))
+                throw new InvalidOperationException(checkError);
+
+            Console.WriteLine("Release origin validated against protected main.");
+            Console.WriteLine("Release commit: " + sha);
+            foreach (string check in requiredChecks)
+                Console.WriteLine("Required check passed: " + check);
+
+            return 0;
+        }
+
+        internal static int SelfTestOriginValidation(CommandLine options)
+        {
+            string passing =
+                "{\"check_runs\":[" +
+                "{\"id\":101,\"name\":\"build\",\"status\":\"completed\",\"conclusion\":\"cancelled\",\"completed_at\":\"2026-09-28T10:00:00Z\",\"app\":{\"slug\":\"github-actions\"}}," +
+                "{\"id\":102,\"name\":\"build\",\"status\":\"completed\",\"conclusion\":\"success\",\"completed_at\":\"2026-09-28T10:05:00Z\",\"app\":{\"slug\":\"github-actions\"}}," +
+                "{\"id\":103,\"name\":\"Analyze C#\",\"status\":\"completed\",\"conclusion\":\"success\",\"completed_at\":\"2026-09-28T10:06:00Z\",\"app\":{\"slug\":\"github-actions\"}}" +
+                "]}";
+
+            string failing =
+                "{\"check_runs\":[" +
+                "{\"id\":201,\"name\":\"build\",\"status\":\"completed\",\"conclusion\":\"success\",\"completed_at\":\"2026-09-28T10:00:00Z\",\"app\":{\"slug\":\"github-actions\"}}," +
+                "{\"id\":202,\"name\":\"build\",\"status\":\"completed\",\"conclusion\":\"failure\",\"completed_at\":\"2026-09-28T10:10:00Z\",\"app\":{\"slug\":\"github-actions\"}}," +
+                "{\"id\":203,\"name\":\"Analyze C#\",\"status\":\"completed\",\"conclusion\":\"success\",\"completed_at\":\"2026-09-28T10:11:00Z\",\"app\":{\"slug\":\"github-actions\"}}" +
+                "]}";
+
+            string wrongApp =
+                "{\"check_runs\":[" +
+                "{\"id\":301,\"name\":\"build\",\"status\":\"completed\",\"conclusion\":\"success\",\"completed_at\":\"2026-09-28T10:00:00Z\",\"app\":{\"slug\":\"other-app\"}}," +
+                "{\"id\":302,\"name\":\"Analyze C#\",\"status\":\"completed\",\"conclusion\":\"success\",\"completed_at\":\"2026-09-28T10:01:00Z\",\"app\":{\"slug\":\"github-actions\"}}" +
+                "]}";
+
+            List<string> required = new List<string> { "build", "Analyze C#" };
+            string error;
+
+            if (!ValidateRequiredCheckRuns(ParseJsonObject(passing), required, out error))
+                throw new InvalidOperationException("Passing release-check fixture was rejected: " + error);
+
+            if (ValidateRequiredCheckRuns(ParseJsonObject(failing), required, out error))
+                throw new InvalidOperationException("Latest failing required check was incorrectly accepted.");
+
+            if (ValidateRequiredCheckRuns(ParseJsonObject(wrongApp), required, out error))
+                throw new InvalidOperationException("Required check from a non-GitHub-Actions app was incorrectly accepted.");
+
+            Console.WriteLine("Release origin/check-run parser self-test passed.");
             return 0;
         }
 
@@ -230,6 +356,208 @@ namespace DomainMembershipCheckRepair.Tools
             VerifyChecksums(directory);
             Console.WriteLine("Release checksum self-verification passed.");
             return 0;
+        }
+
+        private static Dictionary<string, object> GetGitHubJson(
+            string url,
+            string token)
+        {
+            try
+            {
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
+                request.Method = "GET";
+                request.Accept = "application/vnd.github+json";
+                request.UserAgent = "DomainMembershipCheckRepair-ReleaseValidator/1.0";
+                request.Timeout = 30000;
+                request.ReadWriteTimeout = 30000;
+                request.Headers["Authorization"] = "Bearer " + token;
+                request.Headers["X-GitHub-Api-Version"] = "2022-11-28";
+
+                using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+                using (Stream stream = response.GetResponseStream())
+                using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+                {
+                    return ParseJsonObject(reader.ReadToEnd());
+                }
+            }
+            catch (WebException ex)
+            {
+                HttpWebResponse response = ex.Response as HttpWebResponse;
+                string status = response == null
+                    ? "network error"
+                    : ((int)response.StatusCode).ToString() + " " + response.StatusDescription;
+
+                if (response != null)
+                    response.Dispose();
+
+                throw new InvalidOperationException(
+                    "GitHub API validation request failed (" + status + ").");
+            }
+        }
+
+        private static Dictionary<string, object> ParseJsonObject(string json)
+        {
+            object parsed = new JavaScriptSerializer().DeserializeObject(json ?? String.Empty);
+            Dictionary<string, object> result = parsed as Dictionary<string, object>;
+            if (result == null)
+                throw new InvalidOperationException("GitHub API returned an unexpected JSON document.");
+
+            return result;
+        }
+
+        private static string GetNestedString(
+            Dictionary<string, object> root,
+            string objectName,
+            string propertyName)
+        {
+            if (root == null)
+                return String.Empty;
+
+            object nestedValue;
+            if (!root.TryGetValue(objectName, out nestedValue))
+                return String.Empty;
+
+            Dictionary<string, object> nested =
+                nestedValue as Dictionary<string, object>;
+            if (nested == null)
+                return String.Empty;
+
+            object value;
+            if (!nested.TryGetValue(propertyName, out value))
+                return String.Empty;
+
+            return Convert.ToString(value) ?? String.Empty;
+        }
+
+        private static bool ValidateRequiredCheckRuns(
+            Dictionary<string, object> payload,
+            IList<string> requiredChecks,
+            out string error)
+        {
+            error = String.Empty;
+
+            object rawRuns;
+            if (payload == null ||
+                !payload.TryGetValue("check_runs", out rawRuns))
+            {
+                error = "GitHub check-run response does not contain check_runs.";
+                return false;
+            }
+
+            object[] runs = rawRuns as object[];
+            if (runs == null)
+            {
+                error = "GitHub check-run response has an unexpected check_runs format.";
+                return false;
+            }
+
+            foreach (string required in requiredChecks)
+            {
+                Dictionary<string, object> latest = null;
+                DateTimeOffset latestCompleted = DateTimeOffset.MinValue;
+                long latestId = -1;
+
+                foreach (object raw in runs)
+                {
+                    Dictionary<string, object> run =
+                        raw as Dictionary<string, object>;
+                    if (run == null)
+                        continue;
+
+                    object nameValue;
+                    if (!run.TryGetValue("name", out nameValue) ||
+                        !String.Equals(
+                            Convert.ToString(nameValue),
+                            required,
+                            StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    object appValue;
+                    Dictionary<string, object> app = null;
+                    if (run.TryGetValue("app", out appValue))
+                        app = appValue as Dictionary<string, object>;
+
+                    object slugValue;
+                    string slug =
+                        app != null && app.TryGetValue("slug", out slugValue)
+                            ? Convert.ToString(slugValue)
+                            : String.Empty;
+
+                    if (!String.Equals(
+                        slug,
+                        "github-actions",
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    DateTimeOffset completed = DateTimeOffset.MinValue;
+                    object completedValue;
+                    if (run.TryGetValue("completed_at", out completedValue))
+                    {
+                        DateTimeOffset parsed;
+                        if (DateTimeOffset.TryParse(
+                            Convert.ToString(completedValue),
+                            out parsed))
+                        {
+                            completed = parsed;
+                        }
+                    }
+
+                    long id = 0;
+                    object idValue;
+                    if (run.TryGetValue("id", out idValue))
+                        Int64.TryParse(Convert.ToString(idValue), out id);
+
+                    if (latest == null ||
+                        completed > latestCompleted ||
+                        (completed == latestCompleted && id > latestId))
+                    {
+                        latest = run;
+                        latestCompleted = completed;
+                        latestId = id;
+                    }
+                }
+
+                if (latest == null)
+                {
+                    error =
+                        "Required GitHub Actions check '" + required +
+                        "' was not found on the release commit.";
+                    return false;
+                }
+
+                string status = GetString(latest, "status");
+                string conclusion = GetString(latest, "conclusion");
+
+                if (!String.Equals(status, "completed", StringComparison.OrdinalIgnoreCase) ||
+                    !String.Equals(conclusion, "success", StringComparison.OrdinalIgnoreCase))
+                {
+                    error =
+                        "Latest required check '" + required +
+                        "' is not successful (status=" + status +
+                        ", conclusion=" + conclusion + ").";
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static string GetString(
+            Dictionary<string, object> values,
+            string key)
+        {
+            if (values == null)
+                return String.Empty;
+
+            object value;
+            if (!values.TryGetValue(key, out value))
+                return String.Empty;
+
+            return Convert.ToString(value) ?? String.Empty;
         }
 
         private static string ReadSourceVersion(string root)
