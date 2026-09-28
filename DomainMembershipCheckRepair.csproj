@@ -145,14 +145,18 @@
     <Compile Include="Dialogs.cs" />
     <None Include="app.manifest" />
     <None Include="App.config" />
-    <None Include="Generate-AppIcon.ps1" />
     <None Include="README.md" />
     <None Include="CHANGELOG.md" />
     <None Include="LICENSE" />
     <None Include="SECURITY.md" />
   </ItemGroup>
-  <Target Name="GenerateApplicationIcon" BeforeTargets="CoreCompile">
-    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\Generate-AppIcon.ps1&quot; -OutputPath &quot;$(MSBuildProjectDirectory)\obj\generated\DomainMembershipCheckRepair.ico&quot;" />
+  <Target Name="BuildRepositoryTools" BeforeTargets="GenerateApplicationIcon">
+    <MSBuild Projects="$(MSBuildProjectDirectory)\Tools\DomainMembershipCheckRepair.Tools.csproj"
+             Targets="Build"
+             Properties="Configuration=Release;Platform=AnyCPU" />
+  </Target>
+  <Target Name="GenerateApplicationIcon" BeforeTargets="CoreCompile" DependsOnTargets="BuildRepositoryTools">
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe&quot; generate-icon --output &quot;$(MSBuildProjectDirectory)\obj\generated\DomainMembershipCheckRepair.ico&quot;" />
   </Target>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
