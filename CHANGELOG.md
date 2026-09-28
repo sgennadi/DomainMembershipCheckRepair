@@ -25,6 +25,10 @@
 - Added `advanced-diagnostics.json` to Advanced Support Bundles and regression tests for JSON, diagnostic exit codes, net-only credential parsing and SPN state fingerprints.
 - Advanced Support Bundles are now sanitized before ZIP packaging: detected secrets are removed and environment identifiers are replaced with per-bundle opaque tokens.
 - Support Bundle sanitization is fail-closed per file, with a redaction summary and regression coverage for secrets, UPNs, domain accounts, IP/MAC addresses, SIDs, GUIDs and DNs.
+- Standard Export Diagnostics now uses the same fail-closed redaction pipeline before ZIP creation, including copied NetSetup/application logs and a redaction summary.
+- Removed computer names from default diagnostic ZIP and pre-change Safety Bundle filenames.
+- Added an end-to-end ZIP regression test that reopens a generated archive and verifies that representative secrets and environment identifiers are absent.
+- Updated release provenance attestation to `actions/attest-build-provenance` v4.2.2 and documented the recommended protected-`main` ruleset.
 - Added Kerberos Deep Analyzer for TGT/HOST/LDAP/CIFS tickets, KDC bindings, ticket encryption, flags, lifetime and time-skew evidence.
 - Added real LDAP compatibility tests for signed LDAP 389, LDAPS authenticated bind and TLS certificate/hostname validation.
 - Added native RPC Endpoint Mapper enumeration and concrete dynamic RPC TCP reachability tests without requiring PortQry.
