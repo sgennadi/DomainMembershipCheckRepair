@@ -8,7 +8,7 @@ The project is domain-neutral. It contains no hard-coded organization, domain, d
 
 `1.6.0`
 
-The release version has one source of truth: `VersionInfo.cs`. Assembly metadata and the UI read that value, and the release workflow refuses to publish a tag that does not match it. A release tag must also point to a commit already contained in protected `main` with successful `build` and `Analyze C#` checks on that same SHA.
+The release version has one source of truth: `VersionInfo.cs`. Assembly metadata and the UI read that value, and the release workflow refuses to publish a tag that does not match it. A release tag must also point to a commit already contained in protected `main` with successful `build` and `Analyze C#` checks from protected-`main` push workflow runs on that same SHA. Feature-branch runs that happen to reuse the same commit SHA are ignored.
 
 ## Main features
 
@@ -721,7 +721,7 @@ The recommended `main` ruleset is documented in `.github/BRANCH_PROTECTION.md`: 
 - is tag-triggered only; there is no manual release-dispatch path
 - verifies that the Git tag matches `VersionInfo.cs`
 - requires the tagged commit to be contained in protected `main`
-- requires successful GitHub Actions `build` and `Analyze C#` checks on the exact tagged commit
+- requires successful GitHub Actions `build` and `Analyze C#` checks from protected-`main` push workflow runs on the exact tagged commit
 - runs tests and builds all architectures
 - prepares the unsigned SignPath input and matching DPI `.exe.config` files
 - signs the EXE files through SignPath
