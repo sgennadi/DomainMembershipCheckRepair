@@ -297,6 +297,12 @@ namespace DomainMembershipCheckRepair
                 return result;
             }
 
+            if (result.PasswordFromStdin && String.IsNullOrWhiteSpace(result.User))
+            {
+                error = "--password-stdin requires --user so redirected input contains only the password and any later confirmations.";
+                return result;
+            }
+
             if (!String.IsNullOrWhiteSpace(result.Action))
             {
                 string action = result.Action.Trim().ToLowerInvariant();

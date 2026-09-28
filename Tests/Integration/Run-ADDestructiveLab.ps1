@@ -209,6 +209,9 @@ elseif ($Scenario -eq "recycle-bin-restore") {
         throw "AD_LAB_USER repository variable and AD_LAB_PASSWORD repository secret are required for recycle-bin-restore."
     }
 
+    if (-not (Get-Module -ListAvailable -Name ActiveDirectory)) {
+        throw "The recycle-bin-restore scenario requires the RSAT ActiveDirectory PowerShell module."
+    }
     Import-Module ActiveDirectory -ErrorAction Stop
 
     $runSuffix = [string]$env:GITHUB_RUN_ID
@@ -237,8 +240,247 @@ elseif ($Scenario -eq "recycle-bin-restore") {
     }
 
     Write-Host "Creating disposable AD computer object $testName in $TestOuDn"
-    New-ADComputer -Name $testName -SamAccountName ($testName + '$') -Path $TestOuDn @adParams -ErrorAction Stop
-    $created = Get-ADComputer -Identity $testName -Properties ObjectGuid @adParams -ErrorAction Stop
+    New-ADComputer -Name $testName -SamAccountName ($testName + '
+    try {
+        Remove-ADComputer -Identity $created.DistinguishedName -Confirm:$false @adParams -ErrorAction Stop
+
+        $foundDeleted = $false
+        for ($attempt = 1; $attempt -le 12; $attempt++) {
+            Start-Sleep -Seconds 5
+            $deleted = Invoke-Dmcr -Arguments ($baseArgs + @("--action", "ad-deleted", "--computer", $testName, "--json")) -ArtifactName ("ad-deleted-" + $attempt)
+            if ($deleted.ExitCode -eq 20) {
+                $foundDeleted = $true
+                break
+            }
+        }
+
+        if (-not $foundDeleted) {
+            throw "The disposable deleted object was not detected within 60 seconds."
+        }
+
+        $restoreArgs = $baseArgs + @(
+            "--action", "ad-restore",
+            "--computer", $testName,
+            "--user", $labUser,
+            "--password-stdin"
+        )
+        $restore = Invoke-Dmcr -Arguments $restoreArgs -InputLines @($labPassword, "y") -ArtifactName "ad-restore"
+        if ($restore.ExitCode -ne 0) {
+            throw "Application AD restore failed with exit code $($restore.ExitCode)."
+        }
+
+        $restoredMatches = @(Get-ADComputer -LDAPFilter $filter -Properties ObjectGuid @adParams -ErrorAction Stop)
+        if ($restoredMatches.Count -ne 1) {
+            throw "Expected exactly one restored disposable object for '$testName            throw "Restored computer ObjectGUID differs from the original object."
+        }
+
+        Add-Summary "recycle-bin-restore" "PASS" "Disposable object $testName was deleted, restored by the application, and verified by ObjectGUID."
+    }
+    finally {
+        $cleanup = Get-ADComputer -LDAPFilter $filter @adParams -ErrorAction SilentlyContinue
+        if ($null -ne $cleanup) {
+            Remove-ADComputer -Identity $cleanup.DistinguishedName -Confirm:$false @adParams -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+$summary | ConvertTo-Json -Depth 5 |
+    Set-Content -Encoding UTF8 (Join-Path $OutputDirectory "summary.json")
+$summary | Format-Table -AutoSize | Out-String |
+    Set-Content -Encoding UTF8 (Join-Path $OutputDirectory "summary.txt")
+
+Write-Host ($summary | Format-Table -AutoSize | Out-String)
+Write-Host "Destructive/disposable AD lab scenario completed successfully."
+) -Path $TestOuDn @adParams -ErrorAction Stop
+    $createdMatches = @(Get-ADComputer -LDAPFilter $filter -Properties ObjectGuid @adParams -ErrorAction Stop)
+    if ($createdMatches.Count -ne 1) {
+        throw "Expected exactly one newly created disposable object for '$testName
+    try {
+        Remove-ADComputer -Identity $created.DistinguishedName -Confirm:$false @adParams -ErrorAction Stop
+
+        $foundDeleted = $false
+        for ($attempt = 1; $attempt -le 12; $attempt++) {
+            Start-Sleep -Seconds 5
+            $deleted = Invoke-Dmcr -Arguments ($baseArgs + @("--action", "ad-deleted", "--computer", $testName, "--json")) -ArtifactName ("ad-deleted-" + $attempt)
+            if ($deleted.ExitCode -eq 20) {
+                $foundDeleted = $true
+                break
+            }
+        }
+
+        if (-not $foundDeleted) {
+            throw "The disposable deleted object was not detected within 60 seconds."
+        }
+
+        $restoreArgs = $baseArgs + @(
+            "--action", "ad-restore",
+            "--computer", $testName,
+            "--user", $labUser,
+            "--password-stdin"
+        )
+        $restore = Invoke-Dmcr -Arguments $restoreArgs -InputLines @($labPassword, "y") -ArtifactName "ad-restore"
+        if ($restore.ExitCode -ne 0) {
+            throw "Application AD restore failed with exit code $($restore.ExitCode)."
+        }
+
+        $restored = Get-ADComputer -Identity $testName -Properties ObjectGuid @adParams -ErrorAction Stop
+        if ([Guid]$restored.ObjectGuid -ne $originalGuid) {
+            throw "Restored computer ObjectGUID differs from the original object."
+        }
+
+        Add-Summary "recycle-bin-restore" "PASS" "Disposable object $testName was deleted, restored by the application, and verified by ObjectGUID."
+    }
+    finally {
+        $cleanup = Get-ADComputer -LDAPFilter $filter @adParams -ErrorAction SilentlyContinue
+        if ($null -ne $cleanup) {
+            Remove-ADComputer -Identity $cleanup.DistinguishedName -Confirm:$false @adParams -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+$summary | ConvertTo-Json -Depth 5 |
+    Set-Content -Encoding UTF8 (Join-Path $OutputDirectory "summary.json")
+$summary | Format-Table -AutoSize | Out-String |
+    Set-Content -Encoding UTF8 (Join-Path $OutputDirectory "summary.txt")
+
+Write-Host ($summary | Format-Table -AutoSize | Out-String)
+Write-Host "Destructive/disposable AD lab scenario completed successfully."
+, found $($createdMatches.Count)."
+    }
+    $created = $createdMatches[0]
+    $originalGuid = [Guid]$created.ObjectGuid
+
+    try {
+        Remove-ADComputer -Identity $created.DistinguishedName -Confirm:$false @adParams -ErrorAction Stop
+
+        $foundDeleted = $false
+        for ($attempt = 1; $attempt -le 12; $attempt++) {
+            Start-Sleep -Seconds 5
+            $deleted = Invoke-Dmcr -Arguments ($baseArgs + @("--action", "ad-deleted", "--computer", $testName, "--json")) -ArtifactName ("ad-deleted-" + $attempt)
+            if ($deleted.ExitCode -eq 20) {
+                $foundDeleted = $true
+                break
+            }
+        }
+
+        if (-not $foundDeleted) {
+            throw "The disposable deleted object was not detected within 60 seconds."
+        }
+
+        $restoreArgs = $baseArgs + @(
+            "--action", "ad-restore",
+            "--computer", $testName,
+            "--user", $labUser,
+            "--password-stdin"
+        )
+        $restore = Invoke-Dmcr -Arguments $restoreArgs -InputLines @($labPassword, "y") -ArtifactName "ad-restore"
+        if ($restore.ExitCode -ne 0) {
+            throw "Application AD restore failed with exit code $($restore.ExitCode)."
+        }
+
+        $restored = Get-ADComputer -Identity $testName -Properties ObjectGuid @adParams -ErrorAction Stop
+        if ([Guid]$restored.ObjectGuid -ne $originalGuid) {
+            throw "Restored computer ObjectGUID differs from the original object."
+        }
+
+        Add-Summary "recycle-bin-restore" "PASS" "Disposable object $testName was deleted, restored by the application, and verified by ObjectGUID."
+    }
+    finally {
+        $cleanup = Get-ADComputer -LDAPFilter $filter @adParams -ErrorAction SilentlyContinue
+        if ($null -ne $cleanup) {
+            Remove-ADComputer -Identity $cleanup.DistinguishedName -Confirm:$false @adParams -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+$summary | ConvertTo-Json -Depth 5 |
+    Set-Content -Encoding UTF8 (Join-Path $OutputDirectory "summary.json")
+$summary | Format-Table -AutoSize | Out-String |
+    Set-Content -Encoding UTF8 (Join-Path $OutputDirectory "summary.txt")
+
+Write-Host ($summary | Format-Table -AutoSize | Out-String)
+Write-Host "Destructive/disposable AD lab scenario completed successfully."
+, found $($restoredMatches.Count)."
+        }
+        $restored = $restoredMatches[0]
+        if ([Guid]$restored.ObjectGuid -ne $originalGuid) {
+            throw "Restored computer ObjectGUID differs from the original object."
+        }
+
+        Add-Summary "recycle-bin-restore" "PASS" "Disposable object $testName was deleted, restored by the application, and verified by ObjectGUID."
+    }
+    finally {
+        $cleanup = Get-ADComputer -LDAPFilter $filter @adParams -ErrorAction SilentlyContinue
+        if ($null -ne $cleanup) {
+            Remove-ADComputer -Identity $cleanup.DistinguishedName -Confirm:$false @adParams -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+$summary | ConvertTo-Json -Depth 5 |
+    Set-Content -Encoding UTF8 (Join-Path $OutputDirectory "summary.json")
+$summary | Format-Table -AutoSize | Out-String |
+    Set-Content -Encoding UTF8 (Join-Path $OutputDirectory "summary.txt")
+
+Write-Host ($summary | Format-Table -AutoSize | Out-String)
+Write-Host "Destructive/disposable AD lab scenario completed successfully."
+) -Path $TestOuDn @adParams -ErrorAction Stop
+    $createdMatches = @(Get-ADComputer -LDAPFilter $filter -Properties ObjectGuid @adParams -ErrorAction Stop)
+    if ($createdMatches.Count -ne 1) {
+        throw "Expected exactly one newly created disposable object for '$testName
+    try {
+        Remove-ADComputer -Identity $created.DistinguishedName -Confirm:$false @adParams -ErrorAction Stop
+
+        $foundDeleted = $false
+        for ($attempt = 1; $attempt -le 12; $attempt++) {
+            Start-Sleep -Seconds 5
+            $deleted = Invoke-Dmcr -Arguments ($baseArgs + @("--action", "ad-deleted", "--computer", $testName, "--json")) -ArtifactName ("ad-deleted-" + $attempt)
+            if ($deleted.ExitCode -eq 20) {
+                $foundDeleted = $true
+                break
+            }
+        }
+
+        if (-not $foundDeleted) {
+            throw "The disposable deleted object was not detected within 60 seconds."
+        }
+
+        $restoreArgs = $baseArgs + @(
+            "--action", "ad-restore",
+            "--computer", $testName,
+            "--user", $labUser,
+            "--password-stdin"
+        )
+        $restore = Invoke-Dmcr -Arguments $restoreArgs -InputLines @($labPassword, "y") -ArtifactName "ad-restore"
+        if ($restore.ExitCode -ne 0) {
+            throw "Application AD restore failed with exit code $($restore.ExitCode)."
+        }
+
+        $restored = Get-ADComputer -Identity $testName -Properties ObjectGuid @adParams -ErrorAction Stop
+        if ([Guid]$restored.ObjectGuid -ne $originalGuid) {
+            throw "Restored computer ObjectGUID differs from the original object."
+        }
+
+        Add-Summary "recycle-bin-restore" "PASS" "Disposable object $testName was deleted, restored by the application, and verified by ObjectGUID."
+    }
+    finally {
+        $cleanup = Get-ADComputer -LDAPFilter $filter @adParams -ErrorAction SilentlyContinue
+        if ($null -ne $cleanup) {
+            Remove-ADComputer -Identity $cleanup.DistinguishedName -Confirm:$false @adParams -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+$summary | ConvertTo-Json -Depth 5 |
+    Set-Content -Encoding UTF8 (Join-Path $OutputDirectory "summary.json")
+$summary | Format-Table -AutoSize | Out-String |
+    Set-Content -Encoding UTF8 (Join-Path $OutputDirectory "summary.txt")
+
+Write-Host ($summary | Format-Table -AutoSize | Out-String)
+Write-Host "Destructive/disposable AD lab scenario completed successfully."
+, found $($createdMatches.Count)."
+    }
+    $created = $createdMatches[0]
     $originalGuid = [Guid]$created.ObjectGuid
 
     try {
