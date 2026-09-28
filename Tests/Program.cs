@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
 
 namespace DomainMembershipCheckRepair
 {
@@ -38,6 +40,7 @@ namespace DomainMembershipCheckRepair
             TestTransactionJournalParsing();
             TestAdRecoveryHelpers();
             TestSupportBundleSanitizer();
+            TestSupportBundleZipRedaction();
 
             if (failures == 0)
             {
@@ -694,6 +697,128 @@ namespace DomainMembershipCheckRepair
                 firstTokenStart >= 0 &&
                 repeated.IndexOf(repeated.Substring(firstTokenStart, 17), firstTokenStart + 1, StringComparison.Ordinal) >= 0,
                 "support bundle opaque token stable within bundle");
+        }
+
+        private static void TestSupportBundleZipRedaction()
+        {
+            string root = Path.Combine(
+                Path.GetTempPath(),
+                "DomainMembershipCheckRepair.Tests",
+                Guid.NewGuid().ToString("N"));
+            string source = Path.Combine(root, "source");
+            string archive = Path.Combine(root, "bundle.zip");
+
+            Directory.CreateDirectory(source);
+
+            try
+            {
+                File.WriteAllText(
+                    Path.Combine(source, "diagnostics.txt"),
+                    "Computer=PC01\r\n" +
+                    "Domain=example.com\r\n" +
+                    "DC=dc01.example.com\r\n" +
+                    "User=EXAMPLE\\admin\r\n" +
+                    "UPN=admin@example.com\r\n" +
+                    "IPv4=10.20.30.40\r\n" +
+                    "SID=S-1-5-21-111-222-333-444\r\n" +
+                    "GUID=12345678-1234-1234-1234-1234567890ab\r\n");
+
+                File.WriteAllText(
+                    Path.Combine(source, "NetSetup.log"),
+                    "NetpJoinDomain: machine PC01 contacting dc01.example.com (10.20.30.40)\r\n" +
+                    "DN=CN=PC01,OU=Computers,DC=example,DC=com\r\n");
+
+                File.WriteAllText(
+                    Path.Combine(source, "DomainMembershipRepair.log"),
+                    "password=Secret123!\r\n" +
+                    "Authorization: Bearer abcdefghijklmnopqrstuvwxyz0123456789\r\n");
+
+                SupportBundleSanitizer sanitizer =
+                    new SupportBundleSanitizer(
+                        new string[]
+                        {
+                            "PC01",
+                            "example.com",
+                            "dc01.example.com",
+                            @"EXAMPLE\admin",
+                            "CN=PC01,OU=Computers,DC=example,DC=com"
+                        });
+
+                SupportBundleRedactionService.SanitizeDirectory(
+                    source,
+                    sanitizer);
+                SupportBundleRedactionService.WriteSummary(
+                    source,
+                    sanitizer);
+
+                ZipFile.CreateFromDirectory(
+                    source,
+                    archive,
+                    CompressionLevel.Optimal,
+                    false);
+
+                string combined = String.Empty;
+                bool summaryFound = false;
+
+                using (ZipArchive zip = ZipFile.OpenRead(archive))
+                {
+                    foreach (ZipArchiveEntry entry in zip.Entries)
+                    {
+                        if (String.Equals(
+                            entry.FullName,
+                            "redaction-summary.txt",
+                            StringComparison.OrdinalIgnoreCase))
+                        {
+                            summaryFound = true;
+                        }
+
+                        using (StreamReader reader = new StreamReader(entry.Open()))
+                            combined += reader.ReadToEnd() + "\r\n";
+                    }
+                }
+
+                AssertTrue(
+                    summaryFound,
+                    "support bundle ZIP contains redaction summary");
+                AssertTrue(
+                    combined.IndexOf("Secret123", StringComparison.OrdinalIgnoreCase) < 0,
+                    "support bundle ZIP secret absent");
+                AssertTrue(
+                    combined.IndexOf("admin@example.com", StringComparison.OrdinalIgnoreCase) < 0,
+                    "support bundle ZIP UPN absent");
+                AssertTrue(
+                    combined.IndexOf(@"EXAMPLE\admin", StringComparison.OrdinalIgnoreCase) < 0,
+                    "support bundle ZIP account absent");
+                AssertTrue(
+                    combined.IndexOf("10.20.30.40", StringComparison.OrdinalIgnoreCase) < 0,
+                    "support bundle ZIP IPv4 absent");
+                AssertTrue(
+                    combined.IndexOf("S-1-5-21-111-222-333-444", StringComparison.OrdinalIgnoreCase) < 0,
+                    "support bundle ZIP SID absent");
+                AssertTrue(
+                    combined.IndexOf("12345678-1234-1234-1234-1234567890ab", StringComparison.OrdinalIgnoreCase) < 0,
+                    "support bundle ZIP GUID absent");
+                AssertTrue(
+                    combined.IndexOf("CN=PC01,OU=Computers,DC=example,DC=com", StringComparison.OrdinalIgnoreCase) < 0,
+                    "support bundle ZIP DN absent");
+                AssertTrue(
+                    combined.IndexOf("dc01.example.com", StringComparison.OrdinalIgnoreCase) < 0,
+                    "support bundle ZIP host absent");
+                AssertTrue(
+                    combined.IndexOf("[REDACTED]", StringComparison.Ordinal) >= 0,
+                    "support bundle ZIP contains secret redaction marker");
+            }
+            finally
+            {
+                try
+                {
+                    if (Directory.Exists(root))
+                        Directory.Delete(root, true);
+                }
+                catch
+                {
+                }
+            }
         }
 
         private static void TestUiLayoutMath()
