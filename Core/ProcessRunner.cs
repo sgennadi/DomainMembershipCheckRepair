@@ -166,6 +166,8 @@ namespace DomainMembershipCheckRepair
                 if (process != null)
                     process.Dispose();
             }
+        }
+
         internal static string ResolveExecutable(string fileName)
         {
             if (String.IsNullOrWhiteSpace(fileName))
