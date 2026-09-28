@@ -128,6 +128,21 @@ namespace DomainMembershipCheckRepair.Tools
             if (requiredChecks.Count == 0)
                 throw new InvalidOperationException("At least one required check context must be configured.");
 
+            Dictionary<string, object> workflowRuns =
+                GetGitHubJson(
+                    "https://api.github.com/repos/" + repository +
+                    "/actions/runs?head_sha=" + sha + "&per_page=100",
+                    token);
+
+            HashSet<long> eligibleMainPushRuns =
+                GetEligibleMainPushWorkflowRunIds(workflowRuns, sha);
+
+            if (eligibleMainPushRuns.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    "No GitHub Actions push workflow runs on protected main were found for the release commit.");
+            }
+
             Dictionary<string, object> checks =
                 GetGitHubJson(
                     "https://api.github.com/repos/" + repository +
@@ -135,8 +150,14 @@ namespace DomainMembershipCheckRepair.Tools
                     token);
 
             string checkError;
-            if (!ValidateRequiredCheckRuns(checks, requiredChecks, out checkError))
+            if (!ValidateRequiredCheckRuns(
+                checks,
+                requiredChecks,
+                eligibleMainPushRuns,
+                out checkError))
+            {
                 throw new InvalidOperationException(checkError);
+            }
 
             Console.WriteLine("Release origin validated against protected main.");
             Console.WriteLine("Release commit: " + sha);
@@ -148,39 +169,84 @@ namespace DomainMembershipCheckRepair.Tools
 
         internal static int SelfTestOriginValidation(CommandLine options)
         {
+            string workflowRuns =
+                "{\"workflow_runs\":[" +
+                "{\"id\":5001,\"head_sha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"head_branch\":\"main\",\"event\":\"push\"}," +
+                "{\"id\":5002,\"head_sha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"head_branch\":\"main\",\"event\":\"push\"}," +
+                "{\"id\":5999,\"head_sha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"head_branch\":\"feature-copy\",\"event\":\"push\"}," +
+                "{\"id\":6000,\"head_sha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"head_branch\":\"main\",\"event\":\"schedule\"}" +
+                "]}";
+
+            HashSet<long> eligible =
+                GetEligibleMainPushWorkflowRunIds(
+                    ParseJsonObject(workflowRuns),
+                    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+
+            if (!eligible.Contains(5001) ||
+                !eligible.Contains(5002) ||
+                eligible.Contains(5999) ||
+                eligible.Contains(6000))
+            {
+                throw new InvalidOperationException(
+                    "Main-push workflow-run filtering regression.");
+            }
+
             string passing =
                 "{\"check_runs\":[" +
-                "{\"id\":101,\"name\":\"build\",\"status\":\"completed\",\"conclusion\":\"cancelled\",\"completed_at\":\"2026-09-28T10:00:00Z\",\"app\":{\"slug\":\"github-actions\"}}," +
-                "{\"id\":102,\"name\":\"build\",\"status\":\"completed\",\"conclusion\":\"success\",\"completed_at\":\"2026-09-28T10:05:00Z\",\"app\":{\"slug\":\"github-actions\"}}," +
-                "{\"id\":103,\"name\":\"Analyze C#\",\"status\":\"completed\",\"conclusion\":\"success\",\"completed_at\":\"2026-09-28T10:06:00Z\",\"app\":{\"slug\":\"github-actions\"}}" +
+                "{\"id\":101,\"name\":\"build\",\"status\":\"completed\",\"conclusion\":\"success\",\"details_url\":\"https://github.com/o/r/actions/runs/5001/job/101\",\"app\":{\"slug\":\"github-actions\"}}," +
+                "{\"id\":999,\"name\":\"build\",\"status\":\"completed\",\"conclusion\":\"cancelled\",\"details_url\":\"https://github.com/o/r/actions/runs/5999/job/999\",\"app\":{\"slug\":\"github-actions\"}}," +
+                "{\"id\":103,\"name\":\"Analyze C#\",\"status\":\"completed\",\"conclusion\":\"success\",\"details_url\":\"https://github.com/o/r/actions/runs/5002/job/103\",\"app\":{\"slug\":\"github-actions\"}}" +
                 "]}";
 
             string failing =
                 "{\"check_runs\":[" +
-                "{\"id\":201,\"name\":\"build\",\"status\":\"completed\",\"conclusion\":\"success\",\"completed_at\":\"2026-09-28T10:00:00Z\",\"app\":{\"slug\":\"github-actions\"}}," +
-                "{\"id\":202,\"name\":\"build\",\"status\":\"completed\",\"conclusion\":\"failure\",\"completed_at\":\"2026-09-28T10:10:00Z\",\"app\":{\"slug\":\"github-actions\"}}," +
-                "{\"id\":203,\"name\":\"Analyze C#\",\"status\":\"completed\",\"conclusion\":\"success\",\"completed_at\":\"2026-09-28T10:11:00Z\",\"app\":{\"slug\":\"github-actions\"}}" +
+                "{\"id\":201,\"name\":\"build\",\"status\":\"completed\",\"conclusion\":\"success\",\"details_url\":\"https://github.com/o/r/actions/runs/5001/job/201\",\"app\":{\"slug\":\"github-actions\"}}," +
+                "{\"id\":202,\"name\":\"build\",\"status\":\"completed\",\"conclusion\":\"failure\",\"details_url\":\"https://github.com/o/r/actions/runs/5001/job/202\",\"app\":{\"slug\":\"github-actions\"}}," +
+                "{\"id\":203,\"name\":\"Analyze C#\",\"status\":\"completed\",\"conclusion\":\"success\",\"details_url\":\"https://github.com/o/r/actions/runs/5002/job/203\",\"app\":{\"slug\":\"github-actions\"}}" +
                 "]}";
 
             string wrongApp =
                 "{\"check_runs\":[" +
-                "{\"id\":301,\"name\":\"build\",\"status\":\"completed\",\"conclusion\":\"success\",\"completed_at\":\"2026-09-28T10:00:00Z\",\"app\":{\"slug\":\"other-app\"}}," +
-                "{\"id\":302,\"name\":\"Analyze C#\",\"status\":\"completed\",\"conclusion\":\"success\",\"completed_at\":\"2026-09-28T10:01:00Z\",\"app\":{\"slug\":\"github-actions\"}}" +
+                "{\"id\":301,\"name\":\"build\",\"status\":\"completed\",\"conclusion\":\"success\",\"details_url\":\"https://github.com/o/r/actions/runs/5001/job/301\",\"app\":{\"slug\":\"other-app\"}}," +
+                "{\"id\":302,\"name\":\"Analyze C#\",\"status\":\"completed\",\"conclusion\":\"success\",\"details_url\":\"https://github.com/o/r/actions/runs/5002/job/302\",\"app\":{\"slug\":\"github-actions\"}}" +
                 "]}";
 
-            List<string> required = new List<string> { "build", "Analyze C#" };
+            List<string> required =
+                new List<string> { "build", "Analyze C#" };
             string error;
 
-            if (!ValidateRequiredCheckRuns(ParseJsonObject(passing), required, out error))
-                throw new InvalidOperationException("Passing release-check fixture was rejected: " + error);
+            if (!ValidateRequiredCheckRuns(
+                ParseJsonObject(passing),
+                required,
+                eligible,
+                out error))
+            {
+                throw new InvalidOperationException(
+                    "Passing release-check fixture was rejected: " + error);
+            }
 
-            if (ValidateRequiredCheckRuns(ParseJsonObject(failing), required, out error))
-                throw new InvalidOperationException("Latest failing required check was incorrectly accepted.");
+            if (ValidateRequiredCheckRuns(
+                ParseJsonObject(failing),
+                required,
+                eligible,
+                out error))
+            {
+                throw new InvalidOperationException(
+                    "Latest failing main-push required check was incorrectly accepted.");
+            }
 
-            if (ValidateRequiredCheckRuns(ParseJsonObject(wrongApp), required, out error))
-                throw new InvalidOperationException("Required check from a non-GitHub-Actions app was incorrectly accepted.");
+            if (ValidateRequiredCheckRuns(
+                ParseJsonObject(wrongApp),
+                required,
+                eligible,
+                out error))
+            {
+                throw new InvalidOperationException(
+                    "Required check from a non-GitHub-Actions app was incorrectly accepted.");
+            }
 
-            Console.WriteLine("Release origin/check-run parser self-test passed.");
+            Console.WriteLine(
+                "Release origin/check-run context self-test passed.");
             return 0;
         }
 
@@ -429,9 +495,91 @@ namespace DomainMembershipCheckRepair.Tools
             return Convert.ToString(value) ?? String.Empty;
         }
 
+        private static HashSet<long> GetEligibleMainPushWorkflowRunIds(
+            Dictionary<string, object> payload,
+            string expectedSha)
+        {
+            HashSet<long> result = new HashSet<long>();
+
+            object rawRuns;
+            if (payload == null ||
+                !payload.TryGetValue("workflow_runs", out rawRuns))
+            {
+                return result;
+            }
+
+            object[] runs = rawRuns as object[];
+            if (runs == null)
+                return result;
+
+            foreach (object raw in runs)
+            {
+                Dictionary<string, object> run =
+                    raw as Dictionary<string, object>;
+                if (run == null)
+                    continue;
+
+                if (!String.Equals(
+                    GetString(run, "head_sha"),
+                    expectedSha,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!String.Equals(
+                    GetString(run, "head_branch"),
+                    "main",
+                    StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (!String.Equals(
+                    GetString(run, "event"),
+                    "push",
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                long id;
+                if (Int64.TryParse(GetString(run, "id"), out id) &&
+                    id > 0)
+                {
+                    result.Add(id);
+                }
+            }
+
+            return result;
+        }
+
+        private static long ExtractWorkflowRunId(
+            Dictionary<string, object> checkRun)
+        {
+            string detailsUrl = GetString(checkRun, "details_url");
+            if (String.IsNullOrWhiteSpace(detailsUrl))
+                return 0;
+
+            Match match = Regex.Match(
+                detailsUrl,
+                @"/actions/runs/(\d+)(?:/|$)",
+                RegexOptions.IgnoreCase);
+
+            long id;
+            if (!match.Success ||
+                !Int64.TryParse(match.Groups[1].Value, out id))
+            {
+                return 0;
+            }
+
+            return id;
+        }
+
         private static bool ValidateRequiredCheckRuns(
             Dictionary<string, object> payload,
             IList<string> requiredChecks,
+            ISet<long> eligibleWorkflowRunIds,
             out string error)
         {
             error = String.Empty;
@@ -492,6 +640,14 @@ namespace DomainMembershipCheckRepair.Tools
                         continue;
                     }
 
+                    long workflowRunId = ExtractWorkflowRunId(run);
+                    if (workflowRunId <= 0 ||
+                        eligibleWorkflowRunIds == null ||
+                        !eligibleWorkflowRunIds.Contains(workflowRunId))
+                    {
+                        continue;
+                    }
+
                     long id = 0;
                     object idValue;
                     if (run.TryGetValue("id", out idValue))
@@ -508,7 +664,7 @@ namespace DomainMembershipCheckRepair.Tools
                 {
                     error =
                         "Required GitHub Actions check '" + required +
-                        "' was not found on the release commit.";
+                        "' was not found on an eligible protected-main push workflow run for the release commit.";
                     return false;
                 }
 

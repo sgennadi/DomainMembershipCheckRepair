@@ -43,6 +43,8 @@
 - Moved release tag/version checks, unsigned staging, signed-PE validation, timestamp/version/architecture checks, final assembly, SHA-256 verification and release smoke tests into the compiled C# release orchestrator.
 - Added protected-Build coverage for the native release prepare/finalize/smoke path so release orchestration is exercised before a SignPath-enabled tag is ever created.
 - Added a tag-only release origin gate: the tagged SHA must already be contained in protected `main`, and the exact commit must have successful GitHub Actions `build` and `Analyze C#` checks before any SignPath request can be submitted.
+- Hardened the release gate against same-SHA feature-branch noise: required checks are now correlated to eligible GitHub Actions `push` workflow runs on `main`, so branch-copy/scheduled checks cannot override a valid protected-main result.
+- Repository policy now requires both `checks: read` and `actions: read` for release-origin validation and workflow-run correlation.
 - Added CI policy enforcement and a synthetic parser self-test so manual release dispatch, missing origin validation, missing `checks: read`, or stale/failed duplicate required checks cannot silently weaken the release gate.
 - Added repository policy validation for immutable remote GitHub Action SHAs, explicit workflow permissions, rejection of `pull_request_target`, `persist-credentials: false` on checkout, and protected-`main` restriction for self-hosted workflows.
 - Rebuilt the Disposable AD Destructive Lab as a compiled C# harness so manual lab code is type-checked on every protected build instead of being skipped when lab runners are offline.
