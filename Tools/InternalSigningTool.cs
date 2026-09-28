@@ -39,25 +39,25 @@ namespace DomainMembershipCheckRepair.Tools
             {
                 StringBuilder content = new StringBuilder();
                 content.AppendLine("[Version]");
-                content.AppendLine("Signature="$Windows NT$"");
+                content.AppendLine("Signature=\\\"$Windows NT$\\\"");
                 content.AppendLine();
                 content.AppendLine("[NewRequest]");
-                content.AppendLine("Subject = "" + EscapeInf(subject) + """);
-                content.AppendLine("FriendlyName = "" + EscapeInf(friendlyName) + """);
+                content.AppendLine("Subject = \\\"" + EscapeInf(subject) + "\\\"");
+                content.AppendLine("FriendlyName = \\\"" + EscapeInf(friendlyName) + "\\\"");
                 content.AppendLine("MachineKeySet = TRUE");
                 content.AppendLine("Exportable = FALSE");
                 content.AppendLine("KeyAlgorithm = RSA");
                 content.AppendLine("KeyLength = 3072");
                 content.AppendLine("HashAlgorithm = sha256");
                 content.AppendLine("KeySpec = 2");
-                content.AppendLine("ProviderName = "Microsoft Enhanced RSA and AES Cryptographic Provider"");
+                content.AppendLine("ProviderName = \\\"Microsoft Enhanced RSA and AES Cryptographic Provider\\\"");
                 content.AppendLine("RequestType = Cert");
                 content.AppendLine("ValidityPeriod = Years");
                 content.AppendLine("ValidityPeriodUnits = " + validYears);
                 content.AppendLine();
                 content.AppendLine("[Extensions]");
-                content.AppendLine("2.5.29.37 = "{text}"");
-                content.AppendLine("_continue_ = "1.3.6.1.5.5.7.3.3"");
+                content.AppendLine("2.5.29.37 = \\\"{text}\\\"");
+                content.AppendLine("_continue_ = \\\"1.3.6.1.5.5.7.3.3\\\"");
                 File.WriteAllText(inf, content.ToString(), new UnicodeEncoding(false, true));
 
                 ProcessResult create = ProcessHelper.Run(
@@ -309,7 +309,7 @@ namespace DomainMembershipCheckRepair.Tools
 
         private static string EscapeInf(string value)
         {
-            return (value ?? String.Empty).Replace(""", """");
+            return (value ?? String.Empty).Replace("\\\"", "\\\"\\\"");
         }
 
         private static string SafeError(ProcessResult result)
