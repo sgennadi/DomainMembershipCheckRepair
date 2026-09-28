@@ -38,7 +38,7 @@ namespace DomainMembershipCheckRepair
             if (String.IsNullOrWhiteSpace(path))
                 path = Path.Combine(
                     Environment.CurrentDirectory,
-                    "DomainMembershipSupport-" + Environment.MachineName + "-" +
+                    "DomainMembershipSupport-Sanitized-" +
                     DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".zip");
 
             path = Path.GetFullPath(path);
