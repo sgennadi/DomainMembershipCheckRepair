@@ -64,7 +64,7 @@ function Invoke-Dmcr {
 
     if (-not $process.WaitForExit(180000)) {
         try { $process.Kill() } catch {}
-        throw "DomainMembershipCheckRepair timed out after 180 seconds: $($Arguments -join ' ')"
+        throw "DomainMembershipCheckRepair timed out after 180 seconds for lab step '$ArtifactName'."
     }
 
     $stdout = $stdoutTask.GetAwaiter().GetResult()
@@ -96,12 +96,12 @@ function Assert-DomainLab {
     }
 
     if (-not [string]::Equals([string]$cs.Domain, $Domain, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "Runner domain '$($cs.Domain)' does not match configured lab domain '$Domain'."
+        throw "Runner domain does not match the configured lab domain."
     }
 
     if (-not [string]::IsNullOrWhiteSpace($ExpectedComputerName) -and
         -not [string]::Equals($env:COMPUTERNAME, $ExpectedComputerName, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "This workflow is running on '$env:COMPUTERNAME' but AD_LAB_COMPUTER is '$ExpectedComputerName'."
+        throw "Runner computer name does not match the configured disposable lab computer."
     }
 
     $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
@@ -239,7 +239,7 @@ elseif ($Scenario -eq "recycle-bin-restore") {
         throw "Disposable test account '$testName$' already exists. Refusing to touch a pre-existing object."
     }
 
-    Write-Host "Creating disposable AD computer object $testName in $TestOuDn"
+    Write-Host "Creating a uniquely named disposable AD computer object in the configured lab OU."
     New-ADComputer -Name $testName -SamAccountName ($testName + '
     try {
         Remove-ADComputer -Identity $created.DistinguishedName -Confirm:$false @adParams -ErrorAction Stop
@@ -274,7 +274,7 @@ elseif ($Scenario -eq "recycle-bin-restore") {
             throw "Expected exactly one restored disposable object for '$testName            throw "Restored computer ObjectGUID differs from the original object."
         }
 
-        Add-Summary "recycle-bin-restore" "PASS" "Disposable object $testName was deleted, restored by the application, and verified by ObjectGUID."
+        Add-Summary "recycle-bin-restore" "PASS" "Disposable object was deleted, restored by the application, and verified by ObjectGUID."
     }
     finally {
         $cleanup = Get-ADComputer -LDAPFilter $filter @adParams -ErrorAction SilentlyContinue
