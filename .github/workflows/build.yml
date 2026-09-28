@@ -25,33 +25,34 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Validate repository policies
-        shell: pwsh
-        run: .\Tests\SupplyChain\Validate-RepositoryPolicies.ps1
-
-      - name: Test lab artifact sanitizer
-        shell: pwsh
-        run: .\Tests\Integration\Test-LabArtifactSanitizer.ps1
-
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3
 
+      - name: Build native repository tools
+        shell: cmd
+        run: msbuild Tools\DomainMembershipCheckRepair.Tools.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU
+
+      - name: Validate repository policies
+        shell: cmd
+        run: Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe validate-repository --root .
+
+      - name: Test lab artifact sanitizer
+        shell: cmd
+        run: Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe test-sanitizer
+
       - name: Verify .NET Framework targeting packs
-        shell: pwsh
+        shell: cmd
         run: |
-          $base = "${env:ProgramFiles(x86)}\Reference Assemblies\Microsoft\Framework\.NETFramework"
-          if (-not (Test-Path "$base\v4.8\mscorlib.dll")) { throw ".NET Framework 4.8 targeting pack is missing" }
-          if (-not (Test-Path "$base\v4.8.1\mscorlib.dll")) { throw ".NET Framework 4.8.1 targeting pack is missing (required for ARM64)" }
+          if not exist "%ProgramFiles(x86)%\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\mscorlib.dll" exit /b 1
+          if not exist "%ProgramFiles(x86)%\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8.1\mscorlib.dll" exit /b 1
 
       - name: Build unit tests
         shell: cmd
         run: msbuild Tests\DomainMembershipCheckRepair.Tests.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU
 
       - name: Run unit tests
-        shell: pwsh
-        run: |
-          & .\Tests\bin\Release\DomainMembershipCheckRepair.Tests.exe
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        shell: cmd
+        run: Tests\bin\Release\DomainMembershipCheckRepair.Tests.exe
 
       - name: Build x86
         shell: cmd
@@ -62,47 +63,31 @@ jobs:
         run: msbuild DomainMembershipCheckRepair.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=x64
 
       - name: Run GUI/DPI smoke tests (x86)
-        shell: pwsh
-        run: |
-          & .\bin\Release\x86\DomainMembershipCheckRepair.exe --cli --action ui-smoke --json
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        shell: cmd
+        run: bin\Release\x86\DomainMembershipCheckRepair.exe --cli --action ui-smoke --json
 
       - name: Run GUI/DPI smoke tests (x64)
-        shell: pwsh
-        run: |
-          & .\bin\Release\x64\DomainMembershipCheckRepair.exe --cli --action ui-smoke --json
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        shell: cmd
+        run: bin\Release\x64\DomainMembershipCheckRepair.exe --cli --action ui-smoke --json
 
       - name: Build ARM64
         shell: cmd
         run: msbuild DomainMembershipCheckRepair.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=ARM64
 
       - name: Prepare artifacts and checksums
-        shell: pwsh
+        shell: cmd
         run: |
-          New-Item -ItemType Directory -Force artifacts | Out-Null
-          $configs = @(
-            ".\bin\Release\x86\DomainMembershipCheckRepair.exe.config",
-            ".\bin\Release\x64\DomainMembershipCheckRepair.exe.config",
-            ".\bin\Release\ARM64\DomainMembershipCheckRepair.exe.config"
-          )
-          foreach ($config in $configs) {
-            if (-not (Test-Path $config)) { throw "Required DPI config is missing: $config" }
-            $configText = Get-Content $config -Raw
-            if ($configText -notmatch 'PerMonitorV2') { throw "PerMonitorV2 is missing from: $config" }
-          }
-
-          Copy-Item .\bin\Release\x86\DomainMembershipCheckRepair.exe .\artifacts\DomainMembershipCheckRepair-x86.exe
-          Copy-Item .\bin\Release\x86\DomainMembershipCheckRepair.exe.config .\artifacts\DomainMembershipCheckRepair-x86.exe.config
-          Copy-Item .\bin\Release\x64\DomainMembershipCheckRepair.exe .\artifacts\DomainMembershipCheckRepair-x64.exe
-          Copy-Item .\bin\Release\x64\DomainMembershipCheckRepair.exe.config .\artifacts\DomainMembershipCheckRepair-x64.exe.config
-          Copy-Item .\bin\Release\ARM64\DomainMembershipCheckRepair.exe .\artifacts\DomainMembershipCheckRepair-arm64.exe
-          Copy-Item .\bin\Release\ARM64\DomainMembershipCheckRepair.exe.config .\artifacts\DomainMembershipCheckRepair-arm64.exe.config
-          $lines = Get-ChildItem .\artifacts\DomainMembershipCheckRepair-* -File | Sort-Object Name | ForEach-Object {
-            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-            "$hash  $($_.Name)"
-          }
-          $lines | Set-Content -Encoding ascii .\artifacts\SHA256SUMS.txt
+          if not exist artifacts mkdir artifacts
+          findstr /C:"PerMonitorV2" bin\Release\x86\DomainMembershipCheckRepair.exe.config >nul || exit /b 1
+          findstr /C:"PerMonitorV2" bin\Release\x64\DomainMembershipCheckRepair.exe.config >nul || exit /b 1
+          findstr /C:"PerMonitorV2" bin\Release\ARM64\DomainMembershipCheckRepair.exe.config >nul || exit /b 1
+          copy /y bin\Release\x86\DomainMembershipCheckRepair.exe artifacts\DomainMembershipCheckRepair-x86.exe >nul
+          copy /y bin\Release\x86\DomainMembershipCheckRepair.exe.config artifacts\DomainMembershipCheckRepair-x86.exe.config >nul
+          copy /y bin\Release\x64\DomainMembershipCheckRepair.exe artifacts\DomainMembershipCheckRepair-x64.exe >nul
+          copy /y bin\Release\x64\DomainMembershipCheckRepair.exe.config artifacts\DomainMembershipCheckRepair-x64.exe.config >nul
+          copy /y bin\Release\ARM64\DomainMembershipCheckRepair.exe artifacts\DomainMembershipCheckRepair-arm64.exe >nul
+          copy /y bin\Release\ARM64\DomainMembershipCheckRepair.exe.config artifacts\DomainMembershipCheckRepair-arm64.exe.config >nul
+          Tools\bin\Release\DomainMembershipCheckRepair.Tools.exe hash-dist --directory artifacts
 
       - name: Upload all architectures
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
