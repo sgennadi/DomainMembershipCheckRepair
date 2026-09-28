@@ -18,6 +18,10 @@ permissions:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
+concurrency:
+  group: ad-integration-lab
+  cancel-in-progress: false
+
 jobs:
   ad-integration:
     if: ${{ vars.AD_LAB_ENABLED == 'true' }}
@@ -43,10 +47,8 @@ jobs:
           }
 
           $cs = Get-CimInstance Win32_ComputerSystem
-          Write-Host "Runner: $env:COMPUTERNAME"
-          Write-Host "Identity: $([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)"
-          Write-Host "PartOfDomain: $($cs.PartOfDomain)"
-          Write-Host "Domain: $($cs.Domain)"
+          Write-Host "Self-hosted AD lab runner configuration detected."
+          Write-Host "Domain joined: $($cs.PartOfDomain)"
 
           if (-not $cs.PartOfDomain) {
             throw "The self-hosted domain-lab runner must be domain joined."
@@ -80,11 +82,30 @@ jobs:
 
           .\Tests\Integration\Run-ADIntegrationTests.ps1 @params
 
-      - name: Upload integration diagnostics
+      - name: Sanitize integration artifacts
         if: always()
+        shell: pwsh
+        env:
+          AD_LAB_DOMAIN: ${{ vars.AD_LAB_DOMAIN }}
+          AD_LAB_DC: ${{ vars.AD_LAB_DC }}
+          AD_LAB_COMPUTER: ${{ vars.AD_LAB_COMPUTER }}
+        run: |
+          if (Test-Path ".\integration-artifacts") {
+            .\Tests\Integration\Sanitize-LabArtifacts.ps1 -InputDirectory ".\integration-artifacts" -OutputDirectory ".\integration-artifacts-sanitized"
+          }
+
+      - name: Upload sanitized integration diagnostics
+        if: ${{ always() && vars.LAB_UPLOAD_SANITIZED_ARTIFACTS == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: ad-integration-${{ github.run_id }}
-          path: integration-artifacts/*
+          name: ad-integration-sanitized-${{ github.run_id }}
+          path: integration-artifacts-sanitized/*
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 7
+
+      - name: Clean lab artifacts from self-hosted runner
+        if: always()
+        shell: pwsh
+        run: |
+          Remove-Item ".\integration-artifacts" -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item ".\integration-artifacts-sanitized" -Recurse -Force -ErrorAction SilentlyContinue
