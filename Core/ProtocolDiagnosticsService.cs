@@ -215,9 +215,9 @@ namespace DomainMembershipCheckRepair
             }
 
             string spn = "ldap/" + result.Dc;
-            CommandResult command = NetworkCredentialProcessRunner.Run(
+            CommandResult command = NetworkCredentialProcessRunner.RunArguments(
                 "klist.exe",
-                "get " + spn,
+                new string[] { "get", spn },
                 10000,
                 user,
                 password,
@@ -246,9 +246,9 @@ namespace DomainMembershipCheckRepair
                 return;
             }
 
-            CommandResult command = NetworkCredentialProcessRunner.Run(
+            CommandResult command = NetworkCredentialProcessRunner.RunArguments(
                 "sc.exe",
-                BuildRemoteScArguments(result.Dc, "Netlogon"),
+                BuildRemoteScArgumentList(result.Dc, "Netlogon"),
                 10000,
                 user,
                 password,
@@ -289,9 +289,9 @@ namespace DomainMembershipCheckRepair
                 return;
             }
 
-            CommandResult command = NetworkCredentialProcessRunner.Run(
+            CommandResult command = NetworkCredentialProcessRunner.RunArguments(
                 "net.exe",
-                BuildRemoteNetViewArguments(result.Dc),
+                BuildRemoteNetViewArgumentList(result.Dc),
                 10000,
                 user,
                 password,
@@ -336,14 +336,37 @@ namespace DomainMembershipCheckRepair
 
         internal static string BuildRemoteScArguments(string host, string serviceName)
         {
-            string server = DomainValidation.NormalizeDirectoryServer(host);
-            return "\\\\" + server + " query " + (serviceName ?? String.Empty);
+            return WindowsCommandLine.BuildArguments(
+                BuildRemoteScArgumentList(host, serviceName));
         }
 
         internal static string BuildRemoteNetViewArguments(string host)
         {
+            return WindowsCommandLine.BuildArguments(
+                BuildRemoteNetViewArgumentList(host));
+        }
+
+        internal static string[] BuildRemoteScArgumentList(
+            string host,
+            string serviceName)
+        {
             string server = DomainValidation.NormalizeDirectoryServer(host);
-            return "view \\\\" + server;
+            return new string[]
+            {
+                "\\\\" + server,
+                "query",
+                serviceName ?? String.Empty
+            };
+        }
+
+        internal static string[] BuildRemoteNetViewArgumentList(string host)
+        {
+            string server = DomainValidation.NormalizeDirectoryServer(host);
+            return new string[]
+            {
+                "view",
+                "\\\\" + server
+            };
         }
 
         private static byte[] BuildDnsQuery(string name, ushort type)
