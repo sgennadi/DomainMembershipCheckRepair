@@ -227,7 +227,19 @@ namespace DomainMembershipCheckRepair
             if (String.IsNullOrWhiteSpace(domain))
                 return hosts;
 
-            string output = RunProcess("nslookup.exe", "-type=SRV _ldap._tcp.dc._msdcs." + domain, 7000);
+            string domainError = DomainValidation.ValidateDomainArgument(domain);
+            if (domainError != null)
+                return hosts;
+
+            string output = RunProcessArguments(
+                "nslookup.exe",
+                new string[]
+                {
+                    "-type=SRV",
+                    "_ldap._tcp.dc._msdcs." + domain.Trim()
+                },
+                7000,
+                CancellationToken.None);
             if (String.IsNullOrWhiteSpace(output))
                 return hosts;
 
@@ -348,9 +360,15 @@ namespace DomainMembershipCheckRepair
 
         private static string QueryTimeSkew(string host, CancellationToken cancellationToken)
         {
-            string output = RunProcess(
+            string output = RunProcessArguments(
                 "w32tm.exe",
-                "/stripchart /computer:" + host + " /dataonly /samples:1",
+                new string[]
+                {
+                    "/stripchart",
+                    "/computer:" + host,
+                    "/dataonly",
+                    "/samples:1"
+                },
                 7000,
                 cancellationToken);
             if (String.IsNullOrWhiteSpace(output))
@@ -366,18 +384,18 @@ namespace DomainMembershipCheckRepair
             return Collapse(output, 180);
         }
 
-        private static string RunProcess(string file, string args, int timeoutMs)
-        {
-            return RunProcess(file, args, timeoutMs, CancellationToken.None);
-        }
-
-        private static string RunProcess(
+        private static string RunProcessArguments(
             string file,
-            string args,
+            IEnumerable<string> arguments,
             int timeoutMs,
             CancellationToken cancellationToken)
         {
-            CommandResult result = ProcessRunner.Run(file, args, timeoutMs, cancellationToken);
+            CommandResult result =
+                ProcessRunner.RunArguments(
+                    file,
+                    arguments,
+                    timeoutMs,
+                    cancellationToken);
             if (!String.IsNullOrWhiteSpace(result.Error))
                 return result.Error;
             return result.CombinedOutput;

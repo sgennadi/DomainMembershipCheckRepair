@@ -2791,26 +2791,46 @@ namespace DomainMembershipCheckRepair
             if (!EnsureElevatedForGui("restart"))
                 return;
 
-            try
+            CommandResult restart =
+                ProcessRunner.RunArguments(
+                    "shutdown.exe",
+                    new string[]
+                    {
+                        "/r",
+                        "/t",
+                        "15",
+                        "/c",
+                        "Domain membership repair operation completed. Restarting Windows."
+                    },
+                    10000);
+
+            if (!String.IsNullOrWhiteSpace(restart.Error) ||
+                restart.TimedOut ||
+                restart.ExitCode != 0)
             {
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = "shutdown.exe";
-                psi.Arguments = "/r /t 15 /c \"Domain membership repair operation completed. Restarting Windows.\"";
-                psi.UseShellExecute = false;
-                psi.CreateNoWindow = true;
-                Process.Start(psi);
-                Log("INFO", "Windows restart scheduled in 15 seconds.");
-                MessageBox.Show(this,
-                    "Windows will restart in 15 seconds.\r\n\r\nTo cancel: shutdown /a",
-                    "Restart scheduled",
+                string detail = !String.IsNullOrWhiteSpace(restart.Error)
+                    ? restart.Error
+                    : (restart.TimedOut
+                        ? "shutdown.exe timed out."
+                        : "shutdown.exe returned exit code " +
+                          restart.ExitCode + ".");
+
+                Log("ERROR", "Unable to schedule restart: " + detail);
+                MessageBox.Show(
+                    this,
+                    detail,
+                    "Restart failed",
                     MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
+                    MessageBoxIcon.Error);
+                return;
             }
-            catch (Exception ex)
-            {
-                Log("ERROR", "Unable to schedule restart: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "Restart failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+
+            Log("INFO", "Windows restart scheduled in 15 seconds.");
+            MessageBox.Show(this,
+                "Windows will restart in 15 seconds.\r\n\r\nTo cancel: shutdown /a",
+                "Restart scheduled",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
         }
 
         private void SetBusy(bool busy)

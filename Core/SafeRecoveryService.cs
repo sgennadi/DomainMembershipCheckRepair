@@ -24,18 +24,47 @@ namespace DomainMembershipCheckRepair
         {
             SafeRecoveryResult result = new SafeRecoveryResult();
 
-            RunCommand(result, "Flush DNS resolver cache", "ipconfig.exe", "/flushdns", 10000);
+            RunCommand(
+                result,
+                "Flush DNS resolver cache",
+                "ipconfig.exe",
+                new string[] { "/flushdns" },
+                10000);
             TransactionJournalService.RecordNote(journal, "DNS resolver cache", "Flush DNS cache executed; no meaningful rollback exists.");
 
-            RunCommand(result, "Request Windows Time resync", "w32tm.exe", "/resync /force", 15000);
+            RunCommand(
+                result,
+                "Request Windows Time resync",
+                "w32tm.exe",
+                new string[] { "/resync", "/force" },
+                15000);
             TransactionJournalService.RecordNote(journal, "Windows Time", "Time resync requested; no automatic rollback is performed.");
 
             RestartService(result, "Netlogon", 15000, journal);
 
             if (!String.IsNullOrWhiteSpace(domain))
             {
-                RunCommand(result, "Force DC locator rediscovery", "nltest.exe", "/dsgetdc:" + domain + " /force", 15000);
-                TransactionJournalService.RecordNote(journal, "DC Locator", "Forced DC rediscovery executed; no rollback is required.");
+                string domainError = DomainValidation.ValidateDomainArgument(domain);
+                if (domainError != null)
+                {
+                    result.Success = false;
+                    result.Steps.Add(
+                        "FAIL: Force DC locator rediscovery: invalid domain - " +
+                        domainError);
+                }
+                else
+                {
+                    RunCommand(
+                        result,
+                        "Force DC locator rediscovery",
+                        "nltest.exe",
+                        BuildDcRediscoveryArgumentList(domain.Trim()),
+                        15000);
+                    TransactionJournalService.RecordNote(
+                        journal,
+                        "DC Locator",
+                        "Forced DC rediscovery executed; no rollback is required.");
+                }
             }
 
             return result;
@@ -88,14 +117,37 @@ namespace DomainMembershipCheckRepair
             }
         }
 
+        internal static string BuildDcRediscoveryArguments(string domain)
+        {
+            string domainError = DomainValidation.ValidateDomainArgument(domain);
+            if (domainError != null)
+                throw new ArgumentException(domainError, "domain");
+
+            return WindowsCommandLine.BuildArguments(
+                BuildDcRediscoveryArgumentList(domain.Trim()));
+        }
+
+        private static string[] BuildDcRediscoveryArgumentList(string domain)
+        {
+            return new string[]
+            {
+                "/dsgetdc:" + (domain ?? String.Empty),
+                "/force"
+            };
+        }
+
         private static void RunCommand(
             SafeRecoveryResult result,
             string title,
             string fileName,
-            string arguments,
+            IEnumerable<string> arguments,
             int timeoutMs)
         {
-            CommandResult command = ProcessRunner.Run(fileName, arguments, timeoutMs);
+            CommandResult command =
+                ProcessRunner.RunArguments(
+                    fileName,
+                    arguments,
+                    timeoutMs);
 
             if (!String.IsNullOrWhiteSpace(command.Error))
             {

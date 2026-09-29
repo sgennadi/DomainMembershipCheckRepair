@@ -81,19 +81,50 @@ namespace DomainMembershipCheckRepair
                 Write(Path.Combine(temp, "next-safe-action.txt"), SmartNextActionService.ToText(advanced.NextAction));
                 Write(Path.Combine(temp, "recovery-plan.txt"), RecoveryPlanService.ToText(advanced.RecoveryPlan));
 
-                CollectCommand(temp, "ipconfig-all.txt", "ipconfig.exe", "/all", cancellationToken, progress);
-                CollectCommand(temp, "route-print.txt", "route.exe", "print", cancellationToken, progress);
-                CollectCommand(temp, "w32tm-status.txt", "w32tm.exe", "/query /status", cancellationToken, progress);
-                CollectCommand(temp, "w32tm-source.txt", "w32tm.exe", "/query /source", cancellationToken, progress);
-                CollectCommand(temp, "dsregcmd-status.txt", "dsregcmd.exe", "/status", cancellationToken, progress);
-                CollectCommand(temp, "gpresult-computer.txt", "gpresult.exe", "/scope computer /z", cancellationToken, progress);
+                CollectCommand(temp, "ipconfig-all.txt", "ipconfig.exe", new string[] { "/all" }, cancellationToken, progress);
+                CollectCommand(temp, "route-print.txt", "route.exe", new string[] { "print" }, cancellationToken, progress);
+                CollectCommand(temp, "w32tm-status.txt", "w32tm.exe", new string[] { "/query", "/status" }, cancellationToken, progress);
+                CollectCommand(temp, "w32tm-source.txt", "w32tm.exe", new string[] { "/query", "/source" }, cancellationToken, progress);
+                CollectCommand(temp, "dsregcmd-status.txt", "dsregcmd.exe", new string[] { "/status" }, cancellationToken, progress);
+                CollectCommand(temp, "gpresult-computer.txt", "gpresult.exe", new string[] { "/scope", "computer", "/z" }, cancellationToken, progress);
 
                 string domain = advanced.Snapshot == null ? String.Empty : advanced.Snapshot.TargetDomain;
                 if (!String.IsNullOrWhiteSpace(domain))
                 {
-                    CollectCommand(temp, "nltest-dsgetdc.txt", "nltest.exe", "/dsgetdc:" + domain, cancellationToken, progress);
-                    CollectCommand(temp, "nltest-dclist.txt", "nltest.exe", "/dclist:" + domain, cancellationToken, progress);
-                    CollectCommand(temp, "nltest-sc-query.txt", "nltest.exe", "/sc_query:" + domain, cancellationToken, progress);
+                    string domainError =
+                        DomainValidation.ValidateDomainArgument(domain);
+
+                    if (domainError == null)
+                    {
+                        string normalizedDomain = domain.Trim();
+                        CollectCommand(
+                            temp,
+                            "nltest-dsgetdc.txt",
+                            "nltest.exe",
+                            new string[] { "/dsgetdc:" + normalizedDomain },
+                            cancellationToken,
+                            progress);
+                        CollectCommand(
+                            temp,
+                            "nltest-dclist.txt",
+                            "nltest.exe",
+                            new string[] { "/dclist:" + normalizedDomain },
+                            cancellationToken,
+                            progress);
+                        CollectCommand(
+                            temp,
+                            "nltest-sc-query.txt",
+                            "nltest.exe",
+                            new string[] { "/sc_query:" + normalizedDomain },
+                            cancellationToken,
+                            progress);
+                    }
+                    else
+                    {
+                        Write(
+                            Path.Combine(temp, "nltest-domain-validation.txt"),
+                            "nltest collection skipped: invalid domain token.");
+                    }
                 }
 
                 if (File.Exists(DiagnosticsService.NetSetupLogPath))
@@ -188,13 +219,18 @@ namespace DomainMembershipCheckRepair
             string folder,
             string name,
             string exe,
-            string args,
+            IEnumerable<string> arguments,
             CancellationToken cancellationToken,
             Action<string> progress)
         {
             cancellationToken.ThrowIfCancellationRequested();
             Report(progress, "Support Bundle: " + name);
-            CommandResult result = ProcessRunner.Run(exe, args, 10000, cancellationToken);
+            CommandResult result =
+                ProcessRunner.RunArguments(
+                    exe,
+                    arguments,
+                    10000,
+                    cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             string output = result.CombinedOutput;
 

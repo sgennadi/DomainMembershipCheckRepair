@@ -65,6 +65,9 @@
     <Compile Include="..\Core\OfflineDomainJoinService.cs">
       <Link>OfflineDomainJoinService.cs</Link>
     </Compile>
+    <Compile Include="..\Core\SafeRecoveryService.cs">
+      <Link>SafeRecoveryService.cs</Link>
+    </Compile>
     <Compile Include="..\Core\NetworkCredentialProcessRunner.cs">
       <Link>NetworkCredentialProcessRunner.cs</Link>
     </Compile>

@@ -198,10 +198,11 @@ namespace DomainMembershipCheckRepair
 
         private static void CollectGpResult(PolicySourceDiagnosticsResult r)
         {
-            CommandResult result = ProcessRunner.Run(
-                "gpresult.exe",
-                "/scope computer /z",
-                25000);
+            CommandResult result =
+                ProcessRunner.RunArguments(
+                    "gpresult.exe",
+                    new string[] { "/scope", "computer", "/z" },
+                    25000);
 
             if (!String.IsNullOrWhiteSpace(result.Error))
             {

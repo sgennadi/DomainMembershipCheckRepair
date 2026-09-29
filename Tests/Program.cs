@@ -21,7 +21,10 @@ namespace DomainMembershipCheckRepair
             TestDnToDnsConversion();
             TestDomainArgumentValidation();
             TestWindowsCommandLineQuoting();
+            TestWindowsArgumentListBuilding();
             TestOfflineDomainJoinArguments();
+            TestSafeRecoveryArguments();
+            TestProcessExecutableResolution();
             TestElevationActions();
             TestGuiResumeOptions();
             TestNetSetupErrorMapping();
@@ -193,6 +196,27 @@ namespace DomainMembershipCheckRepair
                 "empty Windows argument is quoted");
         }
 
+        private static void TestWindowsArgumentListBuilding()
+        {
+            AssertEqual(
+                "one \"two words\" three",
+                WindowsCommandLine.BuildArguments(
+                    new string[] { "one", "two words", "three" }),
+                "Windows argv builder quotes only the argument that needs it");
+
+            AssertEqual(
+                "get cifs/dc01.example.com \"\"",
+                WindowsCommandLine.BuildArguments(
+                    new string[] { "get", "cifs/dc01.example.com", String.Empty }),
+                "Windows argv builder preserves an empty argument");
+
+            AssertEqual(
+                "a \"C:\\Path With Space\\\\\"",
+                WindowsCommandLine.BuildArguments(
+                    new string[] { "a", "C:\\Path With Space\\" }),
+                "Windows argv builder preserves trailing backslashes");
+        }
+
         private static void TestOfflineDomainJoinArguments()
         {
             AssertEqual(
@@ -219,6 +243,59 @@ namespace DomainMembershipCheckRepair
                     @"C:\Temp\pc.txt",
                     false),
                 "ODJ provision omits reuse when not requested");
+        }
+
+        private static void TestSafeRecoveryArguments()
+        {
+            AssertEqual(
+                "/dsgetdc:example.com /force",
+                SafeRecoveryService.BuildDcRediscoveryArguments("example.com"),
+                "Safe Recovery DC rediscovery uses separate canonical argv tokens");
+
+            bool rejected = false;
+            try
+            {
+                SafeRecoveryService.BuildDcRediscoveryArguments(
+                    "example.com /force");
+            }
+            catch (ArgumentException)
+            {
+                rejected = true;
+            }
+
+            AssertTrue(
+                rejected,
+                "Safe Recovery rejects injected domain options before nltest");
+        }
+
+        private static void TestProcessExecutableResolution()
+        {
+            string systemCmd =
+                Path.Combine(Environment.SystemDirectory, "cmd.exe");
+
+            if (File.Exists(systemCmd))
+            {
+                AssertEqual(
+                    systemCmd,
+                    ProcessRunner.ResolveExecutable("cmd.exe"),
+                    "Process runner prefers trusted System32 executable");
+            }
+
+            string missing =
+                Path.Combine(
+                    Path.GetTempPath(),
+                    "dmcr-missing-" + Guid.NewGuid().ToString("N") + ".exe");
+
+            AssertEqual(
+                String.Empty,
+                ProcessRunner.ResolveExecutable(missing),
+                "Process runner rejects a missing absolute executable path");
+
+            AssertEqual(
+                String.Empty,
+                ProcessRunner.ResolveExecutable(
+                    "dmcr-definitely-missing-tool.exe"),
+                "Process runner does not fall back to PATH/current directory for an unresolved bare executable");
         }
 
         private static void TestElevationActions()
@@ -267,6 +344,20 @@ namespace DomainMembershipCheckRepair
             AssertFalse(
                 ElevationHelper.RedirectedPasswordRequiresPreElevation("ad-restore", false, false),
                 "interactive password can use normal elevation broker");
+
+            AssertEqual(
+                "--resume-action join --domain example.com --user \"EXAMPLE\\admin user\"",
+                ElevationHelper.BuildElevationArguments(
+                    new string[]
+                    {
+                        "--resume-action",
+                        "join",
+                        "--domain",
+                        "example.com",
+                        "--user",
+                        @"EXAMPLE\admin user"
+                    }),
+                "elevation relaunch uses shared canonical argv quoting");
         }
 
         private static void TestGuiResumeOptions()
@@ -377,9 +468,23 @@ namespace DomainMembershipCheckRepair
                 "repadmin replication access denied is recognized");
 
             AssertEqual(
-                "/replsummary \"dc01.example.com\"",
+                "/replsummary dc01.example.com",
                 ReplicationMetadataService.BuildReplSummaryArguments(@"\\dc01.example.com"),
                 "repadmin summary targets preferred DC");
+
+            AssertEqual(
+                "/showobjmeta dc01.example.com \"CN=PC 01,OU=Lab,DC=example,DC=com\"",
+                ReplicationMetadataService.BuildShowObjectMetadataArguments(
+                    "dc01.example.com",
+                    "CN=PC 01,OU=Lab,DC=example,DC=com"),
+                "repadmin object metadata quotes a DN as one argv token");
+
+            AssertEqual(
+                "/showattr dc01.example.com \"CN=PC 01,OU=Lab,DC=example,DC=com\" /atts:objectGUID,pwdLastSet,whenChanged,uSNChanged,servicePrincipalName",
+                ReplicationMetadataService.BuildShowAttributesArguments(
+                    "dc01.example.com",
+                    "CN=PC 01,OU=Lab,DC=example,DC=com"),
+                "repadmin attribute query preserves the DN as one argv token");
         }
 
         private static void TestExpectedSpns()

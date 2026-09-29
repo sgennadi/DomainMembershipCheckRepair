@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -26,6 +27,39 @@ namespace DomainMembershipCheckRepair
             string password)
         {
             return Run(fileName, arguments, timeoutMs, user, password, CancellationToken.None);
+        }
+
+        internal static CommandResult RunArguments(
+            string fileName,
+            IEnumerable<string> arguments,
+            int timeoutMs,
+            string user,
+            string password)
+        {
+            return RunArguments(
+                fileName,
+                arguments,
+                timeoutMs,
+                user,
+                password,
+                CancellationToken.None);
+        }
+
+        internal static CommandResult RunArguments(
+            string fileName,
+            IEnumerable<string> arguments,
+            int timeoutMs,
+            string user,
+            string password,
+            CancellationToken cancellationToken)
+        {
+            return Run(
+                fileName,
+                WindowsCommandLine.BuildArguments(arguments),
+                timeoutMs,
+                user,
+                password,
+                cancellationToken);
         }
 
         internal static CommandResult Run(
@@ -89,7 +123,7 @@ namespace DomainMembershipCheckRepair
                 startup.hStdInput = IntPtr.Zero;
 
                 StringBuilder commandLine = new StringBuilder();
-                commandLine.Append(Quote(executable));
+                commandLine.Append(WindowsCommandLine.QuoteArgument(executable));
                 if (!String.IsNullOrWhiteSpace(arguments))
                 {
                     commandLine.Append(' ');
@@ -248,12 +282,32 @@ namespace DomainMembershipCheckRepair
             if (Path.IsPathRooted(value))
                 return File.Exists(value) ? value : String.Empty;
 
-            string systemPath = Path.Combine(Environment.SystemDirectory, value);
-            if (File.Exists(systemPath))
-                return systemPath;
+            if (value.IndexOf(Path.DirectorySeparatorChar) < 0 &&
+                value.IndexOf(Path.AltDirectorySeparatorChar) < 0)
+            {
+                string systemPath =
+                    Path.Combine(Environment.SystemDirectory, value);
+                if (File.Exists(systemPath))
+                    return systemPath;
 
-            string current = Path.GetFullPath(value);
-            return File.Exists(current) ? current : String.Empty;
+                return String.Empty;
+            }
+
+            try
+            {
+                string relative =
+                    Path.GetFullPath(
+                        Path.Combine(
+                            AppDomain.CurrentDomain.BaseDirectory,
+                            value));
+                return File.Exists(relative)
+                    ? relative
+                    : String.Empty;
+            }
+            catch
+            {
+                return String.Empty;
+            }
         }
 
         private static StreamReader CreateReader(IntPtr handle)
@@ -261,11 +315,6 @@ namespace DomainMembershipCheckRepair
             SafeFileHandle safe = new SafeFileHandle(handle, true);
             FileStream stream = new FileStream(safe, FileAccess.Read, 4096, false);
             return new StreamReader(stream, Encoding.Default, true);
-        }
-
-        private static string Quote(string value)
-        {
-            return "\"" + (value ?? String.Empty).Replace("\"", "\\\"") + "\"";
         }
 
         private static void CloseHandleSafe(ref IntPtr handle)

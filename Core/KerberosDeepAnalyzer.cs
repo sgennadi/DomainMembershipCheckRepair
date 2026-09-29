@@ -59,9 +59,9 @@ namespace DomainMembershipCheckRepair
             }
 
             Report(progress, "Kerberos: querying KDC binding cache");
-            CommandResult bindings = NetworkCredentialProcessRunner.Run(
+            CommandResult bindings = NetworkCredentialProcessRunner.RunArguments(
                 "klist.exe",
-                "query_bind",
+                new string[] { "query_bind" },
                 10000,
                 user,
                 password,
@@ -69,9 +69,9 @@ namespace DomainMembershipCheckRepair
             result.KdcBindings = Collapse(bindings == null ? String.Empty : bindings.CombinedOutput, 1600);
 
             Report(progress, "Kerberos: reading TGT");
-            CommandResult tgt = NetworkCredentialProcessRunner.Run(
+            CommandResult tgt = NetworkCredentialProcessRunner.RunArguments(
                 "klist.exe",
-                "tgt",
+                new string[] { "tgt" },
                 10000,
                 user,
                 password,
@@ -90,9 +90,9 @@ namespace DomainMembershipCheckRepair
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Report(progress, "Kerberos: requesting " + spn);
-                CommandResult command = NetworkCredentialProcessRunner.Run(
+                CommandResult command = NetworkCredentialProcessRunner.RunArguments(
                     "klist.exe",
-                    "get " + spn,
+                    new string[] { "get", spn },
                     10000,
                     user,
                     password,

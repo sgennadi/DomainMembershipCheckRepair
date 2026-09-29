@@ -74,9 +74,9 @@ namespace DomainMembershipCheckRepair
                 return r;
             }
 
-            CommandResult kerberos = NetworkCredentialProcessRunner.Run(
+            CommandResult kerberos = NetworkCredentialProcessRunner.RunArguments(
                 "klist.exe",
-                "get cifs/" + r.Dc,
+                new string[] { "get", "cifs/" + r.Dc },
                 10000,
                 user,
                 password,
@@ -86,9 +86,9 @@ namespace DomainMembershipCheckRepair
             r.KerberosCifsStatus = Status(kerberos);
             r.KerberosCifsDetails = Collapse(kerberos == null ? String.Empty : kerberos.CombinedOutput, 500);
 
-            CommandResult smb = NetworkCredentialProcessRunner.Run(
+            CommandResult smb = NetworkCredentialProcessRunner.RunArguments(
                 "net.exe",
-                ProtocolDiagnosticsService.BuildRemoteNetViewArguments(r.Dc),
+                ProtocolDiagnosticsService.BuildRemoteNetViewArgumentList(r.Dc),
                 10000,
                 user,
                 password,

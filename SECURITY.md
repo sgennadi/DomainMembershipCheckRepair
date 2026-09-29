@@ -20,7 +20,7 @@ Do not include real passwords, recovery keys, or other secrets in a report.
 
 ## Credential handling
 
-DomainMembershipCheckRepair intentionally does not persist entered domain usernames or passwords. Passwords are not accepted as CLI arguments. File logging is disabled by default. Arguments passed to Windows helper executables are constructed with Windows argv-compatible quoting, and Offline Domain Join provisioning rejects unsafe domain tokens and invalid computer names before `djoin.exe` is started.
+DomainMembershipCheckRepair intentionally does not persist entered domain usernames or passwords. Passwords are not accepted as CLI arguments. File logging is disabled by default. Arguments passed to Windows helper executables are constructed with a shared Windows argv-compatible builder. Dynamic arguments for `nltest`, `klist`, `repadmin`, `w32tm`, `sc`, `net`, and `djoin` are passed as individual tokens before canonical quoting; Offline Domain Join and Safe Recovery additionally reject unsafe domain tokens before an external process is started.
 
 ## Destructive AD operations
 

@@ -30,7 +30,11 @@ namespace DomainMembershipCheckRepair
         {
             SiteSubnetDiagnosticsResult result = new SiteSubnetDiagnosticsResult();
 
-            CommandResult site = ProcessRunner.Run("nltest.exe", "/dsgetsite", 7000);
+            CommandResult site =
+                ProcessRunner.RunArguments(
+                    "nltest.exe",
+                    new string[] { "/dsgetsite" },
+                    7000);
             if (site.Started && !site.TimedOut && site.ExitCode == 0)
                 result.CurrentSite = FirstUsefulLine(site.StandardOutput);
             else
