@@ -47,6 +47,7 @@ namespace DomainMembershipCheckRepair
             TestRpcKnownInterfaces();
             TestIdentityConsistencyFilter();
             TestTransactionJournalParsing();
+            TestTransactionJournalAtomicWrite();
             TestAdRecoveryHelpers();
             TestAdRestoreFinalSafety();
             TestProtectedStorageAclPolicy();
@@ -880,6 +881,56 @@ namespace DomainMembershipCheckRepair
                     "ServiceState",
                     "WinDefend"),
                 "arbitrary service rollback target blocked");
+        }
+
+        private static void TestTransactionJournalAtomicWrite()
+        {
+            string folder = Path.Combine(
+                Path.GetTempPath(),
+                "DomainMembershipCheckRepair-tests-" +
+                Guid.NewGuid().ToString("N"));
+            string path = Path.Combine(folder, "journal.json");
+
+            try
+            {
+                Directory.CreateDirectory(folder);
+
+                TransactionJournalService.WriteTextAtomically(
+                    path,
+                    "{\"value\":1}");
+
+                AssertEqual(
+                    "{\"value\":1}",
+                    File.ReadAllText(path),
+                    "transaction journal atomic writer creates initial file");
+
+                TransactionJournalService.WriteTextAtomically(
+                    path,
+                    "{\"value\":2}");
+
+                AssertEqual(
+                    "{\"value\":2}",
+                    File.ReadAllText(path),
+                    "transaction journal atomic writer replaces existing file");
+
+                AssertEqual(
+                    "0",
+                    Directory.GetFiles(
+                        folder,
+                        "*.tmp-*").Length.ToString(),
+                    "transaction journal atomic writer leaves no temp files");
+            }
+            finally
+            {
+                try
+                {
+                    if (Directory.Exists(folder))
+                        Directory.Delete(folder, true);
+                }
+                catch
+                {
+                }
+            }
         }
 
         private static void TestAdRecoveryHelpers()
