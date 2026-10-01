@@ -98,6 +98,9 @@
 - Added regression coverage for modern domain-join account-reuse event classification and guidance.
 - Hardened Build workflow concurrency to include the exact commit SHA, so a newer push on the same branch cannot cancel the required `build` check attached to an older commit that another PR or release gate may still need.
 - Repository policy now enforces SHA-scoped Build concurrency while retaining duplicate-run cancellation for the same ref/SHA.
+- Added explicit NetSetup.log detection for the documented `SAM_DOMAIN_JOIN_POLICY_LEVEL_V2` / `c0000022` / `NetStatus:0x5` failure pattern, identifying authenticated SAMRPC validation denied by the target DC.
+- Added focused remediation guidance for the DC `RestrictRemoteSam` policy (`HKLM\SYSTEM\CurrentControlSet\Control\Lsa\RestrictRemoteSam`) and promoted this evidence to a dedicated high-priority Domain-join SAMRPC root-cause category.
+- Added regression coverage that distinguishes SAMRPC domain-join policy denial from unrelated access-denied text.
 
 ## 1.5.0
 
