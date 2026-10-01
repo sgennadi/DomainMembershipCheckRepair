@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Security.AccessControl;
-using System.Security.Principal;
 using System.Text;
 
 namespace DomainMembershipCheckRepair
@@ -258,21 +256,17 @@ namespace DomainMembershipCheckRepair
         private static string EnsureSnapshotFolder()
         {
             string path = GetSnapshotFolderPath();
-            Directory.CreateDirectory(path);
-
-            string pathDetails;
-            if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
-                path,
-                out pathDetails))
-            {
-                throw new IOException(
-                    "Recovery snapshot storage path failed reparse-point verification: " +
-                    pathDetails);
-            }
-
-            HardenSnapshotFolderAcl(path);
 
             string securityDetails;
+            if (!ProtectedStorageAcl.EnsureProtectedDirectory(
+                path,
+                out securityDetails))
+            {
+                throw new IOException(
+                    "Recovery snapshot storage failed security preparation: " +
+                    securityDetails);
+            }
+
             if (!IsSnapshotFolderSecurityTrusted(
                 path,
                 out securityDetails))
@@ -294,104 +288,13 @@ namespace DomainMembershipCheckRepair
                 "Snapshots");
         }
 
-        private static void HardenSnapshotFolderAcl(string path)
-        {
-            DirectorySecurity security = new DirectorySecurity();
-            security.SetAccessRuleProtection(true, false);
-
-            InheritanceFlags inheritance =
-                InheritanceFlags.ContainerInherit |
-                InheritanceFlags.ObjectInherit;
-
-            security.AddAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(
-                    WellKnownSidType.LocalSystemSid,
-                    null),
-                FileSystemRights.FullControl,
-                inheritance,
-                PropagationFlags.None,
-                AccessControlType.Allow));
-
-            security.AddAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(
-                    WellKnownSidType.BuiltinAdministratorsSid,
-                    null),
-                FileSystemRights.FullControl,
-                inheritance,
-                PropagationFlags.None,
-                AccessControlType.Allow));
-
-            security.AddAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(
-                    WellKnownSidType.BuiltinUsersSid,
-                    null),
-                FileSystemRights.ReadAndExecute |
-                FileSystemRights.Read,
-                inheritance,
-                PropagationFlags.None,
-                AccessControlType.Allow));
-
-            Directory.SetAccessControl(path, security);
-        }
-
         internal static bool IsSnapshotFolderSecurityTrusted(
             string path,
             out string details)
         {
-            if (String.IsNullOrWhiteSpace(path) ||
-                !Directory.Exists(path))
-            {
-                details = "Recovery snapshot folder does not exist.";
-                return false;
-            }
-
-            string pathDetails;
-            if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
+            return ProtectedStorageAcl.IsProtectedDirectoryTrusted(
                 path,
-                out pathDetails))
-            {
-                details = pathDetails;
-                return false;
-            }
-
-            try
-            {
-                DirectorySecurity security =
-                    Directory.GetAccessControl(path);
-
-                AuthorizationRuleCollection rules =
-                    security.GetAccessRules(
-                        true,
-                        true,
-                        typeof(SecurityIdentifier));
-
-                foreach (FileSystemAccessRule rule in rules)
-                {
-                    SecurityIdentifier sid =
-                        rule.IdentityReference as SecurityIdentifier;
-
-                    if (ProtectedStorageAcl.IsDangerousBroadWriteGrant(
-                        sid,
-                        rule.FileSystemRights,
-                        rule.AccessControlType))
-                    {
-                        details =
-                            "A broad user group has write-capable access to recovery snapshot storage.";
-                        return false;
-                    }
-                }
-
-                details =
-                    "Recovery snapshot folder ACL does not grant broad-user write access.";
-                return true;
-            }
-            catch (Exception ex)
-            {
-                details =
-                    "Unable to inspect recovery snapshot folder ACL: " +
-                    ex.Message;
-                return false;
-            }
+                out details);
         }
 
         private static void Prune(string folder)

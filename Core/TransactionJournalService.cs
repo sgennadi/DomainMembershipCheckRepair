@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.ServiceProcess;
 using System.Text;
+using Microsoft.Win32;
 using System.Security.AccessControl;
 using System.Security.Principal;
-using Microsoft.Win32;
 
 namespace DomainMembershipCheckRepair
 {
@@ -120,6 +120,14 @@ namespace DomainMembershipCheckRepair
             {
                 throw new IOException(
                     "Transaction journal path escaped the protected journal folder.");
+            }
+
+            string storageDetails;
+            if (!CheckStorageSecurity(out storageDetails))
+            {
+                throw new IOException(
+                    "Transaction journal storage is not trusted immediately before write: " +
+                    storageDetails);
             }
 
             WriteTextAtomically(
@@ -257,52 +265,9 @@ namespace DomainMembershipCheckRepair
                 return true;
             }
 
-            string pathDetails;
-            if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
+            return ProtectedStorageAcl.IsProtectedDirectoryTrusted(
                 path,
-                out pathDetails))
-            {
-                details = pathDetails;
-                return false;
-            }
-
-            try
-            {
-                DirectorySecurity security = Directory.GetAccessControl(path);
-                AuthorizationRuleCollection rules = security.GetAccessRules(
-                    true,
-                    true,
-                    typeof(SecurityIdentifier));
-
-                foreach (FileSystemAccessRule rule in rules)
-                {
-                    SecurityIdentifier sid =
-                        rule.IdentityReference as SecurityIdentifier;
-
-                    if (ProtectedStorageAcl.IsDangerousBroadWriteGrant(
-                        sid,
-                        rule.FileSystemRights,
-                        rule.AccessControlType))
-                    {
-                        details =
-                            "Broad users have write-capable access to " +
-                            path + ".";
-                        return false;
-                    }
-                }
-
-                details =
-                    "Transaction folder ACL does not grant broad-user write access: " +
-                    path;
-                return true;
-            }
-            catch (Exception ex)
-            {
-                details =
-                    "Unable to inspect transaction folder ACL: " +
-                    ex.Message;
-                return false;
-            }
+                out details);
         }
 
         internal static bool RollbackLatest(out string report)
@@ -480,13 +445,13 @@ namespace DomainMembershipCheckRepair
                     SecurityIdentifier sid =
                         rule.IdentityReference as SecurityIdentifier;
 
-                    if (ProtectedStorageAcl.IsDangerousBroadWriteGrant(
+                    if (ProtectedStorageAcl.IsUntrustedWriteGrant(
                         sid,
                         rule.FileSystemRights,
                         rule.AccessControlType))
                     {
                         error =
-                            "A broad user group has write-capable access to the journal file.";
+                            "A non-privileged identity has write-capable access to the journal file.";
                         return false;
                     }
                 }
@@ -685,30 +650,16 @@ namespace DomainMembershipCheckRepair
 
             try
             {
-                string pathDetails;
-                if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
-                    path,
-                    out pathDetails))
-                {
-                    throw new IOException(
-                        "Transaction journal storage parent path failed reparse-point verification: " +
-                        pathDetails);
-                }
-
-                Directory.CreateDirectory(path);
-
-                if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
-                    path,
-                    out pathDetails))
-                {
-                    throw new IOException(
-                        "Transaction journal storage path failed reparse-point verification: " +
-                        pathDetails);
-                }
-
-                HardenFolderAcl(path);
-
                 string details;
+                if (!ProtectedStorageAcl.EnsureProtectedDirectory(
+                    path,
+                    out details))
+                {
+                    throw new IOException(
+                        "Transaction journal storage failed security preparation: " +
+                        details);
+                }
+
                 if (!CheckStorageSecurity(out details))
                 {
                     throw new IOException(
@@ -733,38 +684,6 @@ namespace DomainMembershipCheckRepair
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
                 "DomainMembershipCheckRepair",
                 "Transactions");
-        }
-
-        private static void HardenFolderAcl(string path)
-        {
-            DirectorySecurity security = new DirectorySecurity();
-            security.SetAccessRuleProtection(true, false);
-
-            InheritanceFlags inheritance =
-                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
-
-            security.AddAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
-                FileSystemRights.FullControl,
-                inheritance,
-                PropagationFlags.None,
-                AccessControlType.Allow));
-
-            security.AddAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-                FileSystemRights.FullControl,
-                inheritance,
-                PropagationFlags.None,
-                AccessControlType.Allow));
-
-            security.AddAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
-                FileSystemRights.ReadAndExecute | FileSystemRights.Read,
-                inheritance,
-                PropagationFlags.None,
-                AccessControlType.Allow));
-
-            Directory.SetAccessControl(path, security);
         }
 
         private static void Prune()

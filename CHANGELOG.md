@@ -108,6 +108,9 @@
 - Aligned GUI `Restore Deleted AD` and `Rollback Local` with CLI recovery semantics by requiring the same protected BEFORE/AFTER snapshot scope around those mutations.
 - Made mandatory pre-delete AD recovery-package JSON writes atomic with same-directory temporary files plus replace/move semantics, and re-verify protected storage trust immediately before persistence.
 - Added regression coverage for initial/replacement AD recovery-package atomic writes and temporary-file cleanup.
+- Hardened the shared `%ProgramData%\DomainMembershipCheckRepair` root and all managed child storage folders by enforcing Builtin Administrators ownership, disabling ACL inheritance, and permitting write-capable access only to LocalSystem and Builtin Administrators.
+- Extended protected-storage trust verification to reject untrusted owners, inherited ACLs, any non-privileged write-capable ACE, and reparse-point redirection across Transactions, RecoveryPackages and Snapshots.
+- Added regression coverage for trusted owners and non-privileged writer rejection, removed duplicate per-feature ACL hardeners in favor of the shared policy, and re-verify transaction storage trust immediately before each atomic journal write.
 
 ## 1.5.0
 
