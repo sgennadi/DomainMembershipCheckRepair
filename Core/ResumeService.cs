@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Management;
 using System.Security.Principal;
 using Microsoft.Win32;
@@ -18,18 +19,18 @@ namespace DomainMembershipCheckRepair
             try
             {
                 string exe = Process.GetCurrentProcess().MainModule.FileName;
-                string args = "--resume-action post-reboot-check --no-log";
-
-                if (!String.IsNullOrWhiteSpace(domain))
-                    args += " --domain " + QuoteArgument(domain);
-
-                string command = QuoteArgument(exe) + " " + args;
+                string command = BuildRunOnceCommand(exe, domain);
                 string interactiveSid = GetInteractiveUserSid();
 
-                if (!String.IsNullOrWhiteSpace(interactiveSid) &&
-                    TryWriteUserRunOnce(interactiveSid, command))
+                if (!String.IsNullOrWhiteSpace(interactiveSid))
                 {
-                    return true;
+                    if (TryWriteUserRunOnce(interactiveSid, command))
+                        return true;
+
+                    error =
+                        "Unable to register the one-time post-reboot check in the interactive user's RunOnce key. " +
+                        "Registration was not redirected to the elevated/current account.";
+                    return false;
                 }
 
                 using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RunOnceSubPath, true))
@@ -150,50 +151,50 @@ namespace DomainMembershipCheckRepair
             }
         }
 
-        private static string QuoteArgument(string value)
+        internal static string BuildRunOnceCommand(string executablePath, string domain)
         {
-            string input = value ?? String.Empty;
-            if (input.Length == 0)
-                return "\"\"";
-
-            bool needsQuotes = input.IndexOfAny(new char[] { ' ', '\t', '"' }) >= 0;
-            if (!needsQuotes)
-                return input;
-
-            System.Text.StringBuilder result = new System.Text.StringBuilder();
-            result.Append('"');
-            int slashes = 0;
-
-            foreach (char c in input)
+            string exe = (executablePath ?? String.Empty).Trim();
+            if (String.IsNullOrWhiteSpace(exe) ||
+                !Path.IsPathRooted(exe) ||
+                exe.IndexOf('"') >= 0 ||
+                exe.IndexOf('\0') >= 0)
             {
-                if (c == '\\')
-                {
-                    slashes++;
-                    continue;
-                }
-
-                if (c == '"')
-                {
-                    result.Append('\\', slashes * 2 + 1);
-                    result.Append('"');
-                    slashes = 0;
-                    continue;
-                }
-
-                if (slashes > 0)
-                {
-                    result.Append('\\', slashes);
-                    slashes = 0;
-                }
-
-                result.Append(c);
+                throw new ArgumentException(
+                    "Post-reboot resume requires a trusted absolute executable path.",
+                    "executablePath");
             }
 
-            if (slashes > 0)
-                result.Append('\\', slashes * 2);
+            string normalizedDomain = (domain ?? String.Empty).Trim();
+            if (!String.IsNullOrWhiteSpace(normalizedDomain))
+            {
+                string validationError = DomainValidation.ValidateDomainArgument(normalizedDomain);
+                if (!String.IsNullOrWhiteSpace(validationError))
+                {
+                    throw new ArgumentException(
+                        "Unsafe domain for post-reboot resume: " + validationError,
+                        "domain");
+                }
 
-            result.Append('"');
-            return result.ToString();
+                return WindowsCommandLine.BuildArguments(
+                    new string[]
+                    {
+                        exe,
+                        "--resume-action",
+                        "post-reboot-check",
+                        "--no-log",
+                        "--domain",
+                        normalizedDomain
+                    });
+            }
+
+            return WindowsCommandLine.BuildArguments(
+                new string[]
+                {
+                    exe,
+                    "--resume-action",
+                    "post-reboot-check",
+                    "--no-log"
+                });
         }
     }
 }
