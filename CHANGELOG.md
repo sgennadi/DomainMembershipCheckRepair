@@ -126,6 +126,8 @@
 - Added Offline Domain Join blob apply and provisioning support through djoin.exe.
 - Hardened Offline Domain Join command construction with canonical Windows argv quoting, computer-name/domain validation, and regression coverage for option-injection/trailing-backslash edge cases.
 - Security-hardening: standardized dynamic external-tool invocation through the shared canonical Windows argv builder for `nltest`, `klist`, `repadmin`, `w32tm`, `sc`, `net`, and `djoin`; removed remaining ad-hoc quoting from network-credential and replication paths and added regression coverage for multi-token/DN arguments.
+- Hardened post-reboot `RunOnce` resume registration to use the same canonical Windows argv builder, reject unsafe domain tokens and relative/untrusted executable paths, and avoid ad-hoc command-line quoting.
+- Post-reboot resume now fails closed when an interactive user's RunOnce hive is known but cannot be written, instead of silently redirecting registration to the elevated/current account.
 - Added safe post-reboot recovery resume without storing usernames or passwords.
 - MII disable and Offline Domain Join now register a post-reboot validation flow.
 - Added GUI actions for Advanced Diagnostics, Recovery Plan, DC Matrix, Support Bundle, CyberArk Health, and Offline Join.
