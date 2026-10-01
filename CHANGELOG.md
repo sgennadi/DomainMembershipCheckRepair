@@ -111,6 +111,8 @@
 - Hardened the shared `%ProgramData%\DomainMembershipCheckRepair` root and all managed child storage folders by enforcing Builtin Administrators ownership, disabling ACL inheritance, and permitting write-capable access only to LocalSystem and Builtin Administrators.
 - Extended protected-storage trust verification to reject untrusted owners, inherited ACLs, any non-privileged write-capable ACE, and reparse-point redirection across Transactions, RecoveryPackages and Snapshots.
 - Added regression coverage for trusted owners and non-privileged writer rejection, removed duplicate per-feature ACL hardeners in favor of the shared policy, and re-verify transaction storage trust immediately before each atomic journal write.
+- Moved CLI recovery-snapshot creation from central action dispatch to each mutation boundary, after dry-run/preflight/credential/confirmation checks, so cancelled or invalid operations do not create misleading recovery evidence.
+- Join/Rejoin now creates one credential-aware recovery snapshot scope before its first domain mutation and reuses that scope across Safe Fixes, rename and Delete+Recreate fallback paths; direct Rename creates its own snapshot only after name/AD preflight succeeds.
 
 ## 1.5.0
 

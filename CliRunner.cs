@@ -584,82 +584,99 @@ namespace DomainMembershipCheckRepair
             if (TryRelaunchElevatedIfNeeded(action, out elevatedResult))
                 return elevatedResult;
 
-            RecoverySnapshotScope snapshot = null;
-            try
+            switch (action)
             {
-                if (ElevationHelper.RequiresRecoverySnapshot(action) && !options.DryRun)
-                {
-                    string snapshotError;
-                    if (!RecoverySnapshotScope.TryCreate(
-                        action,
-                        options.Domain,
-                        options.PreferredDc,
-                        null,
-                        null,
-                        out snapshot,
-                        out snapshotError))
-                    {
-                        logger.Log(
-                            "ERROR",
-                            "Operation blocked because the required BEFORE recovery snapshot could not be created securely: " +
-                            snapshotError);
-                        return 1;
-                    }
-                }
+                case "status": return ShowStatus(true);
+                case "check": return CheckTrustOnly();
+                case "repair": return RepairTrust();
+                case "join": return JoinCurrentName();
+                case "rename": return RenameAndJoin(null, null, null, null, false);
+                case "restart": return RestartWindows();
+                case "mii-disable": return DisableMachineIdentityIsolation();
+                case "advanced": return AdvancedDiagnostics();
+                case "netsetup": return AnalyzeNetSetup();
+                case "dc-matrix": return DcMatrix();
+                case "site-subnet": return SiteSubnet();
+                case "protocols": return ProtocolDiagnostics();
+                case "hardening": return HardeningDiagnostics();
+                case "join-permissions": return JoinPermissions();
+                case "hybrid-entra": return HybridEntra();
+                case "policy-source": return PolicySources();
+                case "replication-metadata": return ReplicationMetadata();
+                case "spn-collisions": return SpnCollisions();
+                case "smb-kerberos": return SmbKerberos();
+                case "kerberos-deep": return KerberosDeep();
+                case "ldap-compatibility": return LdapCompatibility();
+                case "rpc-endpoints": return RpcEndpoints();
+                case "replication-timeline": return ReplicationTimeline();
+                case "identity-consistency": return IdentityConsistency();
+                case "next-action": return NextAction();
+                case "transactions": return Transactions();
+                case "rollback-local": return RollbackLocal();
+                case "self-test": return SelfTest();
+                case "recovery-plan": return RecoveryPlan();
+                case "support-bundle": return SupportBundle();
+                case "cyberark": return CyberArkHealth();
+                case "elevation-probe": return ElevationProbe();
+                case "ui-smoke": return MainForm.RunUiSmokeTests(options.Json);
+                case "safe-fixes": return SafeFixes();
+                case "odj-apply": return ApplyOfflineDomainJoin();
+                case "odj-provision": return ProvisionOfflineDomainJoin();
+                case "detect": return DetectAndDisplayDomain();
+                case "ad-check": return CheckAdAccount();
+                case "ad-recycle-bin": return AdRecycleBinStatusAction();
+                case "ad-deleted": return AdDeletedObject();
+                case "ad-restore": return RestoreDeletedAd();
+                case "diagnose": return Diagnostics();
+                case "export-diagnostics": return ExportDiagnostics();
+                default: return 3;
+            }
+        }
 
-                switch (action)
-                {
-                    case "status": return ShowStatus(true);
-                    case "check": return CheckTrustOnly();
-                    case "repair": return RepairTrust();
-                    case "join": return JoinCurrentName();
-                    case "rename": return RenameAndJoin(null, null, null, null);
-                    case "restart": return RestartWindows();
-                    case "mii-disable": return DisableMachineIdentityIsolation();
-                    case "advanced": return AdvancedDiagnostics();
-                    case "netsetup": return AnalyzeNetSetup();
-                    case "dc-matrix": return DcMatrix();
-                    case "site-subnet": return SiteSubnet();
-                    case "protocols": return ProtocolDiagnostics();
-                    case "hardening": return HardeningDiagnostics();
-                    case "join-permissions": return JoinPermissions();
-                    case "hybrid-entra": return HybridEntra();
-                    case "policy-source": return PolicySources();
-                    case "replication-metadata": return ReplicationMetadata();
-                    case "spn-collisions": return SpnCollisions();
-                    case "smb-kerberos": return SmbKerberos();
-                    case "kerberos-deep": return KerberosDeep();
-                    case "ldap-compatibility": return LdapCompatibility();
-                    case "rpc-endpoints": return RpcEndpoints();
-                    case "replication-timeline": return ReplicationTimeline();
-                    case "identity-consistency": return IdentityConsistency();
-                    case "next-action": return NextAction();
-                    case "transactions": return Transactions();
-                    case "rollback-local": return RollbackLocal();
-                    case "self-test": return SelfTest();
-                    case "recovery-plan": return RecoveryPlan();
-                    case "support-bundle": return SupportBundle();
-                    case "cyberark": return CyberArkHealth();
-                    case "elevation-probe": return ElevationProbe();
-                    case "ui-smoke": return MainForm.RunUiSmokeTests(options.Json);
-                    case "safe-fixes": return SafeFixes();
-                    case "odj-apply": return ApplyOfflineDomainJoin();
-                    case "odj-provision": return ProvisionOfflineDomainJoin();
-                    case "detect": return DetectAndDisplayDomain();
-                    case "ad-check": return CheckAdAccount();
-                    case "ad-recycle-bin": return AdRecycleBinStatusAction();
-                    case "ad-deleted": return AdDeletedObject();
-                    case "ad-restore": return RestoreDeletedAd();
-                    case "diagnose": return Diagnostics();
-                    case "export-diagnostics": return ExportDiagnostics();
-                    default: return 3;
-                }
-            }
-            finally
+        private static bool TryCreateCliRecoverySnapshot(
+            string action,
+            string domain,
+            string user,
+            string password,
+            out RecoverySnapshotScope snapshot)
+        {
+            snapshot = null;
+
+            if (options.DryRun)
+                return true;
+
+            if (!ElevationHelper.RequiresRecoverySnapshot(action))
             {
-                if (snapshot != null)
-                    snapshot.Dispose();
+                logger.Log(
+                    "ERROR",
+                    "Internal safety policy error: action '" +
+                    action +
+                    "' is not marked as requiring a recovery snapshot.");
+                return false;
             }
+
+            string snapshotError;
+            if (!RecoverySnapshotScope.TryCreate(
+                action,
+                domain,
+                options.PreferredDc,
+                user,
+                password,
+                out snapshot,
+                out snapshotError))
+            {
+                logger.Log(
+                    "ERROR",
+                    "Operation blocked because the required BEFORE recovery snapshot could not be created securely: " +
+                    snapshotError);
+                return false;
+            }
+
+            logger.Log(
+                "INFO",
+                "Required BEFORE recovery snapshot created: " +
+                snapshot.BeforePath);
+            return true;
         }
 
         private static int ShowStatus(bool verbose)
@@ -769,36 +786,49 @@ namespace DomainMembershipCheckRepair
                 return 0;
             }
 
-            logger.Log("INFO", "Starting native secure-channel repair for the currently joined domain.");
-
-            int rediscoverStatus = NativeMethods.NetlogonControl(NativeMethods.NETLOGON_CONTROL_REDISCOVER, 2, joinedDomain);
-            if (rediscoverStatus != 0)
-                logger.Log("WARN", "DC rediscovery returned: " + NativeMethods.FormatError(rediscoverStatus));
-
-            TrustCheckResult afterRediscover = NativeMethods.VerifySecureChannel(joinedDomain);
-            if (afterRediscover.Healthy)
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateCliRecoverySnapshot(
+                "repair",
+                joinedDomain,
+                null,
+                null,
+                out snapshot))
             {
-                logger.Log("SUCCESS", "Secure channel recovered after DC rediscovery." + FormatDcSuffix(afterRediscover.TrustedDc));
-                HandleRestartAfterSuccess("Secure channel recovered successfully.");
-                return 0;
+                return 1;
             }
 
-            int passwordStatus = NativeMethods.NetlogonControl(NativeMethods.NETLOGON_CONTROL_CHANGE_PASSWORD, 1, joinedDomain);
-            logger.Log(passwordStatus == 0 ? "INFO" : "WARN", "Native machine-password refresh returned: " + NativeMethods.FormatError(passwordStatus));
-
-            NativeMethods.NetlogonControl(NativeMethods.NETLOGON_CONTROL_REDISCOVER, 2, joinedDomain);
-            TrustCheckResult final = NativeMethods.VerifySecureChannel(joinedDomain);
-            if (final.Healthy)
+            using (snapshot)
             {
-                logger.Log("SUCCESS", "Secure channel repaired successfully." + FormatDcSuffix(final.TrustedDc));
-                HandleRestartAfterSuccess("Secure channel repaired successfully.");
-                return 0;
-            }
+                logger.Log("INFO", "Starting native secure-channel repair for the currently joined domain.");
 
-            logger.Log("ERROR", "Native trust repair did not restore the secure channel: " + NativeMethods.FormatError(final.StatusCode));
-            return 5;
+                int rediscoverStatus = NativeMethods.NetlogonControl(NativeMethods.NETLOGON_CONTROL_REDISCOVER, 2, joinedDomain);
+                if (rediscoverStatus != 0)
+                    logger.Log("WARN", "DC rediscovery returned: " + NativeMethods.FormatError(rediscoverStatus));
+
+                TrustCheckResult afterRediscover = NativeMethods.VerifySecureChannel(joinedDomain);
+                if (afterRediscover.Healthy)
+                {
+                    logger.Log("SUCCESS", "Secure channel recovered after DC rediscovery." + FormatDcSuffix(afterRediscover.TrustedDc));
+                    HandleRestartAfterSuccess("Secure channel recovered successfully.");
+                    return 0;
+                }
+
+                int passwordStatus = NativeMethods.NetlogonControl(NativeMethods.NETLOGON_CONTROL_CHANGE_PASSWORD, 1, joinedDomain);
+                logger.Log(passwordStatus == 0 ? "INFO" : "WARN", "Native machine-password refresh returned: " + NativeMethods.FormatError(passwordStatus));
+
+                NativeMethods.NetlogonControl(NativeMethods.NETLOGON_CONTROL_REDISCOVER, 2, joinedDomain);
+                TrustCheckResult final = NativeMethods.VerifySecureChannel(joinedDomain);
+                if (final.Healthy)
+                {
+                    logger.Log("SUCCESS", "Secure channel repaired successfully." + FormatDcSuffix(final.TrustedDc));
+                    HandleRestartAfterSuccess("Secure channel repaired successfully.");
+                    return 0;
+                }
+
+                logger.Log("ERROR", "Native trust repair did not restore the secure channel: " + NativeMethods.FormatError(final.StatusCode));
+                return 5;
+            }
         }
-
 
         private static int DisableMachineIdentityIsolation()
         {
@@ -822,32 +852,45 @@ namespace DomainMembershipCheckRepair
             if (!AskYesNo("Disable Machine Identity Isolation locally now?", false))
                 return 7;
 
-            CreatePreChangeBundle(
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateCliRecoverySnapshot(
                 "mii-disable",
                 options.Domain,
                 null,
-                null);
-
-            TransactionJournal journal = TransactionJournalService.Begin("mii-disable");
-            string details;
-            if (!HealthDiagnosticsService.DisableMachineIdentityIsolationLocally(journal, out details))
+                null,
+                out snapshot))
             {
-                TransactionJournalService.RecordNote(journal, "MII", "Disable operation failed: " + details);
-                journal.Complete();
-                logger.Log("ERROR", details);
                 return 1;
             }
 
-            journal.Complete();
-            logger.Log("SUCCESS", details);
-            string resumeError;
-            ResumeService.RegisterPostRebootCheck(options.Domain, out resumeError);
-            if (!String.IsNullOrWhiteSpace(resumeError))
-                logger.Log("WARN", "Unable to register post-reboot recovery check: " + resumeError);
-            HandleRestartAfterSuccess("Machine Identity Isolation was disabled locally. A restart is required before trust repair/rejoin.");
-            return 0;
-        }
+            using (snapshot)
+            {
+                CreatePreChangeBundle(
+                    "mii-disable",
+                    options.Domain,
+                    null,
+                    null);
 
+                TransactionJournal journal = TransactionJournalService.Begin("mii-disable");
+                string details;
+                if (!HealthDiagnosticsService.DisableMachineIdentityIsolationLocally(journal, out details))
+                {
+                    TransactionJournalService.RecordNote(journal, "MII", "Disable operation failed: " + details);
+                    journal.Complete();
+                    logger.Log("ERROR", details);
+                    return 1;
+                }
+
+                journal.Complete();
+                logger.Log("SUCCESS", details);
+                string resumeError;
+                ResumeService.RegisterPostRebootCheck(options.Domain, out resumeError);
+                if (!String.IsNullOrWhiteSpace(resumeError))
+                    logger.Log("WARN", "Unable to register post-reboot recovery check: " + resumeError);
+                HandleRestartAfterSuccess("Machine Identity Isolation was disabled locally. A restart is required before trust repair/rejoin.");
+                return 0;
+            }
+        }
 
         private static void GetOptionalCredentials(out string user, out string password)
         {
@@ -1182,42 +1225,56 @@ namespace DomainMembershipCheckRepair
                 false))
                 return 7;
 
-            CreatePreChangeBundle(
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateCliRecoverySnapshot(
                 "ad-restore",
                 domain,
                 user,
-                password);
+                password,
+                out snapshot))
+            {
+                return 1;
+            }
 
-            TransactionJournal journal =
-                TransactionJournalService.Begin("ad-restore");
-
-            TransactionJournalService.RecordNote(
-                journal,
-                "Active Directory restore",
-                "Operator confirmed restore of " +
-                deleted.DistinguishedName + " to " +
-                deleted.RestoreDistinguishedName + ".");
-
-            AdRestoreResult result =
-                AdRecycleBinRecoveryService.RestoreDeletedComputer(
+            using (snapshot)
+            {
+                CreatePreChangeBundle(
+                    "ad-restore",
                     domain,
-                    options.PreferredDc,
-                    computer,
                     user,
                     password);
 
-            TransactionJournalService.RecordNote(
-                journal,
-                "Active Directory restore",
-                result.Success
-                    ? "Restore succeeded: " + result.RestoredDn
-                    : "Restore failed: " + result.Message);
-            journal.Complete();
+                TransactionJournal journal =
+                    TransactionJournalService.Begin("ad-restore");
 
-            Console.WriteLine(
-                AdRecycleBinRecoveryService.ToText(result));
+                TransactionJournalService.RecordNote(
+                    journal,
+                    "Active Directory restore",
+                    "Operator confirmed restore of " +
+                    deleted.DistinguishedName + " to " +
+                    deleted.RestoreDistinguishedName + ".");
 
-            return result.Success ? 0 : 14;
+                AdRestoreResult result =
+                    AdRecycleBinRecoveryService.RestoreDeletedComputer(
+                        domain,
+                        options.PreferredDc,
+                        computer,
+                        user,
+                        password);
+
+                TransactionJournalService.RecordNote(
+                    journal,
+                    "Active Directory restore",
+                    result.Success
+                        ? "Restore succeeded: " + result.RestoredDn
+                        : "Restore failed: " + result.Message);
+                journal.Complete();
+
+                Console.WriteLine(
+                    AdRecycleBinRecoveryService.ToText(result));
+
+                return result.Success ? 0 : 14;
+            }
         }
 
         private static int AnalyzeNetSetup()
@@ -1711,21 +1768,51 @@ namespace DomainMembershipCheckRepair
 
         private static int RollbackLocal()
         {
+            string journalPath =
+                TransactionJournalService.GetLatestRollbackableJournalPath();
+
+            if (String.IsNullOrWhiteSpace(journalPath))
+            {
+                Console.WriteLine(
+                    "No transaction journal with reversible local changes was found.");
+                return 1;
+            }
+
             if (options.DryRun)
             {
-                Console.WriteLine("DRY RUN: would restore reversible local registry/service changes from the latest transaction journal.");
+                Console.WriteLine(
+                    "DRY RUN: would restore reversible local registry/service changes from:");
+                Console.WriteLine(journalPath);
                 return 0;
             }
 
             if (!AskYesNo(
-                "Rollback reversible LOCAL changes from the latest transaction journal? Domain join, AD deletion and other non-reversible actions will be skipped.",
+                "Rollback reversible LOCAL changes from this transaction journal? Domain join, AD deletion and other non-reversible actions will be skipped.\r\n\r\n" +
+                journalPath,
                 false))
                 return 7;
 
-            string report;
-            bool ok = TransactionJournalService.RollbackLatest(out report);
-            Console.WriteLine(report);
-            return ok ? 0 : 1;
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateCliRecoverySnapshot(
+                "rollback-local",
+                options.Domain,
+                null,
+                null,
+                out snapshot))
+            {
+                return 1;
+            }
+
+            using (snapshot)
+            {
+                string report;
+                bool ok =
+                    TransactionJournalService.Rollback(
+                        journalPath,
+                        out report);
+                Console.WriteLine(report);
+                return ok ? 0 : 1;
+            }
         }
 
         private static int SelfTest()
@@ -1901,12 +1988,26 @@ namespace DomainMembershipCheckRepair
                 false))
                 return 7;
 
-            TransactionJournal journal = TransactionJournalService.Begin("safe-fixes");
-            SafeRecoveryResult result = SafeRecoveryService.Run(domain, journal);
-            journal.Complete();
-            Console.WriteLine(SafeRecoveryService.ToText(result));
-            Console.WriteLine("Transaction journal: " + journal.Path);
-            return result.Success ? 0 : 1;
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateCliRecoverySnapshot(
+                "safe-fixes",
+                domain,
+                null,
+                null,
+                out snapshot))
+            {
+                return 1;
+            }
+
+            using (snapshot)
+            {
+                TransactionJournal journal = TransactionJournalService.Begin("safe-fixes");
+                SafeRecoveryResult result = SafeRecoveryService.Run(domain, journal);
+                journal.Complete();
+                Console.WriteLine(SafeRecoveryService.ToText(result));
+                Console.WriteLine("Transaction journal: " + journal.Path);
+                return result.Success ? 0 : 1;
+            }
         }
 
         private static int ApplyOfflineDomainJoin()
@@ -1917,30 +2018,53 @@ namespace DomainMembershipCheckRepair
                 return 3;
             }
 
+            if (!File.Exists(options.BlobPath))
+            {
+                logger.Log(
+                    "ERROR",
+                    "Offline Domain Join blob does not exist: " +
+                    options.BlobPath);
+                return 3;
+            }
+
             if (options.DryRun)
             {
                 Console.WriteLine("DRY RUN: would apply Offline Domain Join blob: " + options.BlobPath);
                 return 0;
             }
 
-            CreatePreChangeBundle(
-                "offline-domain-join",
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateCliRecoverySnapshot(
+                "odj-apply",
                 options.Domain,
                 null,
-                null);
-
-            string output;
-            int code = OfflineDomainJoinService.ApplyBlob(options.BlobPath, out output);
-            Console.WriteLine(output);
-            if (code == 0)
+                null,
+                out snapshot))
             {
-                string resumeError;
-                ResumeService.RegisterPostRebootCheck(options.Domain, out resumeError);
-                if (!String.IsNullOrWhiteSpace(resumeError))
-                    logger.Log("WARN", "Unable to register post-reboot check: " + resumeError);
-                HandleRestartAfterSuccess("Offline Domain Join was applied successfully.");
+                return 1;
             }
-            return code == 0 ? 0 : 1;
+
+            using (snapshot)
+            {
+                CreatePreChangeBundle(
+                    "offline-domain-join",
+                    options.Domain,
+                    null,
+                    null);
+
+                string output;
+                int code = OfflineDomainJoinService.ApplyBlob(options.BlobPath, out output);
+                Console.WriteLine(output);
+                if (code == 0)
+                {
+                    string resumeError;
+                    ResumeService.RegisterPostRebootCheck(options.Domain, out resumeError);
+                    if (!String.IsNullOrWhiteSpace(resumeError))
+                        logger.Log("WARN", "Unable to register post-reboot check: " + resumeError);
+                    HandleRestartAfterSuccess("Offline Domain Join was applied successfully.");
+                }
+                return code == 0 ? 0 : 1;
+            }
         }
 
         private static int ProvisionOfflineDomainJoin()
@@ -2104,6 +2228,19 @@ namespace DomainMembershipCheckRepair
             if (String.IsNullOrWhiteSpace(targetDomain))
                 return 3;
 
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateCliRecoverySnapshot(
+                "join",
+                targetDomain,
+                user,
+                password,
+                out snapshot))
+            {
+                return 1;
+            }
+
+            using (snapshot)
+            {
             string currentName = Environment.MachineName;
             logger.Log("INFO", "Attempting Join/Rejoin with the current computer name '" + currentName + "'.");
 
@@ -2185,12 +2322,13 @@ namespace DomainMembershipCheckRepair
             if (selection == "1")
                 return SafeFixesAndRetryJoin(currentName, user, password, targetDomain);
             if (selection == "2")
-                return RenameAndJoin(currentName, user, password, targetDomain);
+                return RenameAndJoin(currentName, user, password, targetDomain, true);
             if (selection == "3" && canDelete)
                 return DeleteExistingAccountAndRetryJoin(currentName, user, password, targetDomain, account);
 
             logger.Log("INFO", "Operation cancelled by the operator.");
             return 7;
+            }
         }
 
         private static int SafeFixesAndRetryJoin(string computerName, string user, string password, string targetDomain)
@@ -2220,7 +2358,7 @@ namespace DomainMembershipCheckRepair
             return 6;
         }
 
-        private static int RenameAndJoin(string currentName, string existingUser, string existingPassword, string existingTargetDomain)
+        private static int RenameAndJoin(string currentName, string existingUser, string existingPassword, string existingTargetDomain, bool recoverySnapshotAlreadyActive)
         {
             if (String.IsNullOrWhiteSpace(currentName))
                 currentName = Environment.MachineName;
@@ -2314,6 +2452,20 @@ namespace DomainMembershipCheckRepair
                 break;
             }
 
+            RecoverySnapshotScope snapshot = null;
+            if (!recoverySnapshotAlreadyActive &&
+                !TryCreateCliRecoverySnapshot(
+                    "rename",
+                    targetDomain,
+                    user,
+                    password,
+                    out snapshot))
+            {
+                return 1;
+            }
+
+            using (snapshot)
+            {
             CreatePreChangeBundle(
                 "rename-and-join",
                 targetDomain,
@@ -2366,6 +2518,7 @@ namespace DomainMembershipCheckRepair
 
             Console.WriteLine("Check C:\\Windows\\Debug\\NetSetup.log");
             return 8;
+            }
         }
 
         private static bool GetCredentials(out string user, out string password)
@@ -2741,7 +2894,7 @@ namespace DomainMembershipCheckRepair
             if (status == NativeMethods.NERR_UserExists || status == NativeMethods.NERR_AccountReuseBlockedByPolicy || status == NativeMethods.ERROR_ACCESS_DENIED)
             {
                 if (AskYesNo("The join still reports an account/name conflict. Try a NEW computer name now?", false))
-                    return RenameAndJoin(computerName, user, password, targetDomain);
+                    return RenameAndJoin(computerName, user, password, targetDomain, true);
             }
 
             Console.WriteLine("Check C:\\Windows\\Debug\\NetSetup.log");
