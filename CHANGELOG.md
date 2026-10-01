@@ -79,6 +79,9 @@
 - Hardened final destructive AD deletion against TOCTOU/subtree races: the exact computer GUID/class/sAMAccountName and leaf state are revalidated immediately before deletion, and deletion is now non-recursive so Active Directory rejects a newly non-leaf object instead of recursively deleting its subtree.
 - Added regression coverage for final AD delete identity/leaf validation, including changed GUID, changed sAMAccountName, wrong object class and newly appeared child objects.
 
+- Hardened post-reboot resume target selection so `RunOnce` registration requires a positively identified interactive-user SID and never falls back to the current/elevated process identity after runas/CyberArk elevation.
+- Added regression coverage proving that an absent interactive SID fails closed even when a current elevated-process SID is available.
+
 ## 1.5.0
 
 - Added Per-Monitor V2 DPI configuration and high-DPI automatic WinForms resizing.

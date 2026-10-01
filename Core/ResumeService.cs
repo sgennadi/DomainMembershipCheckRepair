@@ -20,31 +20,27 @@ namespace DomainMembershipCheckRepair
             {
                 string exe = Process.GetCurrentProcess().MainModule.FileName;
                 string command = BuildRunOnceCommand(exe, domain);
-                string interactiveSid = GetInteractiveUserSid();
+                string detectedInteractiveSid = GetInteractiveUserSid();
+                string currentProcessSid = GetCurrentProcessSid();
+                string interactiveSid =
+                    SelectPostRebootTargetSid(
+                        detectedInteractiveSid,
+                        currentProcessSid);
 
-                if (!String.IsNullOrWhiteSpace(interactiveSid))
+                if (String.IsNullOrWhiteSpace(interactiveSid))
                 {
-                    if (TryWriteUserRunOnce(interactiveSid, command))
-                        return true;
-
                     error =
-                        "Unable to register the one-time post-reboot check in the interactive user's RunOnce key. " +
-                        "Registration was not redirected to the elevated/current account.";
+                        "No interactive user SID could be identified safely. " +
+                        "The post-reboot RunOnce entry was not redirected to the current/elevated process identity.";
                     return false;
                 }
 
-                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RunOnceSubPath, true))
-                {
-                    if (key != null)
-                    {
-                        key.SetValue(ValueName, command, RegistryValueKind.String);
-                        return true;
-                    }
-                }
+                if (TryWriteUserRunOnce(interactiveSid, command))
+                    return true;
 
                 error =
-                    "Unable to register the one-time post-reboot check for the interactive user. " +
-                    "The repair itself can still continue, but the tool will not reopen automatically after restart.";
+                    "Unable to register the one-time post-reboot check in the interactive user's RunOnce key. " +
+                    "Registration was not redirected to the elevated/current account.";
                 return false;
             }
             catch (Exception ex)
@@ -59,6 +55,16 @@ namespace DomainMembershipCheckRepair
             string interactiveSid = GetInteractiveUserSid();
             if (!String.IsNullOrWhiteSpace(interactiveSid))
                 TryDeleteUserRunOnce(interactiveSid);
+
+            string currentProcessSid = GetCurrentProcessSid();
+            if (!String.IsNullOrWhiteSpace(currentProcessSid) &&
+                !String.Equals(
+                    currentProcessSid,
+                    interactiveSid,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                TryDeleteUserRunOnce(currentProcessSid);
+            }
 
             try
             {
@@ -98,6 +104,28 @@ namespace DomainMembershipCheckRepair
             {
             }
 
+            return String.Empty;
+        }
+
+        internal static string SelectPostRebootTargetSid(
+            string detectedInteractiveSid,
+            string currentProcessSid)
+        {
+            string interactive =
+                (detectedInteractiveSid ?? String.Empty).Trim();
+
+            if (!String.IsNullOrWhiteSpace(interactive))
+                return interactive;
+
+            // Deliberately do not fall back to currentProcessSid here.
+            // Recovery registration often runs after runas/CyberArk elevation,
+            // where the current process can belong to a different administrator
+            // identity than the desktop user who must receive the RunOnce entry.
+            return String.Empty;
+        }
+
+        private static string GetCurrentProcessSid()
+        {
             try
             {
                 using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
