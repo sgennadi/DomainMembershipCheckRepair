@@ -96,6 +96,8 @@
 - Expanded Windows event timeline classification for Netjoin 4100/4101 and Directory-Services-SAM 16995-16998 account-reuse/allow-list events plus SAM_DOMAIN_JOIN_POLICY evidence.
 - Clarified that `ComputerAccountReuseAllowList` registry evidence is DC-side; absence of the local value on a member workstation does not prove target DCs are unconfigured.
 - Added regression coverage for modern domain-join account-reuse event classification and guidance.
+- Hardened Build workflow concurrency to include the exact commit SHA, so a newer push on the same branch cannot cancel the required `build` check attached to an older commit that another PR or release gate may still need.
+- Repository policy now enforces SHA-scoped Build concurrency while retaining duplicate-run cancellation for the same ref/SHA.
 
 ## 1.5.0
 

@@ -95,6 +95,28 @@ namespace DomainMembershipCheckRepair.Tools
 
             if (String.Equals(
                 Path.GetFileName(path),
+                "build.yml",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                if (text.IndexOf(
+                    "group: build-${{ github.workflow }}-${{ github.ref }}-${{ github.sha }}",
+                    StringComparison.Ordinal) < 0)
+                {
+                    failures.Add(
+                        relative +
+                        " must scope Build concurrency to workflow/ref/SHA so a newer commit cannot cancel the required build check for an older SHA.");
+                }
+
+                if (!Regex.IsMatch(
+                    text,
+                    @"(?im)^\s*cancel-in-progress\s*:\s*true\s*$"))
+                {
+                    failures.Add(relative + " must keep cancel-in-progress enabled for duplicate runs of the same Build SHA.");
+                }
+            }
+
+            if (String.Equals(
+                Path.GetFileName(path),
                 "release.yml",
                 StringComparison.OrdinalIgnoreCase))
             {
