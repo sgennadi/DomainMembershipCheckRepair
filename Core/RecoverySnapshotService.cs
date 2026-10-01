@@ -459,14 +459,14 @@ namespace DomainMembershipCheckRepair
                     "Recovery snapshot path escaped the protected snapshot folder.");
             }
 
-            string pathDetails;
-            if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
+            string storageDetails;
+            if (!IsSnapshotFolderSecurityTrusted(
                 trustedFolder,
-                out pathDetails))
+                out storageDetails))
             {
                 throw new IOException(
-                    "Recovery snapshot storage path is not trusted: " +
-                    pathDetails);
+                    "Recovery snapshot storage is not trusted immediately before write: " +
+                    storageDetails);
             }
 
             string tempPath =
