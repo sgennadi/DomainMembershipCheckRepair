@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.DirectoryServices.Protocols;
 using System.IO;
 using System.Net;
-using System.Security.AccessControl;
-using System.Security.Principal;
 using System.Text;
 
 namespace DomainMembershipCheckRepair
@@ -1078,59 +1076,6 @@ namespace DomainMembershipCheckRepair
                 "RecoveryPackages");
         }
 
-        private static bool HardenAndVerifyRecoveryFolder(
-            string path,
-            out string error)
-        {
-            error = String.Empty;
-
-            try
-            {
-                DirectorySecurity security = new DirectorySecurity();
-                security.SetAccessRuleProtection(true, false);
-                InheritanceFlags inheritance =
-                    InheritanceFlags.ContainerInherit |
-                    InheritanceFlags.ObjectInherit;
-
-                security.AddAccessRule(new FileSystemAccessRule(
-                    new SecurityIdentifier(
-                        WellKnownSidType.LocalSystemSid,
-                        null),
-                    FileSystemRights.FullControl,
-                    inheritance,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
-
-                security.AddAccessRule(new FileSystemAccessRule(
-                    new SecurityIdentifier(
-                        WellKnownSidType.BuiltinAdministratorsSid,
-                        null),
-                    FileSystemRights.FullControl,
-                    inheritance,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
-
-                security.AddAccessRule(new FileSystemAccessRule(
-                    new SecurityIdentifier(
-                        WellKnownSidType.BuiltinUsersSid,
-                        null),
-                    FileSystemRights.ReadAndExecute |
-                    FileSystemRights.Read,
-                    inheritance,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
-
-                Directory.SetAccessControl(path, security);
-            }
-            catch (Exception ex)
-            {
-                error = "Unable to apply protected ACL: " + ex.Message;
-                return false;
-            }
-
-            return IsRecoveryFolderSecurityTrusted(path, out error);
-        }
-
         internal static bool IsRecoveryFolderSecurityTrusted(
             string path,
             out string details)
@@ -1138,17 +1083,6 @@ namespace DomainMembershipCheckRepair
             return ProtectedStorageAcl.IsProtectedDirectoryTrusted(
                 path,
                 out details);
-        }
-
-        internal static bool IsDangerousBroadRecoveryStorageGrant(
-            SecurityIdentifier sid,
-            FileSystemRights rights,
-            AccessControlType accessType)
-        {
-            return ProtectedStorageAcl.IsDangerousBroadWriteGrant(
-                sid,
-                rights,
-                accessType);
         }
 
         private static string SafeFileName(string value)
