@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Security.AccessControl;
+using System.Security.Principal;
 
 namespace DomainMembershipCheckRepair
 {
@@ -46,6 +48,7 @@ namespace DomainMembershipCheckRepair
             TestIdentityConsistencyFilter();
             TestTransactionJournalParsing();
             TestAdRecoveryHelpers();
+            TestRecoveryStorageAclPolicy();
             TestAdDeleteFinalSafety();
             TestSupportBundleSanitizer();
             TestSupportBundleZipRedaction();
@@ -898,6 +901,68 @@ namespace DomainMembershipCheckRepair
                     "CN=PC01",
                     String.Empty),
                 "restore DN requires last known parent");
+        }
+
+        private static void TestRecoveryStorageAclPolicy()
+        {
+            SecurityIdentifier users =
+                new SecurityIdentifier(
+                    WellKnownSidType.BuiltinUsersSid,
+                    null);
+            SecurityIdentifier authenticated =
+                new SecurityIdentifier(
+                    WellKnownSidType.AuthenticatedUserSid,
+                    null);
+            SecurityIdentifier everyone =
+                new SecurityIdentifier(
+                    WellKnownSidType.WorldSid,
+                    null);
+            SecurityIdentifier administrators =
+                new SecurityIdentifier(
+                    WellKnownSidType.BuiltinAdministratorsSid,
+                    null);
+
+            AssertTrue(
+                AdRecycleBinRecoveryService.IsDangerousBroadRecoveryStorageGrant(
+                    users,
+                    FileSystemRights.Write,
+                    AccessControlType.Allow),
+                "recovery storage blocks Builtin Users write grant");
+
+            AssertTrue(
+                AdRecycleBinRecoveryService.IsDangerousBroadRecoveryStorageGrant(
+                    authenticated,
+                    FileSystemRights.Modify,
+                    AccessControlType.Allow),
+                "recovery storage blocks Authenticated Users modify grant");
+
+            AssertTrue(
+                AdRecycleBinRecoveryService.IsDangerousBroadRecoveryStorageGrant(
+                    everyone,
+                    FileSystemRights.CreateFiles,
+                    AccessControlType.Allow),
+                "recovery storage blocks Everyone create-files grant");
+
+            AssertFalse(
+                AdRecycleBinRecoveryService.IsDangerousBroadRecoveryStorageGrant(
+                    users,
+                    FileSystemRights.ReadAndExecute | FileSystemRights.Read,
+                    AccessControlType.Allow),
+                "recovery storage allows broad read-only grant");
+
+            AssertFalse(
+                AdRecycleBinRecoveryService.IsDangerousBroadRecoveryStorageGrant(
+                    administrators,
+                    FileSystemRights.FullControl,
+                    AccessControlType.Allow),
+                "recovery storage allows Administrators full control");
+
+            AssertFalse(
+                AdRecycleBinRecoveryService.IsDangerousBroadRecoveryStorageGrant(
+                    users,
+                    FileSystemRights.Write,
+                    AccessControlType.Deny),
+                "recovery storage ignores deny rule as dangerous allow grant");
         }
 
         private static void TestAdDeleteFinalSafety()
