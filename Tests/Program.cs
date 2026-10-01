@@ -1163,6 +1163,17 @@ namespace DomainMembershipCheckRepair
                     FileSystemRights.Write,
                     AccessControlType.Deny),
                 "protected storage ignores deny rule as dangerous allow grant");
+
+            AssertTrue(
+                ProtectedStorageAcl.IsReparsePoint(
+                    FileAttributes.Directory |
+                    FileAttributes.ReparsePoint),
+                "protected storage detects directory reparse-point attribute");
+
+            AssertFalse(
+                ProtectedStorageAcl.IsReparsePoint(
+                    FileAttributes.Directory),
+                "protected storage accepts normal directory attribute");
         }
 
         private static void TestAdDeleteFinalSafety()

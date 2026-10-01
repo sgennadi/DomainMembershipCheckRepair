@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using System.Security.AccessControl;
 using System.Security.Principal;
 
@@ -17,6 +19,87 @@ namespace DomainMembershipCheckRepair
                 return false;
 
             return HasWriteCapability(rights);
+        }
+
+        internal static bool IsDirectoryPathFreeOfReparsePoints(
+            string path,
+            out string details)
+        {
+            details = String.Empty;
+
+            if (String.IsNullOrWhiteSpace(path))
+            {
+                details = "Protected storage path is empty.";
+                return false;
+            }
+
+            try
+            {
+                string fullPath = Path.GetFullPath(path);
+                string root = Path.GetPathRoot(fullPath);
+                if (String.IsNullOrWhiteSpace(root))
+                {
+                    details = "Protected storage path has no filesystem root.";
+                    return false;
+                }
+
+                string current = root;
+                if (Directory.Exists(current) &&
+                    IsReparsePoint(File.GetAttributes(current)))
+                {
+                    details =
+                        "Protected storage filesystem root is a reparse point: " +
+                        current;
+                    return false;
+                }
+
+                string relative = fullPath.Substring(root.Length);
+                string[] parts = relative.Split(
+                    new char[]
+                    {
+                        Path.DirectorySeparatorChar,
+                        Path.AltDirectorySeparatorChar
+                    },
+                    StringSplitOptions.RemoveEmptyEntries);
+
+                foreach (string part in parts)
+                {
+                    current = Path.Combine(current, part);
+
+                    if (!Directory.Exists(current))
+                    {
+                        details =
+                            "Existing protected storage path components contain no reparse points; " +
+                            "remaining components do not exist yet.";
+                        return true;
+                    }
+
+                    FileAttributes attributes = File.GetAttributes(current);
+                    if (IsReparsePoint(attributes))
+                    {
+                        details =
+                            "Protected storage path contains a reparse point: " +
+                            current;
+                        return false;
+                    }
+                }
+
+                details =
+                    "Protected storage path contains no directory reparse points.";
+                return true;
+            }
+            catch (Exception ex)
+            {
+                details =
+                    "Unable to verify protected storage path components: " +
+                    ex.Message;
+                return false;
+            }
+        }
+
+        internal static bool IsReparsePoint(FileAttributes attributes)
+        {
+            return (attributes & FileAttributes.ReparsePoint) != 0;
         }
 
         internal static bool HasWriteCapability(FileSystemRights rights)
