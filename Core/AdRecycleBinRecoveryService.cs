@@ -373,17 +373,91 @@ namespace DomainMembershipCheckRepair
                     folder,
                     package.Id + "-" + SafeFileName(package.ComputerName) + ".json");
 
-                File.WriteAllText(
-                    path,
-                    JsonReportSerializer.Serialize(package),
-                    new UTF8Encoding(false));
+                string fullFolder =
+                    Path.GetFullPath(folder).TrimEnd(
+                        Path.DirectorySeparatorChar,
+                        Path.AltDirectorySeparatorChar) +
+                    Path.DirectorySeparatorChar;
 
+                string fullPath = Path.GetFullPath(path);
+                if (!fullPath.StartsWith(
+                    fullFolder,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new IOException(
+                        "Recovery package path escaped the protected recovery folder.");
+                }
+
+                string securityDetails;
+                if (!IsRecoveryFolderSecurityTrusted(
+                    folder,
+                    out securityDetails))
+                {
+                    throw new IOException(
+                        "Recovery package storage is not trusted immediately before write: " +
+                        securityDetails);
+                }
+
+                WriteRecoveryPackageTextAtomically(
+                    fullPath,
+                    JsonReportSerializer.Serialize(package));
+
+                path = fullPath;
                 return true;
             }
             catch (Exception ex)
             {
                 error = ex.Message;
                 return false;
+            }
+        }
+
+        internal static void WriteRecoveryPackageTextAtomically(
+            string path,
+            string text)
+        {
+            if (String.IsNullOrWhiteSpace(path))
+            {
+                throw new ArgumentException(
+                    "A recovery package path is required.",
+                    "path");
+            }
+
+            string folder = Path.GetDirectoryName(path);
+            if (String.IsNullOrWhiteSpace(folder))
+            {
+                throw new IOException(
+                    "The recovery package path has no parent directory.");
+            }
+
+            Directory.CreateDirectory(folder);
+
+            string tempPath =
+                path + ".tmp-" +
+                Guid.NewGuid().ToString("N");
+
+            try
+            {
+                File.WriteAllText(
+                    tempPath,
+                    text ?? String.Empty,
+                    new UTF8Encoding(false));
+
+                if (File.Exists(path))
+                    File.Replace(tempPath, path, null);
+                else
+                    File.Move(tempPath, path);
+            }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(tempPath))
+                        File.Delete(tempPath);
+                }
+                catch
+                {
+                }
             }
         }
 

@@ -50,6 +50,7 @@ namespace DomainMembershipCheckRepair
             TestIdentityConsistencyFilter();
             TestTransactionJournalParsing();
             TestTransactionJournalAtomicWrite();
+            TestAdRecoveryPackageAtomicWrite();
             TestAdRecoveryHelpers();
             TestAdRestoreFinalSafety();
             TestProtectedStorageAclPolicy();
@@ -989,6 +990,56 @@ namespace DomainMembershipCheckRepair
                         folder,
                         "*.tmp-*").Length.ToString(),
                     "transaction journal atomic writer leaves no temp files");
+            }
+            finally
+            {
+                try
+                {
+                    if (Directory.Exists(folder))
+                        Directory.Delete(folder, true);
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        private static void TestAdRecoveryPackageAtomicWrite()
+        {
+            string folder = Path.Combine(
+                Path.GetTempPath(),
+                "DomainMembershipCheckRepair-recovery-tests-" +
+                Guid.NewGuid().ToString("N"));
+            string path = Path.Combine(folder, "recovery.json");
+
+            try
+            {
+                Directory.CreateDirectory(folder);
+
+                AdRecycleBinRecoveryService.WriteRecoveryPackageTextAtomically(
+                    path,
+                    "{\"value\":1}");
+
+                AssertEqual(
+                    "{\"value\":1}",
+                    File.ReadAllText(path),
+                    "AD recovery package atomic writer creates initial file");
+
+                AdRecycleBinRecoveryService.WriteRecoveryPackageTextAtomically(
+                    path,
+                    "{\"value\":2}");
+
+                AssertEqual(
+                    "{\"value\":2}",
+                    File.ReadAllText(path),
+                    "AD recovery package atomic writer replaces existing file");
+
+                AssertEqual(
+                    "0",
+                    Directory.GetFiles(
+                        folder,
+                        "*.tmp-*").Length.ToString(),
+                    "AD recovery package atomic writer leaves no temp files");
             }
             finally
             {
