@@ -130,9 +130,28 @@ namespace DomainMembershipCheckRepair
                     storageDetails);
             }
 
+            string fileDetails;
+            if (!ProtectedStorageAcl.PrepareProtectedFileTarget(
+                fullPath,
+                out fileDetails))
+            {
+                throw new IOException(
+                    "Transaction journal target failed security verification before write: " +
+                    fileDetails);
+            }
+
             WriteTextAtomically(
                 fullPath,
                 sb.ToString());
+
+            if (!ProtectedStorageAcl.HardenProtectedFile(
+                fullPath,
+                out fileDetails))
+            {
+                throw new IOException(
+                    "Transaction journal file failed owner/ACL hardening after write: " +
+                    fileDetails);
+            }
 
             journal.Path = fullPath;
         }
@@ -232,21 +251,48 @@ namespace DomainMembershipCheckRepair
             if (!Directory.Exists(folder))
                 return String.Empty;
 
-            FileInfo[] files = new DirectoryInfo(folder).GetFiles("*.json");
-            if (files.Length == 0)
-                return String.Empty;
-
-            Array.Sort(files, delegate(FileInfo a, FileInfo b)
+            try
             {
-                return b.LastWriteTimeUtc.CompareTo(a.LastWriteTimeUtc);
-            });
-            return files[0].FullName;
+                FileInfo[] files =
+                    new DirectoryInfo(folder).GetFiles("*.json");
+
+                Array.Sort(files, delegate(FileInfo a, FileInfo b)
+                {
+                    return b.LastWriteTimeUtc.CompareTo(a.LastWriteTimeUtc);
+                });
+
+                foreach (FileInfo file in files)
+                {
+                    string securityError;
+                    if (IsJournalSecurityTrusted(
+                        file.FullName,
+                        out securityError))
+                    {
+                        return file.FullName;
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return String.Empty;
         }
 
         internal static string ToText(string path)
         {
             if (String.IsNullOrWhiteSpace(path) || !File.Exists(path))
                 return "No transaction journal was found.";
+
+            string securityError;
+            if (!IsJournalSecurityTrusted(
+                path,
+                out securityError))
+            {
+                return
+                    "Transaction journal security could not be trusted: " +
+                    securityError;
+            }
 
             return File.ReadAllText(path);
         }
@@ -298,11 +344,27 @@ namespace DomainMembershipCheckRepair
 
                 foreach (FileInfo file in files)
                 {
-                    List<TransactionJournalEntry> entries = ParseEntries(File.ReadAllText(file.FullName));
+                    string securityError;
+                    if (!IsJournalSecurityTrusted(
+                        file.FullName,
+                        out securityError))
+                    {
+                        continue;
+                    }
+
+                    List<TransactionJournalEntry> entries =
+                        ParseEntries(
+                            File.ReadAllText(file.FullName));
+
                     foreach (TransactionJournalEntry entry in entries)
                     {
-                        if (entry.Reversible && IsAllowedRollbackTarget(entry.Kind, entry.Target))
+                        if (entry.Reversible &&
+                            IsAllowedRollbackTarget(
+                                entry.Kind,
+                                entry.Target))
+                        {
                             return file.FullName;
+                        }
                     }
                 }
             }
@@ -431,38 +493,9 @@ namespace DomainMembershipCheckRepair
 
         private static bool IsJournalSecurityTrusted(string path, out string error)
         {
-            error = String.Empty;
-            try
-            {
-                FileSecurity security = File.GetAccessControl(path);
-                AuthorizationRuleCollection rules = security.GetAccessRules(
-                    true,
-                    true,
-                    typeof(SecurityIdentifier));
-
-                foreach (FileSystemAccessRule rule in rules)
-                {
-                    SecurityIdentifier sid =
-                        rule.IdentityReference as SecurityIdentifier;
-
-                    if (ProtectedStorageAcl.IsUntrustedWriteGrant(
-                        sid,
-                        rule.FileSystemRights,
-                        rule.AccessControlType))
-                    {
-                        error =
-                            "A non-privileged identity has write-capable access to the journal file.";
-                        return false;
-                    }
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                error = ex.Message;
-                return false;
-            }
+            return ProtectedStorageAcl.IsProtectedFileTrusted(
+                path,
+                out error);
         }
 
         private static bool RestoreRegistry(TransactionJournalEntry entry, out string error)

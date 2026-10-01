@@ -199,6 +199,207 @@ namespace DomainMembershipCheckRepair
             return true;
         }
 
+        internal static bool PrepareProtectedFileTarget(
+            string path,
+            out string error)
+        {
+            error = String.Empty;
+
+            string fullPath;
+            string rootPath;
+            if (!TryNormalizeManagedFilePath(
+                path,
+                out fullPath,
+                out rootPath,
+                out error))
+            {
+                return false;
+            }
+
+            try
+            {
+                string folder =
+                    Path.GetDirectoryName(fullPath);
+
+                string folderDetails;
+                if (!IsProtectedDirectoryTrusted(
+                    folder,
+                    out folderDetails))
+                {
+                    error =
+                        "Protected file parent directory is not trusted: " +
+                        folderDetails;
+                    return false;
+                }
+
+                if (!File.Exists(fullPath))
+                    return true;
+
+                FileAttributes attributes =
+                    File.GetAttributes(fullPath);
+
+                if (IsReparsePoint(attributes))
+                {
+                    error =
+                        "Protected file target is a reparse point: " +
+                        fullPath;
+                    return false;
+                }
+
+                string fileDetails;
+                if (!IsProtectedFileTrusted(
+                    fullPath,
+                    out fileDetails))
+                {
+                    error =
+                        "Existing protected file target is not trusted: " +
+                        fileDetails;
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error =
+                    "Unable to verify protected file target: " +
+                    ex.Message;
+                return false;
+            }
+        }
+
+        internal static bool HardenProtectedFile(
+            string path,
+            out string error)
+        {
+            error = String.Empty;
+
+            string fullPath;
+            string rootPath;
+            if (!TryNormalizeManagedFilePath(
+                path,
+                out fullPath,
+                out rootPath,
+                out error))
+            {
+                return false;
+            }
+
+            if (!File.Exists(fullPath))
+            {
+                error =
+                    "Protected file does not exist: " +
+                    fullPath;
+                return false;
+            }
+
+            try
+            {
+                FileAttributes attributes =
+                    File.GetAttributes(fullPath);
+
+                if (IsReparsePoint(attributes))
+                {
+                    error =
+                        "Protected file is a reparse point: " +
+                        fullPath;
+                    return false;
+                }
+
+                string folder =
+                    Path.GetDirectoryName(fullPath);
+
+                string folderDetails;
+                if (!IsProtectedDirectoryTrusted(
+                    folder,
+                    out folderDetails))
+                {
+                    error =
+                        "Protected file parent directory is not trusted: " +
+                        folderDetails;
+                    return false;
+                }
+
+                HardenFile(fullPath);
+
+                return IsProtectedFileTrusted(
+                    fullPath,
+                    out error);
+            }
+            catch (Exception ex)
+            {
+                error =
+                    "Unable to harden protected file: " +
+                    ex.Message;
+                return false;
+            }
+        }
+
+        internal static bool IsProtectedFileTrusted(
+            string path,
+            out string details)
+        {
+            details = String.Empty;
+
+            string fullPath;
+            string rootPath;
+            if (!TryNormalizeManagedFilePath(
+                path,
+                out fullPath,
+                out rootPath,
+                out details))
+            {
+                return false;
+            }
+
+            if (!File.Exists(fullPath))
+            {
+                details =
+                    "Protected file does not exist: " +
+                    fullPath;
+                return false;
+            }
+
+            try
+            {
+                string folder =
+                    Path.GetDirectoryName(fullPath);
+
+                string folderDetails;
+                if (!IsProtectedDirectoryTrusted(
+                    folder,
+                    out folderDetails))
+                {
+                    details =
+                        "Protected file parent directory is not trusted: " +
+                        folderDetails;
+                    return false;
+                }
+
+                FileAttributes attributes =
+                    File.GetAttributes(fullPath);
+
+                if (IsReparsePoint(attributes))
+                {
+                    details =
+                        "Protected file is a reparse point: " +
+                        fullPath;
+                    return false;
+                }
+
+                return VerifyFileSecurity(
+                    fullPath,
+                    out details);
+            }
+            catch (Exception ex)
+            {
+                details =
+                    "Unable to inspect protected file: " +
+                    ex.Message;
+                return false;
+            }
+        }
+
         internal static bool IsDangerousBroadWriteGrant(
             SecurityIdentifier sid,
             FileSystemRights rights,
@@ -397,6 +598,44 @@ namespace DomainMembershipCheckRepair
             }
         }
 
+        private static bool TryNormalizeManagedFilePath(
+            string path,
+            out string fullPath,
+            out string rootPath,
+            out string error)
+        {
+            if (!TryNormalizeManagedPath(
+                path,
+                out fullPath,
+                out rootPath,
+                out error))
+            {
+                return false;
+            }
+
+            if (String.Equals(
+                fullPath,
+                rootPath,
+                StringComparison.OrdinalIgnoreCase))
+            {
+                error =
+                    "Protected file path cannot be the managed ProgramData root.";
+                return false;
+            }
+
+            string folder =
+                Path.GetDirectoryName(fullPath);
+
+            if (String.IsNullOrWhiteSpace(folder))
+            {
+                error =
+                    "Protected file path has no parent directory.";
+                return false;
+            }
+
+            return true;
+        }
+
         private static void HardenDirectory(
             string path)
         {
@@ -457,6 +696,127 @@ namespace DomainMembershipCheckRepair
             Directory.SetAccessControl(
                 path,
                 security);
+        }
+
+        private static void HardenFile(
+            string path)
+        {
+            SecurityIdentifier administrators =
+                new SecurityIdentifier(
+                    WellKnownSidType.BuiltinAdministratorsSid,
+                    null);
+
+            FileSecurity ownerSecurity =
+                File.GetAccessControl(
+                    path,
+                    AccessControlSections.Owner);
+            ownerSecurity.SetOwner(administrators);
+            File.SetAccessControl(
+                path,
+                ownerSecurity);
+
+            FileSecurity security =
+                new FileSecurity();
+            security.SetOwner(administrators);
+            security.SetAccessRuleProtection(
+                true,
+                false);
+
+            security.AddAccessRule(
+                new FileSystemAccessRule(
+                    new SecurityIdentifier(
+                        WellKnownSidType.LocalSystemSid,
+                        null),
+                    FileSystemRights.FullControl,
+                    AccessControlType.Allow));
+
+            security.AddAccessRule(
+                new FileSystemAccessRule(
+                    administrators,
+                    FileSystemRights.FullControl,
+                    AccessControlType.Allow));
+
+            security.AddAccessRule(
+                new FileSystemAccessRule(
+                    new SecurityIdentifier(
+                        WellKnownSidType.BuiltinUsersSid,
+                        null),
+                    FileSystemRights.ReadAndExecute |
+                    FileSystemRights.Read,
+                    AccessControlType.Allow));
+
+            File.SetAccessControl(
+                path,
+                security);
+        }
+
+        private static bool VerifyFileSecurity(
+            string path,
+            out string details)
+        {
+            details = String.Empty;
+
+            try
+            {
+                FileSecurity security =
+                    File.GetAccessControl(
+                        path,
+                        AccessControlSections.Owner |
+                        AccessControlSections.Access);
+
+                SecurityIdentifier owner =
+                    security.GetOwner(
+                        typeof(SecurityIdentifier))
+                    as SecurityIdentifier;
+
+                if (!IsTrustedOwner(owner))
+                {
+                    details =
+                        "File owner is not LocalSystem or Builtin Administrators.";
+                    return false;
+                }
+
+                if (!security.AreAccessRulesProtected)
+                {
+                    details =
+                        "File ACL still inherits access rules from its parent.";
+                    return false;
+                }
+
+                AuthorizationRuleCollection rules =
+                    security.GetAccessRules(
+                        true,
+                        true,
+                        typeof(SecurityIdentifier));
+
+                foreach (FileSystemAccessRule rule in rules)
+                {
+                    SecurityIdentifier sid =
+                        rule.IdentityReference
+                        as SecurityIdentifier;
+
+                    if (IsUntrustedWriteGrant(
+                        sid,
+                        rule.FileSystemRights,
+                        rule.AccessControlType))
+                    {
+                        details =
+                            "A non-privileged identity has write-capable file access.";
+                        return false;
+                    }
+                }
+
+                details =
+                    "File owner and protected ACL are trusted.";
+                return true;
+            }
+            catch (Exception ex)
+            {
+                details =
+                    "Unable to inspect protected file owner/ACL: " +
+                    ex.Message;
+                return false;
+            }
         }
 
         private static bool VerifyDirectorySecurity(

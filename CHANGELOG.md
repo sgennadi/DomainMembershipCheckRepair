@@ -113,6 +113,9 @@
 - Added regression coverage for trusted owners and non-privileged writer rejection, removed duplicate per-feature ACL hardeners in favor of the shared policy, and re-verify transaction storage trust immediately before each atomic journal write.
 - Moved CLI recovery-snapshot creation from central action dispatch to each mutation boundary, after dry-run/preflight/credential/confirmation checks, so cancelled or invalid operations do not create misleading recovery evidence.
 - Join/Rejoin now creates one credential-aware recovery snapshot scope before its first domain mutation and reuses that scope across Safe Fixes, rename and Delete+Recreate fallback paths; direct Rename creates its own snapshot only after name/AD preflight succeeds.
+- Extended protected ProgramData hardening from directories to committed journal, AD recovery-package and recovery-snapshot files: targets are constrained to the managed root, existing reparse/untrusted targets are rejected before replacement, and final files are owner-hardened to Builtin Administrators with protected ACLs after atomic commit.
+- Transaction journal reads/rollback selection and latest AD recovery-package discovery now ignore files whose owner/ACL/path trust cannot be verified.
+- Added regression coverage for protected-file path containment outside the managed ProgramData root.
 
 ## 1.5.0
 

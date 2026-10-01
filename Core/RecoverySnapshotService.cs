@@ -372,6 +372,16 @@ namespace DomainMembershipCheckRepair
                     storageDetails);
             }
 
+            string fileDetails;
+            if (!ProtectedStorageAcl.PrepareProtectedFileTarget(
+                fullPath,
+                out fileDetails))
+            {
+                throw new IOException(
+                    "Recovery snapshot target failed security verification before write: " +
+                    fileDetails);
+            }
+
             string tempPath =
                 fullPath + ".tmp-" +
                 Guid.NewGuid().ToString("N");
@@ -387,6 +397,15 @@ namespace DomainMembershipCheckRepair
                     File.Replace(tempPath, fullPath, null);
                 else
                     File.Move(tempPath, fullPath);
+
+                if (!ProtectedStorageAcl.HardenProtectedFile(
+                    fullPath,
+                    out fileDetails))
+                {
+                    throw new IOException(
+                        "Recovery snapshot file failed owner/ACL hardening after write: " +
+                        fileDetails);
+                }
             }
             finally
             {

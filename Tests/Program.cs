@@ -1336,6 +1336,31 @@ namespace DomainMembershipCheckRepair
                 ProtectedStorageAcl.IsReparsePoint(
                     FileAttributes.Directory),
                 "protected storage accepts normal directory attribute");
+
+            string fileSecurityDetails;
+            string outsideManagedRoot = Path.Combine(
+                Path.GetTempPath(),
+                "DomainMembershipCheckRepair-outside-" +
+                Guid.NewGuid().ToString("N") +
+                ".txt");
+
+            AssertFalse(
+                ProtectedStorageAcl.PrepareProtectedFileTarget(
+                    outsideManagedRoot,
+                    out fileSecurityDetails),
+                "protected file target cannot escape managed ProgramData root");
+
+            AssertFalse(
+                ProtectedStorageAcl.IsProtectedFileTrusted(
+                    outsideManagedRoot,
+                    out fileSecurityDetails),
+                "protected file trust rejects paths outside managed ProgramData root");
+
+            AssertFalse(
+                ProtectedStorageAcl.PrepareProtectedFileTarget(
+                    ProtectedStorageAcl.GetApplicationRootPath(),
+                    out fileSecurityDetails),
+                "protected file target cannot be the managed root directory itself");
         }
 
         private static void TestAdDeleteFinalSafety()
