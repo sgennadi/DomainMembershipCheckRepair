@@ -92,6 +92,10 @@
 - Hardened protected ProgramData storage against NTFS reparse-point/junction/symlink redirection: every existing directory component is verified before ACL hardening and before trust is accepted.
 - Applied the reparse-point guard to both transaction journals and mandatory pre-delete AD recovery packages, failing closed if protected storage resolves through a reparse point.
 - Added regression coverage for reparse-point attribute classification.
+- Updated account-reuse diagnostics to the current KB5020276 model: `0xAAC` guidance now points to computer-object ownership, the DC-side `ComputerAccountReuseAllowList` trusted-owner policy, and authenticated SAMRPC access, and explicitly avoids the removed `NetJoinLegacyAccountReuse` workaround.
+- Expanded Windows event timeline classification for Netjoin 4100/4101 and Directory-Services-SAM 16995-16998 account-reuse/allow-list events plus SAM_DOMAIN_JOIN_POLICY evidence.
+- Clarified that `ComputerAccountReuseAllowList` registry evidence is DC-side; absence of the local value on a member workstation does not prove target DCs are unconfigured.
+- Added regression coverage for modern domain-join account-reuse event classification and guidance.
 
 ## 1.5.0
 
