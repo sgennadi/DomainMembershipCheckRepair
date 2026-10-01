@@ -86,6 +86,10 @@
 - Hardened deleted-object restore against TOCTOU/state races by requiring an immutable object GUID and re-reading the exact deleted object immediately before restore; sAMAccountName, GUID, deleted/recycled state, lastKnownParent and last-known RDN must still match.
 - Added regression coverage for final AD restore identity/state validation, including changed GUID/SAM, recycled/restored state and changed restore location.
 
+- Hardened transaction-journal creation so ProgramData ACL application and verification are fail-closed instead of best-effort; recovery mutations do not proceed with a newly created untrusted rollback journal.
+- Made transaction-journal updates atomic with same-directory temporary files plus replace/move semantics, preserving the previous complete JSON if an update is interrupted before replacement.
+- Added regression coverage for initial and replacement atomic journal writes and temporary-file cleanup.
+
 ## 1.5.0
 
 - Added Per-Monitor V2 DPI configuration and high-DPI automatic WinForms resizing.
