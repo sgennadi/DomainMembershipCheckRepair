@@ -816,7 +816,6 @@ namespace DomainMembershipCheckRepair
             }
         }
 
-
         private static int DisableMachineIdentityIsolation()
         {
             int configuredValue;
@@ -839,32 +838,45 @@ namespace DomainMembershipCheckRepair
             if (!AskYesNo("Disable Machine Identity Isolation locally now?", false))
                 return 7;
 
-            CreatePreChangeBundle(
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateCliRecoverySnapshot(
                 "mii-disable",
                 options.Domain,
                 null,
-                null);
-
-            TransactionJournal journal = TransactionJournalService.Begin("mii-disable");
-            string details;
-            if (!HealthDiagnosticsService.DisableMachineIdentityIsolationLocally(journal, out details))
+                null,
+                out snapshot))
             {
-                TransactionJournalService.RecordNote(journal, "MII", "Disable operation failed: " + details);
-                journal.Complete();
-                logger.Log("ERROR", details);
                 return 1;
             }
 
-            journal.Complete();
-            logger.Log("SUCCESS", details);
-            string resumeError;
-            ResumeService.RegisterPostRebootCheck(options.Domain, out resumeError);
-            if (!String.IsNullOrWhiteSpace(resumeError))
-                logger.Log("WARN", "Unable to register post-reboot recovery check: " + resumeError);
-            HandleRestartAfterSuccess("Machine Identity Isolation was disabled locally. A restart is required before trust repair/rejoin.");
-            return 0;
-        }
+            using (snapshot)
+            {
+                CreatePreChangeBundle(
+                    "mii-disable",
+                    options.Domain,
+                    null,
+                    null);
 
+                TransactionJournal journal = TransactionJournalService.Begin("mii-disable");
+                string details;
+                if (!HealthDiagnosticsService.DisableMachineIdentityIsolationLocally(journal, out details))
+                {
+                    TransactionJournalService.RecordNote(journal, "MII", "Disable operation failed: " + details);
+                    journal.Complete();
+                    logger.Log("ERROR", details);
+                    return 1;
+                }
+
+                journal.Complete();
+                logger.Log("SUCCESS", details);
+                string resumeError;
+                ResumeService.RegisterPostRebootCheck(options.Domain, out resumeError);
+                if (!String.IsNullOrWhiteSpace(resumeError))
+                    logger.Log("WARN", "Unable to register post-reboot recovery check: " + resumeError);
+                HandleRestartAfterSuccess("Machine Identity Isolation was disabled locally. A restart is required before trust repair/rejoin.");
+                return 0;
+            }
+        }
 
         private static void GetOptionalCredentials(out string user, out string password)
         {
@@ -1199,42 +1211,56 @@ namespace DomainMembershipCheckRepair
                 false))
                 return 7;
 
-            CreatePreChangeBundle(
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateCliRecoverySnapshot(
                 "ad-restore",
                 domain,
                 user,
-                password);
+                password,
+                out snapshot))
+            {
+                return 1;
+            }
 
-            TransactionJournal journal =
-                TransactionJournalService.Begin("ad-restore");
-
-            TransactionJournalService.RecordNote(
-                journal,
-                "Active Directory restore",
-                "Operator confirmed restore of " +
-                deleted.DistinguishedName + " to " +
-                deleted.RestoreDistinguishedName + ".");
-
-            AdRestoreResult result =
-                AdRecycleBinRecoveryService.RestoreDeletedComputer(
+            using (snapshot)
+            {
+                CreatePreChangeBundle(
+                    "ad-restore",
                     domain,
-                    options.PreferredDc,
-                    computer,
                     user,
                     password);
 
-            TransactionJournalService.RecordNote(
-                journal,
-                "Active Directory restore",
-                result.Success
-                    ? "Restore succeeded: " + result.RestoredDn
-                    : "Restore failed: " + result.Message);
-            journal.Complete();
+                TransactionJournal journal =
+                    TransactionJournalService.Begin("ad-restore");
 
-            Console.WriteLine(
-                AdRecycleBinRecoveryService.ToText(result));
+                TransactionJournalService.RecordNote(
+                    journal,
+                    "Active Directory restore",
+                    "Operator confirmed restore of " +
+                    deleted.DistinguishedName + " to " +
+                    deleted.RestoreDistinguishedName + ".");
 
-            return result.Success ? 0 : 14;
+                AdRestoreResult result =
+                    AdRecycleBinRecoveryService.RestoreDeletedComputer(
+                        domain,
+                        options.PreferredDc,
+                        computer,
+                        user,
+                        password);
+
+                TransactionJournalService.RecordNote(
+                    journal,
+                    "Active Directory restore",
+                    result.Success
+                        ? "Restore succeeded: " + result.RestoredDn
+                        : "Restore failed: " + result.Message);
+                journal.Complete();
+
+                Console.WriteLine(
+                    AdRecycleBinRecoveryService.ToText(result));
+
+                return result.Success ? 0 : 14;
+            }
         }
 
         private static int AnalyzeNetSetup()
@@ -1739,10 +1765,24 @@ namespace DomainMembershipCheckRepair
                 false))
                 return 7;
 
-            string report;
-            bool ok = TransactionJournalService.RollbackLatest(out report);
-            Console.WriteLine(report);
-            return ok ? 0 : 1;
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateCliRecoverySnapshot(
+                "rollback-local",
+                options.Domain,
+                null,
+                null,
+                out snapshot))
+            {
+                return 1;
+            }
+
+            using (snapshot)
+            {
+                string report;
+                bool ok = TransactionJournalService.RollbackLatest(out report);
+                Console.WriteLine(report);
+                return ok ? 0 : 1;
+            }
         }
 
         private static int SelfTest()
@@ -1961,12 +2001,26 @@ namespace DomainMembershipCheckRepair
                 false))
                 return 7;
 
-            TransactionJournal journal = TransactionJournalService.Begin("safe-fixes");
-            SafeRecoveryResult result = SafeRecoveryService.Run(domain, journal);
-            journal.Complete();
-            Console.WriteLine(SafeRecoveryService.ToText(result));
-            Console.WriteLine("Transaction journal: " + journal.Path);
-            return result.Success ? 0 : 1;
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateCliRecoverySnapshot(
+                "safe-fixes",
+                domain,
+                null,
+                null,
+                out snapshot))
+            {
+                return 1;
+            }
+
+            using (snapshot)
+            {
+                TransactionJournal journal = TransactionJournalService.Begin("safe-fixes");
+                SafeRecoveryResult result = SafeRecoveryService.Run(domain, journal);
+                journal.Complete();
+                Console.WriteLine(SafeRecoveryService.ToText(result));
+                Console.WriteLine("Transaction journal: " + journal.Path);
+                return result.Success ? 0 : 1;
+            }
         }
 
         private static int ApplyOfflineDomainJoin()
@@ -1983,24 +2037,38 @@ namespace DomainMembershipCheckRepair
                 return 0;
             }
 
-            CreatePreChangeBundle(
-                "offline-domain-join",
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateCliRecoverySnapshot(
+                "odj-apply",
                 options.Domain,
                 null,
-                null);
-
-            string output;
-            int code = OfflineDomainJoinService.ApplyBlob(options.BlobPath, out output);
-            Console.WriteLine(output);
-            if (code == 0)
+                null,
+                out snapshot))
             {
-                string resumeError;
-                ResumeService.RegisterPostRebootCheck(options.Domain, out resumeError);
-                if (!String.IsNullOrWhiteSpace(resumeError))
-                    logger.Log("WARN", "Unable to register post-reboot check: " + resumeError);
-                HandleRestartAfterSuccess("Offline Domain Join was applied successfully.");
+                return 1;
             }
-            return code == 0 ? 0 : 1;
+
+            using (snapshot)
+            {
+                CreatePreChangeBundle(
+                    "offline-domain-join",
+                    options.Domain,
+                    null,
+                    null);
+
+                string output;
+                int code = OfflineDomainJoinService.ApplyBlob(options.BlobPath, out output);
+                Console.WriteLine(output);
+                if (code == 0)
+                {
+                    string resumeError;
+                    ResumeService.RegisterPostRebootCheck(options.Domain, out resumeError);
+                    if (!String.IsNullOrWhiteSpace(resumeError))
+                        logger.Log("WARN", "Unable to register post-reboot check: " + resumeError);
+                    HandleRestartAfterSuccess("Offline Domain Join was applied successfully.");
+                }
+                return code == 0 ? 0 : 1;
+            }
         }
 
         private static int ProvisionOfflineDomainJoin()
