@@ -116,6 +116,7 @@
 - Extended protected ProgramData hardening from directories to committed journal, AD recovery-package and recovery-snapshot files: targets are constrained to the managed root, existing reparse/untrusted targets are rejected before replacement, and final files are owner-hardened to Builtin Administrators with protected ACLs after atomic commit.
 - Transaction journal reads/rollback selection and latest AD recovery-package discovery now ignore files whose owner/ACL/path trust cannot be verified.
 - Added regression coverage for protected-file path containment outside the managed ProgramData root.
+- Added an elevated Self Test runtime probe that creates a dedicated protected ProgramData file, applies the real owner/DACL policy, re-verifies file trust, and cleans the probe; standard-user Self Test runs report this probe as SKIP rather than weakening storage permissions.
 
 ## 1.5.0
 
