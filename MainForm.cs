@@ -1814,6 +1814,47 @@ namespace DomainMembershipCheckRepair
                 });
         }
 
+        private bool TryCreateRecoverySnapshotForGui(
+            string operation,
+            string domain,
+            string user,
+            string password,
+            out RecoverySnapshotScope snapshot)
+        {
+            string error;
+            string dc =
+                dcBox == null
+                    ? String.Empty
+                    : dcBox.Text;
+
+            if (RecoverySnapshotScope.TryCreate(
+                operation,
+                domain,
+                dc,
+                user,
+                password,
+                out snapshot,
+                out error))
+            {
+                return true;
+            }
+
+            Log(
+                "ERROR",
+                "Operation blocked because the required BEFORE recovery snapshot could not be created securely: " +
+                error);
+
+            MessageBox.Show(
+                this,
+                "The operation was NOT started because the required BEFORE recovery snapshot could not be created securely.\r\n\r\n" +
+                error,
+                "Recovery snapshot required",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+
+            return false;
+        }
+
         private void CreatePreChangeBundle(
             string operation,
             string domain,
@@ -1866,12 +1907,18 @@ namespace DomainMembershipCheckRepair
                 string targetDomain = domainBox == null ? String.Empty : domainBox.Text;
                 CreatePreChangeBundle("offline-domain-join", targetDomain, null, null);
 
-                using (RecoverySnapshotScope snapshot = new RecoverySnapshotScope(
+                RecoverySnapshotScope snapshot;
+                if (!TryCreateRecoverySnapshotForGui(
                     "offline-domain-join",
                     targetDomain,
-                    dcBox == null ? String.Empty : dcBox.Text,
                     null,
-                    null))
+                    null,
+                    out snapshot))
+                {
+                    return;
+                }
+
+                using (snapshot)
                 {
                     string output;
                     int code = OfflineDomainJoinService.ApplyBlob(open.FileName, out output);
@@ -1919,12 +1966,18 @@ namespace DomainMembershipCheckRepair
             {
                 string domain = domainBox == null ? String.Empty : (domainBox.Text ?? String.Empty).Trim();
 
-                using (RecoverySnapshotScope snapshot = new RecoverySnapshotScope(
+                RecoverySnapshotScope snapshot;
+                if (!TryCreateRecoverySnapshotForGui(
                     "safe-fixes",
                     domain,
-                    dcBox == null ? String.Empty : dcBox.Text,
                     null,
-                    null))
+                    null,
+                    out snapshot))
+                {
+                    return;
+                }
+
+                using (snapshot)
                 {
                     TransactionJournal journal = TransactionJournalService.Begin("safe-fixes");
                     SafeRecoveryResult result = SafeRecoveryService.Run(domain, journal);
@@ -2049,12 +2102,18 @@ namespace DomainMembershipCheckRepair
 
                 joinedDomain = join.Name;
 
-                using (RecoverySnapshotScope snapshot = new RecoverySnapshotScope(
+                RecoverySnapshotScope snapshot;
+                if (!TryCreateRecoverySnapshotForGui(
                     "repair-trust",
                     joinedDomain,
-                    dcBox == null ? String.Empty : dcBox.Text,
                     null,
-                    null))
+                    null,
+                    out snapshot))
+                {
+                    return;
+                }
+
+                using (snapshot)
                 {
                 int miiValue;
                 if (HealthDiagnosticsService.HasMachineIdentityIsolationEnabled(out miiValue) && miiValue == 2)
@@ -2203,12 +2262,18 @@ namespace DomainMembershipCheckRepair
                 return;
 
             string currentName = Environment.MachineName;
-            using (RecoverySnapshotScope snapshot = new RecoverySnapshotScope(
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateRecoverySnapshotForGui(
                 "join-rejoin",
                 targetDomain,
-                dcBox == null ? String.Empty : dcBox.Text,
                 user,
-                password))
+                password,
+                out snapshot))
+            {
+                return;
+            }
+
+            using (snapshot)
             {
             Log("INFO", "Attempting Join/Rejoin with the current computer name '" + currentName + "'.");
 
@@ -2285,12 +2350,18 @@ namespace DomainMembershipCheckRepair
 
         private void SafeFixesAndRetryJoin(string computerName, string user, string password, string targetDomain)
         {
-            using (RecoverySnapshotScope snapshot = new RecoverySnapshotScope(
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateRecoverySnapshotForGui(
                 "safe-fixes-retry",
                 targetDomain,
-                dcBox == null ? String.Empty : dcBox.Text,
                 user,
-                password))
+                password,
+                out snapshot))
+            {
+                return;
+            }
+
+            using (snapshot)
             {
             Log("INFO", "Running non-destructive Safe Fixes before retrying Join/Rejoin with the same computer name.");
             TransactionJournal journal = TransactionJournalService.Begin("safe-fixes-retry");
@@ -2424,12 +2495,18 @@ namespace DomainMembershipCheckRepair
                     user,
                     password);
 
-                using (RecoverySnapshotScope snapshot = new RecoverySnapshotScope(
+                RecoverySnapshotScope snapshot;
+                if (!TryCreateRecoverySnapshotForGui(
                     "rename-and-join",
                     targetDomain,
-                    dcBox == null ? String.Empty : dcBox.Text,
                     user,
-                    password))
+                    password,
+                    out snapshot))
+                {
+                    return;
+                }
+
+                using (snapshot)
                 {
                 TransactionJournal renameJournal = TransactionJournalService.Begin("rename-and-join");
                 TransactionJournalService.RecordNote(
@@ -2659,12 +2736,18 @@ namespace DomainMembershipCheckRepair
 
             Log("INFO", "Pre-delete AD recovery package created: " + recoveryPackagePath);
 
-            using (RecoverySnapshotScope snapshot = new RecoverySnapshotScope(
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateRecoverySnapshotForGui(
                 "delete-and-recreate",
                 targetDomain,
-                dcBox == null ? String.Empty : dcBox.Text,
                 user,
-                password))
+                password,
+                out snapshot))
+            {
+                return;
+            }
+
+            using (snapshot)
             {
             TransactionJournal deleteJournal = TransactionJournalService.Begin("delete-and-recreate");
             TransactionJournalService.RecordNote(
