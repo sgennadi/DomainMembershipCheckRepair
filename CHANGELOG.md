@@ -74,6 +74,8 @@
 - Added regression tests for Recycle Bin feature GUID, deleted-object LDAP filters, restore-DN construction/escaping and AD restore elevation/resume behavior.
 - Hardened mandatory pre-delete AD recovery-package storage so ACL application and verification are fail-closed; destructive deletion cannot proceed when broad-user write access remains or storage security cannot be inspected.
 - Added regression coverage for recovery-package ACL policy, including Builtin Users, Authenticated Users, Everyone, Administrators and deny-rule handling.
+- Centralized protected-storage ACL classification for recovery packages and transaction journals; write detection now uses primitive write/delete/ACL-change rights so broad read-only grants are accepted while Modify/FullControl remain blocked through their write-capable bits.
+- Fixed transaction-journal security validation so the intended Builtin Users read-only ACL no longer creates a false untrusted-storage result that can block Rollback Local.
 - Hardened final destructive AD deletion against TOCTOU/subtree races: the exact computer GUID/class/sAMAccountName and leaf state are revalidated immediately before deletion, and deletion is now non-recursive so Active Directory rejects a newly non-leaf object instead of recursively deleting its subtree.
 - Added regression coverage for final AD delete identity/leaf validation, including changed GUID, changed sAMAccountName, wrong object class and newly appeared child objects.
 
