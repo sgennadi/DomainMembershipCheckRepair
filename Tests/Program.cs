@@ -45,6 +45,7 @@ namespace DomainMembershipCheckRepair
             TestIdentityConsistencyFilter();
             TestTransactionJournalParsing();
             TestAdRecoveryHelpers();
+            TestAdDeleteFinalSafety();
             TestSupportBundleSanitizer();
             TestSupportBundleZipRedaction();
 
@@ -847,6 +848,71 @@ namespace DomainMembershipCheckRepair
                     "CN=PC01",
                     String.Empty),
                 "restore DN requires last known parent");
+        }
+
+        private static void TestAdDeleteFinalSafety()
+        {
+            string guid = "12345678-1234-1234-1234-1234567890ab";
+
+            AssertNull(
+                AdDirectoryService.ValidateDeleteTargetState(
+                    "PC01",
+                    guid,
+                    "PC01$",
+                    true,
+                    guid,
+                    0),
+                "final AD delete safety accepts exact leaf computer identity");
+
+            AssertNotNull(
+                AdDirectoryService.ValidateDeleteTargetState(
+                    "PC01",
+                    String.Empty,
+                    "PC01$",
+                    true,
+                    guid,
+                    0),
+                "final AD delete safety requires expected GUID");
+
+            AssertNotNull(
+                AdDirectoryService.ValidateDeleteTargetState(
+                    "PC01",
+                    guid,
+                    "PC02$",
+                    true,
+                    guid,
+                    0),
+                "final AD delete safety blocks changed sAMAccountName");
+
+            AssertNotNull(
+                AdDirectoryService.ValidateDeleteTargetState(
+                    "PC01",
+                    guid,
+                    "PC01$",
+                    false,
+                    guid,
+                    0),
+                "final AD delete safety requires computer object class");
+
+            AssertNotNull(
+                AdDirectoryService.ValidateDeleteTargetState(
+                    "PC01",
+                    guid,
+                    "PC01$",
+                    true,
+                    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                    0),
+                "final AD delete safety blocks changed object GUID");
+
+            AssertNotNull(
+                AdDirectoryService.ValidateDeleteTargetState(
+                    "PC01",
+                    guid,
+                    "PC01$",
+                    true,
+                    guid,
+                    1),
+                "final AD delete safety blocks newly appeared child object");
         }
 
         private static void TestSupportBundleSanitizer()
