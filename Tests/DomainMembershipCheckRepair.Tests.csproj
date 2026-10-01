@@ -32,6 +32,7 @@
     <Reference Include="System.DirectoryServices.Protocols" />
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Management" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.ServiceProcess" />
     <Reference Include="System.Xml" />
@@ -67,6 +68,9 @@
     </Compile>
     <Compile Include="..\Core\SafeRecoveryService.cs">
       <Link>SafeRecoveryService.cs</Link>
+    </Compile>
+    <Compile Include="..\Core\ResumeService.cs">
+      <Link>ResumeService.cs</Link>
     </Compile>
     <Compile Include="..\Core\NetworkCredentialProcessRunner.cs">
       <Link>NetworkCredentialProcessRunner.cs</Link>
