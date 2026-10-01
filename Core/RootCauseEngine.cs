@@ -139,11 +139,17 @@ namespace DomainMembershipCheckRepair
                 foreach (string item in netSetup.Findings)
                 {
                     string text = item ?? String.Empty;
-                    if (text.IndexOf("reuse", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        text.IndexOf("owner", StringComparison.OrdinalIgnoreCase) >= 0)
+                    if (text.IndexOf("SAMRPC", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        text.IndexOf("RestrictRemoteSam", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        Add(findings, 94, "HIGH", "Domain-join SAMRPC policy", text,
+                            "Review the target DC's 'Network access: Restrict clients allowed to make remote calls to SAM' policy and its SDDL before changing or deleting the computer account.");
+                    }
+                    else if (text.IndexOf("reuse", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                             text.IndexOf("owner", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         Add(findings, 91, "HIGH", "Computer account reuse hardening", text,
-                            "Review object owner, OU delegation and account-reuse policy before deleting the existing account.");
+                            "Review object owner, OU delegation and the DC-side computer-account reuse allow-list before deleting the existing account.");
                     }
                     else if (text.IndexOf("RPC", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
