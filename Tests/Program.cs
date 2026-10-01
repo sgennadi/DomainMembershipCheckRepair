@@ -48,6 +48,7 @@ namespace DomainMembershipCheckRepair
             TestIdentityConsistencyFilter();
             TestTransactionJournalParsing();
             TestAdRecoveryHelpers();
+            TestAdRestoreFinalSafety();
             TestProtectedStorageAclPolicy();
             TestAdDeleteFinalSafety();
             TestSupportBundleSanitizer();
@@ -922,6 +923,133 @@ namespace DomainMembershipCheckRepair
                     "CN=PC01",
                     String.Empty),
                 "restore DN requires last known parent");
+        }
+
+        private static void TestAdRestoreFinalSafety()
+        {
+            string guid = "12345678-1234-1234-1234-1234567890ab";
+            string parent = "OU=Computers,DC=example,DC=com";
+            string rdn = "CN=PC01";
+
+            AssertNull(
+                AdRecycleBinRecoveryService.ValidateDeletedObjectForRestore(
+                    "PC01",
+                    guid,
+                    "PC01$",
+                    parent,
+                    rdn,
+                    "PC01$",
+                    guid,
+                    true,
+                    false,
+                    parent,
+                    rdn),
+                "final AD restore safety accepts exact deleted-object identity and state");
+
+            AssertNotNull(
+                AdRecycleBinRecoveryService.ValidateDeletedObjectForRestore(
+                    "PC01",
+                    String.Empty,
+                    "PC01$",
+                    parent,
+                    rdn,
+                    "PC01$",
+                    guid,
+                    true,
+                    false,
+                    parent,
+                    rdn),
+                "final AD restore safety requires expected GUID");
+
+            AssertNotNull(
+                AdRecycleBinRecoveryService.ValidateDeletedObjectForRestore(
+                    "PC01",
+                    guid,
+                    "PC01$",
+                    parent,
+                    rdn,
+                    "PC02$",
+                    guid,
+                    true,
+                    false,
+                    parent,
+                    rdn),
+                "final AD restore safety blocks changed sAMAccountName");
+
+            AssertNotNull(
+                AdRecycleBinRecoveryService.ValidateDeletedObjectForRestore(
+                    "PC01",
+                    guid,
+                    "PC01$",
+                    parent,
+                    rdn,
+                    "PC01$",
+                    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                    true,
+                    false,
+                    parent,
+                    rdn),
+                "final AD restore safety blocks changed object GUID");
+
+            AssertNotNull(
+                AdRecycleBinRecoveryService.ValidateDeletedObjectForRestore(
+                    "PC01",
+                    guid,
+                    "PC01$",
+                    parent,
+                    rdn,
+                    "PC01$",
+                    guid,
+                    false,
+                    false,
+                    parent,
+                    rdn),
+                "final AD restore safety requires object to remain deleted");
+
+            AssertNotNull(
+                AdRecycleBinRecoveryService.ValidateDeletedObjectForRestore(
+                    "PC01",
+                    guid,
+                    "PC01$",
+                    parent,
+                    rdn,
+                    "PC01$",
+                    guid,
+                    true,
+                    true,
+                    parent,
+                    rdn),
+                "final AD restore safety blocks recycled object");
+
+            AssertNotNull(
+                AdRecycleBinRecoveryService.ValidateDeletedObjectForRestore(
+                    "PC01",
+                    guid,
+                    "PC01$",
+                    parent,
+                    rdn,
+                    "PC01$",
+                    guid,
+                    true,
+                    false,
+                    "OU=Other,DC=example,DC=com",
+                    rdn),
+                "final AD restore safety blocks changed last-known parent");
+
+            AssertNotNull(
+                AdRecycleBinRecoveryService.ValidateDeletedObjectForRestore(
+                    "PC01",
+                    guid,
+                    "PC01$",
+                    parent,
+                    rdn,
+                    "PC01$",
+                    guid,
+                    true,
+                    false,
+                    parent,
+                    "CN=PC01-OLD"),
+                "final AD restore safety blocks changed last-known RDN");
         }
 
         private static void TestProtectedStorageAclPolicy()
