@@ -772,34 +772,48 @@ namespace DomainMembershipCheckRepair
                 return 0;
             }
 
-            logger.Log("INFO", "Starting native secure-channel repair for the currently joined domain.");
-
-            int rediscoverStatus = NativeMethods.NetlogonControl(NativeMethods.NETLOGON_CONTROL_REDISCOVER, 2, joinedDomain);
-            if (rediscoverStatus != 0)
-                logger.Log("WARN", "DC rediscovery returned: " + NativeMethods.FormatError(rediscoverStatus));
-
-            TrustCheckResult afterRediscover = NativeMethods.VerifySecureChannel(joinedDomain);
-            if (afterRediscover.Healthy)
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateCliRecoverySnapshot(
+                "repair",
+                joinedDomain,
+                null,
+                null,
+                out snapshot))
             {
-                logger.Log("SUCCESS", "Secure channel recovered after DC rediscovery." + FormatDcSuffix(afterRediscover.TrustedDc));
-                HandleRestartAfterSuccess("Secure channel recovered successfully.");
-                return 0;
+                return 1;
             }
 
-            int passwordStatus = NativeMethods.NetlogonControl(NativeMethods.NETLOGON_CONTROL_CHANGE_PASSWORD, 1, joinedDomain);
-            logger.Log(passwordStatus == 0 ? "INFO" : "WARN", "Native machine-password refresh returned: " + NativeMethods.FormatError(passwordStatus));
-
-            NativeMethods.NetlogonControl(NativeMethods.NETLOGON_CONTROL_REDISCOVER, 2, joinedDomain);
-            TrustCheckResult final = NativeMethods.VerifySecureChannel(joinedDomain);
-            if (final.Healthy)
+            using (snapshot)
             {
-                logger.Log("SUCCESS", "Secure channel repaired successfully." + FormatDcSuffix(final.TrustedDc));
-                HandleRestartAfterSuccess("Secure channel repaired successfully.");
-                return 0;
-            }
+                logger.Log("INFO", "Starting native secure-channel repair for the currently joined domain.");
 
-            logger.Log("ERROR", "Native trust repair did not restore the secure channel: " + NativeMethods.FormatError(final.StatusCode));
-            return 5;
+                int rediscoverStatus = NativeMethods.NetlogonControl(NativeMethods.NETLOGON_CONTROL_REDISCOVER, 2, joinedDomain);
+                if (rediscoverStatus != 0)
+                    logger.Log("WARN", "DC rediscovery returned: " + NativeMethods.FormatError(rediscoverStatus));
+
+                TrustCheckResult afterRediscover = NativeMethods.VerifySecureChannel(joinedDomain);
+                if (afterRediscover.Healthy)
+                {
+                    logger.Log("SUCCESS", "Secure channel recovered after DC rediscovery." + FormatDcSuffix(afterRediscover.TrustedDc));
+                    HandleRestartAfterSuccess("Secure channel recovered successfully.");
+                    return 0;
+                }
+
+                int passwordStatus = NativeMethods.NetlogonControl(NativeMethods.NETLOGON_CONTROL_CHANGE_PASSWORD, 1, joinedDomain);
+                logger.Log(passwordStatus == 0 ? "INFO" : "WARN", "Native machine-password refresh returned: " + NativeMethods.FormatError(passwordStatus));
+
+                NativeMethods.NetlogonControl(NativeMethods.NETLOGON_CONTROL_REDISCOVER, 2, joinedDomain);
+                TrustCheckResult final = NativeMethods.VerifySecureChannel(joinedDomain);
+                if (final.Healthy)
+                {
+                    logger.Log("SUCCESS", "Secure channel repaired successfully." + FormatDcSuffix(final.TrustedDc));
+                    HandleRestartAfterSuccess("Secure channel repaired successfully.");
+                    return 0;
+                }
+
+                logger.Log("ERROR", "Native trust repair did not restore the secure channel: " + NativeMethods.FormatError(final.StatusCode));
+                return 5;
+            }
         }
 
 
