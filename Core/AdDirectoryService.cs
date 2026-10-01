@@ -137,9 +137,13 @@ namespace DomainMembershipCheckRepair
         {
             error = null;
 
-            if (account == null || !account.LookupSucceeded || !account.Exists || String.IsNullOrWhiteSpace(account.LdapPath))
+            if (account == null ||
+                !account.LookupSucceeded ||
+                !account.Exists ||
+                String.IsNullOrWhiteSpace(account.LdapPath) ||
+                String.IsNullOrWhiteSpace(account.ObjectGuid))
             {
-                error = "The existing AD computer account could not be located reliably.";
+                error = "The existing AD computer account could not be located and identity-verified reliably.";
                 return false;
             }
 
@@ -160,24 +164,64 @@ namespace DomainMembershipCheckRepair
                         }
                     }
 
-                    if (!isComputerObject || !String.Equals(actualSam, computerName + "$", StringComparison.OrdinalIgnoreCase))
+                    string actualGuid = String.Empty;
+                    byte[] guidBytes = target.Properties["objectGUID"].Value as byte[];
+                    if (guidBytes != null && guidBytes.Length == 16)
+                        actualGuid = new Guid(guidBytes).ToString();
+
+                    int childObjectCount = 0;
+                    try
                     {
-                        error = "Safety check failed: the LDAP object no longer matches the requested computer account.";
+                        foreach (DirectoryEntry child in target.Children)
+                        {
+                            childObjectCount++;
+                            child.Dispose();
+                            break;
+                        }
+                    }
+                    catch (Exception childEx)
+                    {
+                        error =
+                            "Safety check failed: child-object state could not be verified immediately before deletion: " +
+                            childEx.Message;
+                        WriteLog(log, "ERROR", error);
                         return false;
                     }
 
-                    if (!String.IsNullOrWhiteSpace(account.ObjectGuid) && target.Properties["objectGUID"].Value is byte[])
+                    error = ValidateDeleteTargetState(
+                        computerName,
+                        account.ObjectGuid,
+                        actualSam,
+                        isComputerObject,
+                        actualGuid,
+                        childObjectCount);
+
+                    if (!String.IsNullOrWhiteSpace(error))
                     {
-                        string actualGuid = new Guid((byte[])target.Properties["objectGUID"].Value).ToString();
-                        if (!String.Equals(actualGuid, account.ObjectGuid, StringComparison.OrdinalIgnoreCase))
-                        {
-                            error = "Safety check failed: the AD object changed after it was looked up. Run the lookup again.";
-                            return false;
-                        }
+                        WriteLog(log, "ERROR", error);
+                        return false;
                     }
 
-                    WriteLog(log, "WARN", "Deleting the confirmed AD computer account: " + account.DistinguishedName);
-                    target.DeleteTree();
+                    WriteLog(
+                        log,
+                        "WARN",
+                        "Deleting the confirmed AD computer account with a non-recursive LDAP delete: " +
+                        account.DistinguishedName);
+
+                    using (DirectoryEntry parent = target.Parent)
+                    {
+                        if (parent == null)
+                        {
+                            error = "Safety check failed: the parent container could not be resolved.";
+                            WriteLog(log, "ERROR", error);
+                            return false;
+                        }
+
+                        // DirectoryEntries.Remove is intentionally non-recursive. If a child
+                        // appears after the pre-delete check, Active Directory rejects the
+                        // delete instead of recursively removing the newly-added subtree.
+                        parent.Children.Remove(target);
+                    }
                 }
 
                 WriteLog(log, "SUCCESS", "AD computer account deleted.");
@@ -189,6 +233,42 @@ namespace DomainMembershipCheckRepair
                 WriteLog(log, "ERROR", "Unable to delete the AD computer account: " + ex.Message);
                 return false;
             }
+        }
+
+        internal static string ValidateDeleteTargetState(
+            string computerName,
+            string expectedGuid,
+            string actualSam,
+            bool isComputerObject,
+            string actualGuid,
+            int childObjectCount)
+        {
+            if (String.IsNullOrWhiteSpace(computerName) ||
+                String.IsNullOrWhiteSpace(expectedGuid))
+            {
+                return "Safety check failed: the expected AD computer identity is incomplete.";
+            }
+
+            if (!isComputerObject ||
+                !String.Equals(actualSam, computerName + "$", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Safety check failed: the LDAP object no longer matches the requested computer account.";
+            }
+
+            if (String.IsNullOrWhiteSpace(actualGuid) ||
+                !String.Equals(actualGuid, expectedGuid, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Safety check failed: the AD object identity changed after lookup. Run the lookup again.";
+            }
+
+            if (childObjectCount > 0)
+            {
+                return
+                    "Safety check failed: the AD computer object now has child objects. " +
+                    "Re-run diagnostics before deletion.";
+            }
+
+            return null;
         }
 
 

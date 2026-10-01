@@ -72,6 +72,8 @@
 - Added GUI actions for AD Recovery and Restore Deleted AD plus CLI actions `ad-recycle-bin`, `ad-deleted` and `ad-restore`.
 - Expanded the live AD Integration Lab with read-only Recycle Bin/deleted-object readiness checks.
 - Added regression tests for Recycle Bin feature GUID, deleted-object LDAP filters, restore-DN construction/escaping and AD restore elevation/resume behavior.
+- Hardened final destructive AD deletion against TOCTOU/subtree races: the exact computer GUID/class/sAMAccountName and leaf state are revalidated immediately before deletion, and deletion is now non-recursive so Active Directory rejects a newly non-leaf object instead of recursively deleting its subtree.
+- Added regression coverage for final AD delete identity/leaf validation, including changed GUID, changed sAMAccountName, wrong object class and newly appeared child objects.
 
 ## 1.5.0
 
