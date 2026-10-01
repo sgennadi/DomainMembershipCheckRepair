@@ -4,6 +4,7 @@ using System.DirectoryServices.Protocols;
 using System.IO;
 using System.Net;
 using System.Text;
+using System.Security.Principal;
 
 namespace DomainMembershipCheckRepair
 {
