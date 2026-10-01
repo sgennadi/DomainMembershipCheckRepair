@@ -27,6 +27,7 @@ namespace DomainMembershipCheckRepair
             TestProcessExecutableResolution();
             TestElevationActions();
             TestGuiResumeOptions();
+            TestPostRebootResumeCommand();
             TestNetSetupErrorMapping();
             TestUiLayoutMath();
             TestKerberosEncryptionTypeDecoding();
@@ -399,6 +400,55 @@ namespace DomainMembershipCheckRepair
                 new string[] { "--resume-action", "ad-restore", "--elevation-attempted" });
             AssertEqual("ad-restore", adRestore.Action, "AD restore GUI resume action");
             AssertTrue(adRestore.ElevationAttempted, "AD restore resume elevation marker");
+        }
+
+        private static void TestPostRebootResumeCommand()
+        {
+            AssertEqual(
+                "\"C:\\Program Files\\DomainMembershipCheckRepair\\DomainMembershipCheckRepair.exe\" --resume-action post-reboot-check --no-log --domain example.com",
+                ResumeService.BuildRunOnceCommand(
+                    @"C:\Program Files\DomainMembershipCheckRepair\DomainMembershipCheckRepair.exe",
+                    " example.com "),
+                "post-reboot RunOnce command uses canonical quoting and trims validated domain");
+
+            AssertEqual(
+                @"C:\Tools\DomainMembershipCheckRepair.exe --resume-action post-reboot-check --no-log",
+                ResumeService.BuildRunOnceCommand(
+                    @"C:\Tools\DomainMembershipCheckRepair.exe",
+                    String.Empty),
+                "post-reboot RunOnce command omits empty domain");
+
+            bool badDomainRejected = false;
+            try
+            {
+                ResumeService.BuildRunOnceCommand(
+                    @"C:\Tools\DomainMembershipCheckRepair.exe",
+                    "example.com --user attacker");
+            }
+            catch (ArgumentException)
+            {
+                badDomainRejected = true;
+            }
+
+            AssertTrue(
+                badDomainRejected,
+                "post-reboot RunOnce rejects option-injection-shaped domain");
+
+            bool relativeExecutableRejected = false;
+            try
+            {
+                ResumeService.BuildRunOnceCommand(
+                    "DomainMembershipCheckRepair.exe",
+                    "example.com");
+            }
+            catch (ArgumentException)
+            {
+                relativeExecutableRejected = true;
+            }
+
+            AssertTrue(
+                relativeExecutableRejected,
+                "post-reboot RunOnce rejects relative executable path");
         }
 
         private static void TestNetSetupErrorMapping()
