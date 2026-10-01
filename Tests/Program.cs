@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Security.AccessControl;
+using System.Security.Principal;
 
 namespace DomainMembershipCheckRepair
 {
@@ -46,6 +48,7 @@ namespace DomainMembershipCheckRepair
             TestIdentityConsistencyFilter();
             TestTransactionJournalParsing();
             TestAdRecoveryHelpers();
+            TestProtectedStorageAclPolicy();
             TestAdDeleteFinalSafety();
             TestSupportBundleSanitizer();
             TestSupportBundleZipRedaction();
@@ -898,6 +901,68 @@ namespace DomainMembershipCheckRepair
                     "CN=PC01",
                     String.Empty),
                 "restore DN requires last known parent");
+        }
+
+        private static void TestProtectedStorageAclPolicy()
+        {
+            SecurityIdentifier users =
+                new SecurityIdentifier(
+                    WellKnownSidType.BuiltinUsersSid,
+                    null);
+            SecurityIdentifier authenticated =
+                new SecurityIdentifier(
+                    WellKnownSidType.AuthenticatedUserSid,
+                    null);
+            SecurityIdentifier everyone =
+                new SecurityIdentifier(
+                    WellKnownSidType.WorldSid,
+                    null);
+            SecurityIdentifier administrators =
+                new SecurityIdentifier(
+                    WellKnownSidType.BuiltinAdministratorsSid,
+                    null);
+
+            AssertTrue(
+                ProtectedStorageAcl.IsDangerousBroadWriteGrant(
+                    users,
+                    FileSystemRights.Write,
+                    AccessControlType.Allow),
+                "protected storage blocks Builtin Users write grant");
+
+            AssertTrue(
+                ProtectedStorageAcl.IsDangerousBroadWriteGrant(
+                    authenticated,
+                    FileSystemRights.Modify,
+                    AccessControlType.Allow),
+                "protected storage blocks Authenticated Users modify grant");
+
+            AssertTrue(
+                ProtectedStorageAcl.IsDangerousBroadWriteGrant(
+                    everyone,
+                    FileSystemRights.CreateFiles,
+                    AccessControlType.Allow),
+                "protected storage blocks Everyone create-files grant");
+
+            AssertFalse(
+                ProtectedStorageAcl.IsDangerousBroadWriteGrant(
+                    users,
+                    FileSystemRights.ReadAndExecute | FileSystemRights.Read,
+                    AccessControlType.Allow),
+                "protected storage allows broad read-only grant");
+
+            AssertFalse(
+                ProtectedStorageAcl.IsDangerousBroadWriteGrant(
+                    administrators,
+                    FileSystemRights.FullControl,
+                    AccessControlType.Allow),
+                "protected storage allows Administrators full control");
+
+            AssertFalse(
+                ProtectedStorageAcl.IsDangerousBroadWriteGrant(
+                    users,
+                    FileSystemRights.Write,
+                    AccessControlType.Deny),
+                "protected storage ignores deny rule as dangerous allow grant");
         }
 
         private static void TestAdDeleteFinalSafety()

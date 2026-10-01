@@ -105,6 +105,9 @@
     <Compile Include="..\Core\RpcEndpointMapperAnalyzer.cs">
       <Link>RpcEndpointMapperAnalyzer.cs</Link>
     </Compile>
+    <Compile Include="..\Core\ProtectedStorageAcl.cs">
+      <Link>ProtectedStorageAcl.cs</Link>
+    </Compile>
     <Compile Include="..\Core\TransactionJournalService.cs">
       <Link>TransactionJournalService.cs</Link>
     </Compile>

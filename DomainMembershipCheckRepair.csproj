@@ -127,6 +127,7 @@
     <Compile Include="Core\IdentityConsistencyAnalyzer.cs" />
     <Compile Include="Core\RpcEndpointMapperAnalyzer.cs" />
     <Compile Include="Core\SmartNextActionService.cs" />
+    <Compile Include="Core\ProtectedStorageAcl.cs" />
     <Compile Include="Core\TransactionJournalService.cs" />
     <Compile Include="Core\AdRecycleBinRecoveryService.cs" />
     <Compile Include="Core\DeleteSafetyAnalyzer.cs" />
