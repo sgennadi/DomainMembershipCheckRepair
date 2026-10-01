@@ -634,7 +634,7 @@ namespace DomainMembershipCheckRepair
         }
 
         private static bool TryCreateCliRecoverySnapshot(
-            string operation,
+            string action,
             string domain,
             string user,
             string password,
@@ -645,24 +645,38 @@ namespace DomainMembershipCheckRepair
             if (options.DryRun)
                 return true;
 
-            string error;
-            if (RecoverySnapshotScope.TryCreate(
-                operation,
+            if (!ElevationHelper.RequiresRecoverySnapshot(action))
+            {
+                logger.Log(
+                    "ERROR",
+                    "Internal safety policy error: action '" +
+                    action +
+                    "' is not marked as requiring a recovery snapshot.");
+                return false;
+            }
+
+            string snapshotError;
+            if (!RecoverySnapshotScope.TryCreate(
+                action,
                 domain,
                 options.PreferredDc,
                 user,
                 password,
                 out snapshot,
-                out error))
+                out snapshotError))
             {
-                return true;
+                logger.Log(
+                    "ERROR",
+                    "Operation blocked because the required BEFORE recovery snapshot could not be created securely: " +
+                    snapshotError);
+                return false;
             }
 
             logger.Log(
-                "ERROR",
-                "Operation blocked because the required BEFORE recovery snapshot could not be created securely: " +
-                error);
-            return false;
+                "INFO",
+                "Required BEFORE recovery snapshot created: " +
+                snapshot.BeforePath);
+            return true;
         }
 
         private static int ShowStatus(bool verbose)
@@ -1874,49 +1888,6 @@ namespace DomainMembershipCheckRepair
                 }
                 return DiagnosticExitCodes.NotTested;
             }
-        }
-
-        private static bool TryCreateCliRecoverySnapshot(
-            string action,
-            string domain,
-            string user,
-            string password,
-            out RecoverySnapshotScope snapshot)
-        {
-            snapshot = null;
-
-            if (!ElevationHelper.RequiresRecoverySnapshot(action))
-            {
-                logger.Log(
-                    "ERROR",
-                    "Internal safety policy error: action '" +
-                    action +
-                    "' is not marked as requiring a recovery snapshot.");
-                return false;
-            }
-
-            string snapshotError;
-            if (!RecoverySnapshotScope.TryCreate(
-                action,
-                domain,
-                options.PreferredDc,
-                user,
-                password,
-                out snapshot,
-                out snapshotError))
-            {
-                logger.Log(
-                    "ERROR",
-                    "Operation blocked because the required BEFORE recovery snapshot could not be created securely: " +
-                    snapshotError);
-                return false;
-            }
-
-            logger.Log(
-                "INFO",
-                "Required BEFORE recovery snapshot created: " +
-                snapshot.BeforePath);
-            return true;
         }
 
         private static void CreatePreChangeBundle(
