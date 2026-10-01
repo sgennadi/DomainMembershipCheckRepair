@@ -4,6 +4,8 @@ using System.IO;
 using System.ServiceProcess;
 using System.Text;
 using Microsoft.Win32;
+using System.Security.AccessControl;
+using System.Security.Principal;
 
 namespace DomainMembershipCheckRepair
 {
