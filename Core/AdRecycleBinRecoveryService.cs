@@ -397,9 +397,28 @@ namespace DomainMembershipCheckRepair
                         securityDetails);
                 }
 
+                string fileDetails;
+                if (!ProtectedStorageAcl.PrepareProtectedFileTarget(
+                    fullPath,
+                    out fileDetails))
+                {
+                    throw new IOException(
+                        "Recovery package target failed security verification before write: " +
+                        fileDetails);
+                }
+
                 WriteRecoveryPackageTextAtomically(
                     fullPath,
                     JsonReportSerializer.Serialize(package));
+
+                if (!ProtectedStorageAcl.HardenProtectedFile(
+                    fullPath,
+                    out fileDetails))
+                {
+                    throw new IOException(
+                        "Recovery package file failed owner/ACL hardening after write: " +
+                        fileDetails);
+                }
 
                 path = fullPath;
                 return true;
