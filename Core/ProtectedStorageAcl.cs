@@ -69,9 +69,9 @@ namespace DomainMembershipCheckRepair
                     if (!Directory.Exists(current))
                     {
                         details =
-                            "Protected storage directory component does not exist: " +
-                            current;
-                        return false;
+                            "Existing protected storage path components contain no reparse points; " +
+                            "remaining components do not exist yet.";
+                        return true;
                     }
 
                     FileAttributes attributes = File.GetAttributes(current);
