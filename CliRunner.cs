@@ -1768,14 +1768,27 @@ namespace DomainMembershipCheckRepair
 
         private static int RollbackLocal()
         {
+            string journalPath =
+                TransactionJournalService.GetLatestRollbackableJournalPath();
+
+            if (String.IsNullOrWhiteSpace(journalPath))
+            {
+                Console.WriteLine(
+                    "No transaction journal with reversible local changes was found.");
+                return 1;
+            }
+
             if (options.DryRun)
             {
-                Console.WriteLine("DRY RUN: would restore reversible local registry/service changes from the latest transaction journal.");
+                Console.WriteLine(
+                    "DRY RUN: would restore reversible local registry/service changes from:");
+                Console.WriteLine(journalPath);
                 return 0;
             }
 
             if (!AskYesNo(
-                "Rollback reversible LOCAL changes from the latest transaction journal? Domain join, AD deletion and other non-reversible actions will be skipped.",
+                "Rollback reversible LOCAL changes from this transaction journal? Domain join, AD deletion and other non-reversible actions will be skipped.\r\n\r\n" +
+                journalPath,
                 false))
                 return 7;
 
@@ -1793,7 +1806,10 @@ namespace DomainMembershipCheckRepair
             using (snapshot)
             {
                 string report;
-                bool ok = TransactionJournalService.RollbackLatest(out report);
+                bool ok =
+                    TransactionJournalService.Rollback(
+                        journalPath,
+                        out report);
                 Console.WriteLine(report);
                 return ok ? 0 : 1;
             }
@@ -1999,6 +2015,15 @@ namespace DomainMembershipCheckRepair
             if (String.IsNullOrWhiteSpace(options.BlobPath))
             {
                 logger.Log("ERROR", "--blob PATH is required for odj-apply.");
+                return 3;
+            }
+
+            if (!File.Exists(options.BlobPath))
+            {
+                logger.Log(
+                    "ERROR",
+                    "Offline Domain Join blob does not exist: " +
+                    options.BlobPath);
                 return 3;
             }
 
