@@ -89,6 +89,9 @@
 - Hardened transaction-journal creation so ProgramData ACL application and verification are fail-closed instead of best-effort; recovery mutations do not proceed with a newly created untrusted rollback journal.
 - Made transaction-journal updates atomic with same-directory temporary files plus replace/move semantics, preserving the previous complete JSON if an update is interrupted before replacement.
 - Added regression coverage for initial and replacement atomic journal writes and temporary-file cleanup.
+- Hardened protected ProgramData storage against NTFS reparse-point/junction/symlink redirection: every existing directory component is verified before ACL hardening and before trust is accepted.
+- Applied the reparse-point guard to both transaction journals and mandatory pre-delete AD recovery packages, failing closed if protected storage resolves through a reparse point.
+- Added regression coverage for reparse-point attribute classification.
 
 ## 1.5.0
 
