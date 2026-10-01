@@ -213,6 +213,20 @@ namespace DomainMembershipCheckRepair
             return HasWriteCapability(rights);
         }
 
+        internal static bool IsUntrustedWriteGrant(
+            SecurityIdentifier sid,
+            FileSystemRights rights,
+            AccessControlType accessType)
+        {
+            if (sid == null || accessType != AccessControlType.Allow)
+                return false;
+
+            if (!HasWriteCapability(rights))
+                return false;
+
+            return !IsTrustedOwner(sid);
+        }
+
         internal static bool IsTrustedOwner(
             SecurityIdentifier sid)
         {
@@ -490,13 +504,13 @@ namespace DomainMembershipCheckRepair
                         rule.IdentityReference
                         as SecurityIdentifier;
 
-                    if (IsDangerousBroadWriteGrant(
+                    if (IsUntrustedWriteGrant(
                         sid,
                         rule.FileSystemRights,
                         rule.AccessControlType))
                     {
                         details =
-                            "A broad user group has write-capable access.";
+                            "A non-privileged identity has write-capable access.";
                         return false;
                     }
                 }
