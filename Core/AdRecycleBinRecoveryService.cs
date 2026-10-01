@@ -985,39 +985,10 @@ namespace DomainMembershipCheckRepair
             FileSystemRights rights,
             AccessControlType accessType)
         {
-            if (sid == null || accessType != AccessControlType.Allow)
-                return false;
-
-            SecurityIdentifier users = new SecurityIdentifier(
-                WellKnownSidType.BuiltinUsersSid,
-                null);
-            SecurityIdentifier authenticated = new SecurityIdentifier(
-                WellKnownSidType.AuthenticatedUserSid,
-                null);
-            SecurityIdentifier everyone = new SecurityIdentifier(
-                WellKnownSidType.WorldSid,
-                null);
-
-            bool broad =
-                sid.Equals(users) ||
-                sid.Equals(authenticated) ||
-                sid.Equals(everyone);
-
-            if (!broad)
-                return false;
-
-            FileSystemRights dangerous =
-                FileSystemRights.Write |
-                FileSystemRights.Modify |
-                FileSystemRights.FullControl |
-                FileSystemRights.WriteData |
-                FileSystemRights.AppendData |
-                FileSystemRights.CreateFiles |
-                FileSystemRights.CreateDirectories |
-                FileSystemRights.ChangePermissions |
-                FileSystemRights.TakeOwnership;
-
-            return (rights & dangerous) != 0;
+            return ProtectedStorageAcl.IsDangerousBroadWriteGrant(
+                sid,
+                rights,
+                accessType);
         }
 
         private static string SafeFileName(string value)
