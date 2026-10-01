@@ -7,6 +7,198 @@ namespace DomainMembershipCheckRepair
 {
     internal static class ProtectedStorageAcl
     {
+        internal static string GetApplicationRootPath()
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(
+                    Environment.SpecialFolder.CommonApplicationData),
+                "DomainMembershipCheckRepair");
+        }
+
+        internal static bool EnsureProtectedDirectory(
+            string path,
+            out string error)
+        {
+            error = String.Empty;
+
+            string fullPath;
+            string rootPath;
+            if (!TryNormalizeManagedPath(
+                path,
+                out fullPath,
+                out rootPath,
+                out error))
+            {
+                return false;
+            }
+
+            try
+            {
+                string pathDetails;
+                if (!IsDirectoryPathFreeOfReparsePoints(
+                    rootPath,
+                    out pathDetails))
+                {
+                    error =
+                        "Protected storage root path failed reparse-point verification: " +
+                        pathDetails;
+                    return false;
+                }
+
+                Directory.CreateDirectory(rootPath);
+
+                if (!IsDirectoryPathFreeOfReparsePoints(
+                    rootPath,
+                    out pathDetails))
+                {
+                    error =
+                        "Protected storage root failed reparse-point verification after creation: " +
+                        pathDetails;
+                    return false;
+                }
+
+                HardenDirectory(rootPath);
+
+                string rootSecurity;
+                if (!VerifyDirectorySecurity(
+                    rootPath,
+                    out rootSecurity))
+                {
+                    error =
+                        "Protected storage root failed owner/ACL verification: " +
+                        rootSecurity;
+                    return false;
+                }
+
+                if (!String.Equals(
+                    fullPath,
+                    rootPath,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!IsDirectoryPathFreeOfReparsePoints(
+                        fullPath,
+                        out pathDetails))
+                    {
+                        error =
+                            "Protected storage child path failed reparse-point verification: " +
+                            pathDetails;
+                        return false;
+                    }
+
+                    Directory.CreateDirectory(fullPath);
+
+                    if (!IsDirectoryPathFreeOfReparsePoints(
+                        fullPath,
+                        out pathDetails))
+                    {
+                        error =
+                            "Protected storage child path failed reparse-point verification after creation: " +
+                            pathDetails;
+                        return false;
+                    }
+
+                    HardenDirectory(fullPath);
+
+                    string childSecurity;
+                    if (!VerifyDirectorySecurity(
+                        fullPath,
+                        out childSecurity))
+                    {
+                        error =
+                            "Protected storage child failed owner/ACL verification: " +
+                            childSecurity;
+                        return false;
+                    }
+                }
+
+                return IsProtectedDirectoryTrusted(
+                    fullPath,
+                    out error);
+            }
+            catch (Exception ex)
+            {
+                error =
+                    "Unable to prepare protected storage: " +
+                    ex.Message;
+                return false;
+            }
+        }
+
+        internal static bool IsProtectedDirectoryTrusted(
+            string path,
+            out string details)
+        {
+            details = String.Empty;
+
+            string fullPath;
+            string rootPath;
+            if (!TryNormalizeManagedPath(
+                path,
+                out fullPath,
+                out rootPath,
+                out details))
+            {
+                return false;
+            }
+
+            if (!Directory.Exists(rootPath))
+            {
+                details =
+                    "Protected storage root does not exist: " +
+                    rootPath;
+                return false;
+            }
+
+            if (!Directory.Exists(fullPath))
+            {
+                details =
+                    "Protected storage directory does not exist: " +
+                    fullPath;
+                return false;
+            }
+
+            string pathDetails;
+            if (!IsDirectoryPathFreeOfReparsePoints(
+                fullPath,
+                out pathDetails))
+            {
+                details = pathDetails;
+                return false;
+            }
+
+            string rootSecurity;
+            if (!VerifyDirectorySecurity(
+                rootPath,
+                out rootSecurity))
+            {
+                details =
+                    "Protected storage root is not trusted: " +
+                    rootSecurity;
+                return false;
+            }
+
+            if (!String.Equals(
+                fullPath,
+                rootPath,
+                StringComparison.OrdinalIgnoreCase))
+            {
+                string childSecurity;
+                if (!VerifyDirectorySecurity(
+                    fullPath,
+                    out childSecurity))
+                {
+                    details =
+                        "Protected storage child is not trusted: " +
+                        childSecurity;
+                    return false;
+                }
+            }
+
+            details =
+                "Protected storage root and target directory have trusted owners, protected ACLs, no broad-user write access, and no reparse-point redirection.";
+            return true;
+        }
+
         internal static bool IsDangerousBroadWriteGrant(
             SecurityIdentifier sid,
             FileSystemRights rights,
@@ -19,6 +211,21 @@ namespace DomainMembershipCheckRepair
                 return false;
 
             return HasWriteCapability(rights);
+        }
+
+        internal static bool IsTrustedOwner(
+            SecurityIdentifier sid)
+        {
+            if (sid == null)
+                return false;
+
+            return
+                sid.Equals(new SecurityIdentifier(
+                    WellKnownSidType.LocalSystemSid,
+                    null)) ||
+                sid.Equals(new SecurityIdentifier(
+                    WellKnownSidType.BuiltinAdministratorsSid,
+                    null));
         }
 
         internal static bool IsDirectoryPathFreeOfReparsePoints(
@@ -104,10 +311,6 @@ namespace DomainMembershipCheckRepair
 
         internal static bool HasWriteCapability(FileSystemRights rights)
         {
-            // Use only primitive write/delete/ACL-change bits here.
-            // Composite values such as FullControl and Modify include read bits,
-            // so OR-ing those composites into a mask would incorrectly classify
-            // a read-only rule as writable.
             FileSystemRights dangerous =
                 FileSystemRights.WriteData |
                 FileSystemRights.AppendData |
@@ -121,7 +324,198 @@ namespace DomainMembershipCheckRepair
             return (rights & dangerous) != 0;
         }
 
-        private static bool IsBroadIdentity(SecurityIdentifier sid)
+        private static bool TryNormalizeManagedPath(
+            string path,
+            out string fullPath,
+            out string rootPath,
+            out string error)
+        {
+            fullPath = String.Empty;
+            rootPath = String.Empty;
+            error = String.Empty;
+
+            if (String.IsNullOrWhiteSpace(path))
+            {
+                error = "Protected storage path is empty.";
+                return false;
+            }
+
+            try
+            {
+                rootPath =
+                    Path.GetFullPath(
+                        GetApplicationRootPath())
+                    .TrimEnd(
+                        Path.DirectorySeparatorChar,
+                        Path.AltDirectorySeparatorChar);
+
+                fullPath =
+                    Path.GetFullPath(path)
+                    .TrimEnd(
+                        Path.DirectorySeparatorChar,
+                        Path.AltDirectorySeparatorChar);
+
+                string rootPrefix =
+                    rootPath +
+                    Path.DirectorySeparatorChar;
+
+                if (!String.Equals(
+                        fullPath,
+                        rootPath,
+                        StringComparison.OrdinalIgnoreCase) &&
+                    !fullPath.StartsWith(
+                        rootPrefix,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    error =
+                        "Protected storage path is outside the managed ProgramData root.";
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error =
+                    "Unable to normalize protected storage path: " +
+                    ex.Message;
+                return false;
+            }
+        }
+
+        private static void HardenDirectory(
+            string path)
+        {
+            SecurityIdentifier administrators =
+                new SecurityIdentifier(
+                    WellKnownSidType.BuiltinAdministratorsSid,
+                    null);
+
+            DirectorySecurity ownerSecurity =
+                Directory.GetAccessControl(
+                    path,
+                    AccessControlSections.Owner);
+            ownerSecurity.SetOwner(administrators);
+            Directory.SetAccessControl(
+                path,
+                ownerSecurity);
+
+            DirectorySecurity security =
+                new DirectorySecurity();
+            security.SetOwner(administrators);
+            security.SetAccessRuleProtection(
+                true,
+                false);
+
+            InheritanceFlags inheritance =
+                InheritanceFlags.ContainerInherit |
+                InheritanceFlags.ObjectInherit;
+
+            security.AddAccessRule(
+                new FileSystemAccessRule(
+                    new SecurityIdentifier(
+                        WellKnownSidType.LocalSystemSid,
+                        null),
+                    FileSystemRights.FullControl,
+                    inheritance,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+
+            security.AddAccessRule(
+                new FileSystemAccessRule(
+                    administrators,
+                    FileSystemRights.FullControl,
+                    inheritance,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+
+            security.AddAccessRule(
+                new FileSystemAccessRule(
+                    new SecurityIdentifier(
+                        WellKnownSidType.BuiltinUsersSid,
+                        null),
+                    FileSystemRights.ReadAndExecute |
+                    FileSystemRights.Read,
+                    inheritance,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+
+            Directory.SetAccessControl(
+                path,
+                security);
+        }
+
+        private static bool VerifyDirectorySecurity(
+            string path,
+            out string details)
+        {
+            details = String.Empty;
+
+            try
+            {
+                DirectorySecurity security =
+                    Directory.GetAccessControl(
+                        path,
+                        AccessControlSections.Owner |
+                        AccessControlSections.Access);
+
+                SecurityIdentifier owner =
+                    security.GetOwner(
+                        typeof(SecurityIdentifier))
+                    as SecurityIdentifier;
+
+                if (!IsTrustedOwner(owner))
+                {
+                    details =
+                        "Directory owner is not LocalSystem or Builtin Administrators.";
+                    return false;
+                }
+
+                if (!security.AreAccessRulesProtected)
+                {
+                    details =
+                        "Directory ACL still inherits access rules from its parent.";
+                    return false;
+                }
+
+                AuthorizationRuleCollection rules =
+                    security.GetAccessRules(
+                        true,
+                        true,
+                        typeof(SecurityIdentifier));
+
+                foreach (FileSystemAccessRule rule in rules)
+                {
+                    SecurityIdentifier sid =
+                        rule.IdentityReference
+                        as SecurityIdentifier;
+
+                    if (IsDangerousBroadWriteGrant(
+                        sid,
+                        rule.FileSystemRights,
+                        rule.AccessControlType))
+                    {
+                        details =
+                            "A broad user group has write-capable access.";
+                        return false;
+                    }
+                }
+
+                details =
+                    "Directory owner and protected ACL are trusted.";
+                return true;
+            }
+            catch (Exception ex)
+            {
+                details =
+                    "Unable to inspect protected directory owner/ACL: " +
+                    ex.Message;
+                return false;
+            }
+        }
+
+        private static bool IsBroadIdentity(
+            SecurityIdentifier sid)
         {
             return
                 sid.Equals(new SecurityIdentifier(
