@@ -482,6 +482,12 @@ namespace DomainMembershipCheckRepair
         {
             string reuse = NetSetupLogAnalyzer.ExplainCode("0xAAC");
             AssertTrue(reuse.IndexOf("reuse", StringComparison.OrdinalIgnoreCase) >= 0, "0xAAC account reuse mapping");
+            AssertTrue(
+                reuse.IndexOf("ComputerAccountReuseAllowList", StringComparison.OrdinalIgnoreCase) >= 0,
+                "0xAAC guidance names supported DC reuse allow-list policy");
+            AssertTrue(
+                reuse.IndexOf("SAMRPC", StringComparison.OrdinalIgnoreCase) >= 0,
+                "0xAAC guidance includes SAMRPC policy/access");
 
             string rpc = NetSetupLogAnalyzer.ExplainCode("0x6ba");
             AssertTrue(rpc.IndexOf("RPC", StringComparison.OrdinalIgnoreCase) >= 0, "0x6BA RPC mapping");
