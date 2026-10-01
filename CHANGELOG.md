@@ -105,6 +105,7 @@
 - Made the BEFORE recovery snapshot a required atomic write before guarded mutation proceeds; AFTER/comparison writes remain best-effort so they cannot mask a mutation that already completed.
 - Removed the computer name from recovery snapshot filenames and added Self Test coverage for snapshot-storage trust.
 - Added explicit CLI/GUI fail-closed handling for required BEFORE snapshot creation so storage failures block the operation with a clear error instead of surfacing as an unhandled exception.
+- Aligned GUI `Restore Deleted AD` and `Rollback Local` with CLI recovery semantics by requiring a protected BEFORE snapshot after operator confirmation and before the mutation begins.
 
 ## 1.5.0
 
