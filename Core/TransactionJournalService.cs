@@ -130,9 +130,28 @@ namespace DomainMembershipCheckRepair
                     storageDetails);
             }
 
+            string fileDetails;
+            if (!ProtectedStorageAcl.PrepareProtectedFileTarget(
+                fullPath,
+                out fileDetails))
+            {
+                throw new IOException(
+                    "Transaction journal target failed security verification before write: " +
+                    fileDetails);
+            }
+
             WriteTextAtomically(
                 fullPath,
                 sb.ToString());
+
+            if (!ProtectedStorageAcl.HardenProtectedFile(
+                fullPath,
+                out fileDetails))
+            {
+                throw new IOException(
+                    "Transaction journal file failed owner/ACL hardening after write: " +
+                    fileDetails);
+            }
 
             journal.Path = fullPath;
         }
@@ -431,38 +450,9 @@ namespace DomainMembershipCheckRepair
 
         private static bool IsJournalSecurityTrusted(string path, out string error)
         {
-            error = String.Empty;
-            try
-            {
-                FileSecurity security = File.GetAccessControl(path);
-                AuthorizationRuleCollection rules = security.GetAccessRules(
-                    true,
-                    true,
-                    typeof(SecurityIdentifier));
-
-                foreach (FileSystemAccessRule rule in rules)
-                {
-                    SecurityIdentifier sid =
-                        rule.IdentityReference as SecurityIdentifier;
-
-                    if (ProtectedStorageAcl.IsUntrustedWriteGrant(
-                        sid,
-                        rule.FileSystemRights,
-                        rule.AccessControlType))
-                    {
-                        error =
-                            "A non-privileged identity has write-capable access to the journal file.";
-                        return false;
-                    }
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                error = ex.Message;
-                return false;
-            }
+            return ProtectedStorageAcl.IsProtectedFileTrusted(
+                path,
+                out error);
         }
 
         private static bool RestoreRegistry(TransactionJournalEntry entry, out string error)
