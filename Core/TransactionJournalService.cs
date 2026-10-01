@@ -685,9 +685,18 @@ namespace DomainMembershipCheckRepair
 
             try
             {
+                string pathDetails;
+                if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
+                    path,
+                    out pathDetails))
+                {
+                    throw new IOException(
+                        "Transaction journal storage parent path failed reparse-point verification: " +
+                        pathDetails);
+                }
+
                 Directory.CreateDirectory(path);
 
-                string pathDetails;
                 if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
                     path,
                     out pathDetails))
