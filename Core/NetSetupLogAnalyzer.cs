@@ -136,6 +136,25 @@ namespace DomainMembershipCheckRepair
             }
         }
 
+        internal static bool HasSamDomainJoinPolicyAccessDeniedEvidence(string text)
+        {
+            string all = (text ?? String.Empty).ToLowerInvariant();
+
+            bool policyV2 =
+                all.Contains("sam_domain_join_policy_level_v2") ||
+                all.Contains("netpdsvalidatecomputeraccountreuseattempt");
+
+            bool accessDenied =
+                all.Contains("c0000022") ||
+                all.Contains("netstatus:0x5") ||
+                all.Contains("netstatus: 0x5") ||
+                all.Contains("netstatus:5") ||
+                all.Contains("netstatus: 5") ||
+                all.Contains("access denied");
+
+            return policyV2 && accessDenied;
+        }
+
         private static void Classify(NetSetupAnalysis result)
         {
             if (!String.IsNullOrWhiteSpace(result.LastErrorCode))
@@ -146,6 +165,15 @@ namespace DomainMembershipCheckRepair
             }
 
             string all = String.Join("\n", result.RecentRelevantLines.ToArray()).ToLowerInvariant();
+
+            if (HasSamDomainJoinPolicyAccessDeniedEvidence(all))
+            {
+                result.Findings.Add(
+                    "Authenticated SAMRPC account-reuse policy validation was denied by the domain controller. " +
+                    "Check the DC policy 'Network access: Restrict clients allowed to make remote calls to SAM' " +
+                    "(HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa\\RestrictRemoteSam) and allow the required domain-join identity/group, or restore the DC policy to its supported default.");
+            }
+
             if (all.Contains("account reuse") || all.Contains("reuse") && all.Contains("blocked"))
                 result.Findings.Add("Existing computer-account reuse appears to be blocked; inspect computer-object ownership, the DC ComputerAccountReuseAllowList trusted-owner policy, and authenticated SAMRPC access. Do not rely on the removed NetJoinLegacyAccountReuse workaround.");
             if (all.Contains("no logon servers") || all.Contains("no such domain"))

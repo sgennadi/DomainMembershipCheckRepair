@@ -52,7 +52,7 @@ The release version has one source of truth: `VersionInfo.cs`. Assembly metadata
 - Automatic pre/post recovery snapshots and pre-change safety bundles.
 - Destructive AD Delete Safety Gate with cross-DC/RODC/child-object/recent-change checks.
 - Application Self Test for deployment validation.
-- NetSetup.log analyzer and Windows event timeline, including operational Event Log channels and current KB5020276 account-reuse evidence (Netjoin 4100/4101, Directory-Services-SAM 16995-16998, `ComputerAccountReuseAllowList`, and SAMRPC policy failures).
+- NetSetup.log analyzer and Windows event timeline, including operational Event Log channels and current KB5020276 account-reuse evidence (Netjoin 4100/4101, Directory-Services-SAM 16995-16998, `ComputerAccountReuseAllowList`, authenticated SAMRPC, and `RestrictRemoteSam` access-denied failures).
 - DNS/DC Locator, active-adapter, local FQDN, forward/reverse record and multi-NIC diagnostics.
 - AD computer-account owner/pwdLastSet/SPN/child-object analysis.
 - Ordered recovery plan with destructive deletion kept as a last resort.
