@@ -82,6 +82,10 @@
 - Hardened post-reboot resume target selection so `RunOnce` registration requires a positively identified interactive-user SID and never falls back to the current/elevated process identity after runas/CyberArk elevation.
 - Added regression coverage proving that an absent interactive SID fails closed even when a current elevated-process SID is available.
 
+- Hardened Active Directory Recycle Bin/recovery LDAP sessions with explicit Negotiate signing and sealing on port 389.
+- Hardened deleted-object restore against TOCTOU/state races by requiring an immutable object GUID and re-reading the exact deleted object immediately before restore; sAMAccountName, GUID, deleted/recycled state, lastKnownParent and last-known RDN must still match.
+- Added regression coverage for final AD restore identity/state validation, including changed GUID/SAM, recycled/restored state and changed restore location.
+
 ## 1.5.0
 
 - Added Per-Monitor V2 DPI configuration and high-DPI automatic WinForms resizing.
