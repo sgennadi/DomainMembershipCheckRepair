@@ -859,7 +859,15 @@ namespace DomainMembershipCheckRepair
         {
             string path = GetRecoveryFolderPath();
             Directory.CreateDirectory(path);
-            HardenFolder(path);
+
+            string securityError;
+            if (!HardenAndVerifyRecoveryFolder(path, out securityError))
+            {
+                throw new IOException(
+                    "Recovery package storage could not be hardened and verified: " +
+                    securityError);
+            }
+
             return path;
         }
 
@@ -872,8 +880,12 @@ namespace DomainMembershipCheckRepair
                 "RecoveryPackages");
         }
 
-        private static void HardenFolder(string path)
+        private static bool HardenAndVerifyRecoveryFolder(
+            string path,
+            out string error)
         {
+            error = String.Empty;
+
             try
             {
                 DirectorySecurity security = new DirectorySecurity();
@@ -912,9 +924,100 @@ namespace DomainMembershipCheckRepair
 
                 Directory.SetAccessControl(path, security);
             }
-            catch
+            catch (Exception ex)
             {
+                error = "Unable to apply protected ACL: " + ex.Message;
+                return false;
             }
+
+            return IsRecoveryFolderSecurityTrusted(path, out error);
+        }
+
+        internal static bool IsRecoveryFolderSecurityTrusted(
+            string path,
+            out string details)
+        {
+            if (String.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+            {
+                details = "Recovery package folder does not exist.";
+                return false;
+            }
+
+            try
+            {
+                DirectorySecurity security = Directory.GetAccessControl(path);
+                AuthorizationRuleCollection rules = security.GetAccessRules(
+                    true,
+                    true,
+                    typeof(SecurityIdentifier));
+
+                foreach (FileSystemAccessRule rule in rules)
+                {
+                    SecurityIdentifier sid =
+                        rule.IdentityReference as SecurityIdentifier;
+
+                    if (IsDangerousBroadRecoveryStorageGrant(
+                        sid,
+                        rule.FileSystemRights,
+                        rule.AccessControlType))
+                    {
+                        details =
+                            "A broad user group has write-capable access to recovery package storage.";
+                        return false;
+                    }
+                }
+
+                details =
+                    "Recovery package folder ACL does not grant broad-user write access.";
+                return true;
+            }
+            catch (Exception ex)
+            {
+                details =
+                    "Unable to inspect recovery package folder ACL: " +
+                    ex.Message;
+                return false;
+            }
+        }
+
+        internal static bool IsDangerousBroadRecoveryStorageGrant(
+            SecurityIdentifier sid,
+            FileSystemRights rights,
+            AccessControlType accessType)
+        {
+            if (sid == null || accessType != AccessControlType.Allow)
+                return false;
+
+            SecurityIdentifier users = new SecurityIdentifier(
+                WellKnownSidType.BuiltinUsersSid,
+                null);
+            SecurityIdentifier authenticated = new SecurityIdentifier(
+                WellKnownSidType.AuthenticatedUserSid,
+                null);
+            SecurityIdentifier everyone = new SecurityIdentifier(
+                WellKnownSidType.WorldSid,
+                null);
+
+            bool broad =
+                sid.Equals(users) ||
+                sid.Equals(authenticated) ||
+                sid.Equals(everyone);
+
+            if (!broad)
+                return false;
+
+            FileSystemRights dangerous =
+                FileSystemRights.Write |
+                FileSystemRights.Modify |
+                FileSystemRights.FullControl |
+                FileSystemRights.WriteData |
+                FileSystemRights.AppendData |
+                FileSystemRights.CreateFiles |
+                FileSystemRights.CreateDirectories |
+                FileSystemRights.ChangePermissions |
+                FileSystemRights.TakeOwnership;
+
+            return (rights & dangerous) != 0;
         }
 
         private static string SafeFileName(string value)
