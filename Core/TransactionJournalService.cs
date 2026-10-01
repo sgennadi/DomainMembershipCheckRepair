@@ -210,52 +210,33 @@ namespace DomainMembershipCheckRepair
                     true,
                     typeof(SecurityIdentifier));
 
-                SecurityIdentifier users = new SecurityIdentifier(
-                    WellKnownSidType.BuiltinUsersSid, null);
-                SecurityIdentifier authenticated = new SecurityIdentifier(
-                    WellKnownSidType.AuthenticatedUserSid, null);
-                SecurityIdentifier everyone = new SecurityIdentifier(
-                    WellKnownSidType.WorldSid, null);
-
                 foreach (FileSystemAccessRule rule in rules)
                 {
-                    if (rule.AccessControlType != AccessControlType.Allow)
-                        continue;
+                    SecurityIdentifier sid =
+                        rule.IdentityReference as SecurityIdentifier;
 
-                    SecurityIdentifier sid = rule.IdentityReference as SecurityIdentifier;
-                    if (sid == null)
-                        continue;
-
-                    bool broad = sid.Equals(users) ||
-                                 sid.Equals(authenticated) ||
-                                 sid.Equals(everyone);
-                    if (!broad)
-                        continue;
-
-                    FileSystemRights dangerous =
-                        FileSystemRights.Write |
-                        FileSystemRights.Modify |
-                        FileSystemRights.FullControl |
-                        FileSystemRights.WriteData |
-                        FileSystemRights.AppendData |
-                        FileSystemRights.CreateFiles |
-                        FileSystemRights.CreateDirectories |
-                        FileSystemRights.ChangePermissions |
-                        FileSystemRights.TakeOwnership;
-
-                    if ((rule.FileSystemRights & dangerous) != 0)
+                    if (ProtectedStorageAcl.IsDangerousBroadWriteGrant(
+                        sid,
+                        rule.FileSystemRights,
+                        rule.AccessControlType))
                     {
-                        details = "Broad users have write-capable access to " + path + ".";
+                        details =
+                            "Broad users have write-capable access to " +
+                            path + ".";
                         return false;
                     }
                 }
 
-                details = "Transaction folder ACL does not grant broad-user write access: " + path;
+                details =
+                    "Transaction folder ACL does not grant broad-user write access: " +
+                    path;
                 return true;
             }
             catch (Exception ex)
             {
-                details = "Unable to inspect transaction folder ACL: " + ex.Message;
+                details =
+                    "Unable to inspect transaction folder ACL: " +
+                    ex.Message;
                 return false;
             }
         }
@@ -430,40 +411,18 @@ namespace DomainMembershipCheckRepair
                     true,
                     typeof(SecurityIdentifier));
 
-                SecurityIdentifier users = new SecurityIdentifier(
-                    WellKnownSidType.BuiltinUsersSid, null);
-                SecurityIdentifier authenticated = new SecurityIdentifier(
-                    WellKnownSidType.AuthenticatedUserSid, null);
-                SecurityIdentifier everyone = new SecurityIdentifier(
-                    WellKnownSidType.WorldSid, null);
-
                 foreach (FileSystemAccessRule rule in rules)
                 {
-                    if (rule.AccessControlType != AccessControlType.Allow)
-                        continue;
+                    SecurityIdentifier sid =
+                        rule.IdentityReference as SecurityIdentifier;
 
-                    SecurityIdentifier sid = rule.IdentityReference as SecurityIdentifier;
-                    if (sid == null)
-                        continue;
-
-                    bool broad = sid.Equals(users) ||
-                                 sid.Equals(authenticated) ||
-                                 sid.Equals(everyone);
-                    if (!broad)
-                        continue;
-
-                    FileSystemRights dangerous =
-                        FileSystemRights.Write |
-                        FileSystemRights.Modify |
-                        FileSystemRights.FullControl |
-                        FileSystemRights.WriteData |
-                        FileSystemRights.AppendData |
-                        FileSystemRights.ChangePermissions |
-                        FileSystemRights.TakeOwnership;
-
-                    if ((rule.FileSystemRights & dangerous) != 0)
+                    if (ProtectedStorageAcl.IsDangerousBroadWriteGrant(
+                        sid,
+                        rule.FileSystemRights,
+                        rule.AccessControlType))
                     {
-                        error = "A broad user group has write-capable access to the journal file.";
+                        error =
+                            "A broad user group has write-capable access to the journal file.";
                         return false;
                     }
                 }
