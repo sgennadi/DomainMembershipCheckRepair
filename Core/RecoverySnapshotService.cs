@@ -41,6 +41,35 @@ namespace DomainMembershipCheckRepair
         internal string AfterPath { get; private set; }
         internal string SummaryPath { get; private set; }
 
+        internal static bool TryCreate(
+            string operationName,
+            string targetDomain,
+            string dc,
+            string domainUser,
+            string domainPassword,
+            out RecoverySnapshotScope scope,
+            out string error)
+        {
+            scope = null;
+            error = String.Empty;
+
+            try
+            {
+                scope = new RecoverySnapshotScope(
+                    operationName,
+                    targetDomain,
+                    dc,
+                    domainUser,
+                    domainPassword);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
         internal RecoverySnapshotScope(
             string operationName,
             string targetDomain,
