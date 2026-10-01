@@ -257,6 +257,15 @@ namespace DomainMembershipCheckRepair
                 return true;
             }
 
+            string pathDetails;
+            if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
+                path,
+                out pathDetails))
+            {
+                details = pathDetails;
+                return false;
+            }
+
             try
             {
                 DirectorySecurity security = Directory.GetAccessControl(path);
@@ -677,6 +686,17 @@ namespace DomainMembershipCheckRepair
             try
             {
                 Directory.CreateDirectory(path);
+
+                string pathDetails;
+                if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
+                    path,
+                    out pathDetails))
+                {
+                    throw new IOException(
+                        "Transaction journal storage path failed reparse-point verification: " +
+                        pathDetails);
+                }
+
                 HardenFolderAcl(path);
 
                 string details;
