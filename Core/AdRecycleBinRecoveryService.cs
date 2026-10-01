@@ -981,9 +981,19 @@ namespace DomainMembershipCheckRepair
         private static string GetRecoveryFolder()
         {
             string path = GetRecoveryFolderPath();
-            Directory.CreateDirectory(path);
 
             string pathDetails;
+            if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
+                path,
+                out pathDetails))
+            {
+                throw new IOException(
+                    "Recovery package storage parent path failed reparse-point verification: " +
+                    pathDetails);
+            }
+
+            Directory.CreateDirectory(path);
+
             if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
                 path,
                 out pathDetails))
