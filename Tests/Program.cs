@@ -31,6 +31,7 @@ namespace DomainMembershipCheckRepair
             TestGuiResumeOptions();
             TestPostRebootResumeCommand();
             TestNetSetupErrorMapping();
+            TestSamDomainJoinPolicyAccessDeniedEvidence();
             TestDomainJoinReuseEventClassification();
             TestUiLayoutMath();
             TestKerberosEncryptionTypeDecoding();
@@ -493,6 +494,30 @@ namespace DomainMembershipCheckRepair
             AssertTrue(rpc.IndexOf("RPC", StringComparison.OrdinalIgnoreCase) >= 0, "0x6BA RPC mapping");
 
             AssertEqual(String.Empty, NetSetupLogAnalyzer.ExplainCode("0xDEADBEEF"), "unknown NetSetup code");
+        }
+
+        private static void TestSamDomainJoinPolicyAccessDeniedEvidence()
+        {
+            AssertTrue(
+                NetSetupLogAnalyzer.HasSamDomainJoinPolicyAccessDeniedEvidence(
+                    "NetpDsValidateComputerAccountReuseAttempt: returning NtStatus: c0000022, NetStatus: 5\r\n" +
+                    "NetpCheckIfAccountShouldBeReused: Active Directory Policy check with SAM_DOMAIN_JOIN_POLICY_LEVEL_V2 returned NetStatus:0x5."),
+                "SAM domain-join policy V2 access denied is detected");
+
+            AssertTrue(
+                NetSetupLogAnalyzer.HasSamDomainJoinPolicyAccessDeniedEvidence(
+                    "NetpDsValidateComputerAccountReuseAttempt: access denied"),
+                "SAM domain-join reuse validation access denied is detected");
+
+            AssertFalse(
+                NetSetupLogAnalyzer.HasSamDomainJoinPolicyAccessDeniedEvidence(
+                    "SAM_DOMAIN_JOIN_POLICY_LEVEL_V2 returned NetStatus:0x0."),
+                "successful SAM domain-join policy validation is not flagged");
+
+            AssertFalse(
+                NetSetupLogAnalyzer.HasSamDomainJoinPolicyAccessDeniedEvidence(
+                    "Access denied while opening an unrelated file."),
+                "unrelated access denied text is not treated as SAM domain-join policy denial");
         }
 
         private static void TestDomainJoinReuseEventClassification()

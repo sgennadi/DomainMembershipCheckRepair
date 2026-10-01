@@ -96,6 +96,9 @@
 - Expanded Windows event timeline classification for Netjoin 4100/4101 and Directory-Services-SAM 16995-16998 account-reuse/allow-list events plus SAM_DOMAIN_JOIN_POLICY evidence.
 - Clarified that `ComputerAccountReuseAllowList` registry evidence is DC-side; absence of the local value on a member workstation does not prove target DCs are unconfigured.
 - Added regression coverage for modern domain-join account-reuse event classification and guidance.
+- Added explicit NetSetup.log detection for the documented `SAM_DOMAIN_JOIN_POLICY_LEVEL_V2` / `c0000022` / `NetStatus:0x5` failure pattern, identifying authenticated SAMRPC validation denied by the target DC.
+- Added focused remediation guidance for the DC `RestrictRemoteSam` policy and promoted this evidence to a dedicated high-priority Domain-join SAMRPC root-cause category.
+- Added regression coverage that distinguishes SAMRPC domain-join policy denial from unrelated access-denied text.
 
 ## 1.5.0
 
