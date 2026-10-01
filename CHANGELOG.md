@@ -110,7 +110,7 @@
 - Added regression coverage for initial/replacement AD recovery-package atomic writes and temporary-file cleanup.
 - Hardened the shared `%ProgramData%\DomainMembershipCheckRepair` root and all managed child storage folders by enforcing Builtin Administrators ownership, disabling ACL inheritance, and permitting write-capable access only to LocalSystem and Builtin Administrators.
 - Extended protected-storage trust verification to reject untrusted owners, inherited ACLs, any non-privileged write-capable ACE, and reparse-point redirection across Transactions, RecoveryPackages and Snapshots.
-- Added regression coverage for trusted owners and non-privileged writer rejection, and removed duplicate per-feature ACL hardeners in favor of the shared policy.
+- Added regression coverage for trusted owners and non-privileged writer rejection, removed duplicate per-feature ACL hardeners in favor of the shared policy, and re-verify transaction storage trust immediately before each atomic journal write.
 
 ## 1.5.0
 
