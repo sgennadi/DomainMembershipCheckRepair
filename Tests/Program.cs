@@ -452,6 +452,27 @@ namespace DomainMembershipCheckRepair
             AssertTrue(
                 relativeExecutableRejected,
                 "post-reboot RunOnce rejects relative executable path");
+
+            AssertEqual(
+                "S-1-5-21-111-222-333-1001",
+                ResumeService.SelectPostRebootTargetSid(
+                    " S-1-5-21-111-222-333-1001 ",
+                    "S-1-5-21-111-222-333-500"),
+                "post-reboot target uses the detected interactive user SID");
+
+            AssertEqual(
+                String.Empty,
+                ResumeService.SelectPostRebootTargetSid(
+                    String.Empty,
+                    "S-1-5-21-111-222-333-500"),
+                "post-reboot target never falls back to current elevated process SID");
+
+            AssertEqual(
+                String.Empty,
+                ResumeService.SelectPostRebootTargetSid(
+                    null,
+                    null),
+                "post-reboot target fails closed when no interactive SID is known");
         }
 
         private static void TestNetSetupErrorMapping()
