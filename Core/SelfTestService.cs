@@ -47,6 +47,7 @@ namespace DomainMembershipCheckRepair
             TestDpiConfig(r);
             TestTransactionStorage(r);
             TestRecoverySnapshotStorage(r);
+            TestProtectedFileStorage(r);
 
             string targetDomain = (domain ?? String.Empty).Trim();
             if (!String.IsNullOrWhiteSpace(targetDomain))
@@ -524,6 +525,127 @@ namespace DomainMembershipCheckRepair
                 "Recovery snapshot storage",
                 ok ? "PASS" : "WARN",
                 details);
+        }
+
+        private static void TestProtectedFileStorage(SelfTestResult r)
+        {
+            if (!ElevationHelper.IsAdministrator())
+            {
+                Add(
+                    r,
+                    "Protected file owner/ACL probe",
+                    "SKIP",
+                    "Administrator privileges are required to create and owner-harden the protected ProgramData probe file.");
+                return;
+            }
+
+            string folder = Path.Combine(
+                ProtectedStorageAcl.GetApplicationRootPath(),
+                "SelfTest");
+
+            bool folderExisted = Directory.Exists(folder);
+
+            string path = Path.Combine(
+                folder,
+                "acl-probe-" +
+                Guid.NewGuid().ToString("N") +
+                ".tmp");
+
+            string status = "FAIL";
+            string resultDetails = String.Empty;
+
+            try
+            {
+                string details;
+                if (!ProtectedStorageAcl.EnsureProtectedDirectory(
+                    folder,
+                    out details))
+                {
+                    throw new IOException(
+                        "Unable to prepare protected SelfTest storage: " +
+                        details);
+                }
+
+                if (!ProtectedStorageAcl.PrepareProtectedFileTarget(
+                    path,
+                    out details))
+                {
+                    throw new IOException(
+                        "Protected file target preflight failed: " +
+                        details);
+                }
+
+                File.WriteAllText(
+                    path,
+                    "DomainMembershipCheckRepair protected storage self-test",
+                    Encoding.ASCII);
+
+                if (!ProtectedStorageAcl.HardenProtectedFile(
+                    path,
+                    out details))
+                {
+                    throw new IOException(
+                        "Protected file owner/ACL hardening failed: " +
+                        details);
+                }
+
+                if (!ProtectedStorageAcl.IsProtectedFileTrusted(
+                    path,
+                    out details))
+                {
+                    throw new IOException(
+                        "Protected file trust verification failed: " +
+                        details);
+                }
+
+                status = "PASS";
+                resultDetails =
+                    "Created, owner-hardened and verified a protected ProgramData probe file. " +
+                    details;
+            }
+            catch (Exception ex)
+            {
+                status = "FAIL";
+                resultDetails = ex.Message;
+            }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(path))
+                        File.Delete(path);
+
+                    if (!folderExisted &&
+                        Directory.Exists(folder) &&
+                        Directory.GetFileSystemEntries(folder).Length == 0)
+                    {
+                        Directory.Delete(folder);
+                    }
+                }
+                catch (Exception cleanupEx)
+                {
+                    if (String.Equals(
+                        status,
+                        "PASS",
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        status = "WARN";
+                    }
+
+                    resultDetails +=
+                        (resultDetails.Length == 0
+                            ? String.Empty
+                            : " ") +
+                        "Probe cleanup warning: " +
+                        cleanupEx.Message;
+                }
+            }
+
+            Add(
+                r,
+                "Protected file owner/ACL probe",
+                status,
+                resultDetails);
         }
 
         private static string Collapse(string value, int max)
