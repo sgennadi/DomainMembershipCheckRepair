@@ -589,12 +589,22 @@ namespace DomainMembershipCheckRepair
             {
                 if (ElevationHelper.RequiresRecoverySnapshot(action) && !options.DryRun)
                 {
-                    snapshot = new RecoverySnapshotScope(
+                    string snapshotError;
+                    if (!RecoverySnapshotScope.TryCreate(
                         action,
                         options.Domain,
                         options.PreferredDc,
                         null,
-                        null);
+                        null,
+                        out snapshot,
+                        out snapshotError))
+                    {
+                        logger.Log(
+                            "ERROR",
+                            "Operation blocked because the required BEFORE recovery snapshot could not be created securely: " +
+                            snapshotError);
+                        return 1;
+                    }
                 }
 
                 switch (action)

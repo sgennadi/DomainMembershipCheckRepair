@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 
 namespace DomainMembershipCheckRepair
@@ -39,6 +41,35 @@ namespace DomainMembershipCheckRepair
         internal string AfterPath { get; private set; }
         internal string SummaryPath { get; private set; }
 
+        internal static bool TryCreate(
+            string operationName,
+            string targetDomain,
+            string dc,
+            string domainUser,
+            string domainPassword,
+            out RecoverySnapshotScope scope,
+            out string error)
+        {
+            scope = null;
+            error = String.Empty;
+
+            try
+            {
+                scope = new RecoverySnapshotScope(
+                    operationName,
+                    targetDomain,
+                    dc,
+                    domainUser,
+                    domainPassword);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
         internal RecoverySnapshotScope(
             string operationName,
             string targetDomain,
@@ -56,12 +87,14 @@ namespace DomainMembershipCheckRepair
             prefix = Path.Combine(
                 folder,
                 DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-" +
-                Environment.MachineName + "-" + operation + "-" +
+                operation + "-" +
                 Guid.NewGuid().ToString("N").Substring(0, 8));
 
             before = Capture(domain, preferredDc, user, password);
             BeforePath = prefix + ".before.txt";
-            SafeWrite(BeforePath, ToText("BEFORE", operation, before));
+            WriteTextAtomically(
+                BeforePath,
+                ToText("BEFORE", operation, before));
             Prune(folder);
         }
 
@@ -224,25 +257,140 @@ namespace DomainMembershipCheckRepair
 
         private static string EnsureSnapshotFolder()
         {
-            string primary = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-                "Logs",
+            string path = GetSnapshotFolderPath();
+            Directory.CreateDirectory(path);
+
+            string pathDetails;
+            if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
+                path,
+                out pathDetails))
+            {
+                throw new IOException(
+                    "Recovery snapshot storage path failed reparse-point verification: " +
+                    pathDetails);
+            }
+
+            HardenSnapshotFolderAcl(path);
+
+            string securityDetails;
+            if (!IsSnapshotFolderSecurityTrusted(
+                path,
+                out securityDetails))
+            {
+                throw new IOException(
+                    "Recovery snapshot storage failed security verification: " +
+                    securityDetails);
+            }
+
+            return path;
+        }
+
+        internal static string GetSnapshotFolderPath()
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(
+                    Environment.SpecialFolder.CommonApplicationData),
                 "DomainMembershipCheckRepair",
                 "Snapshots");
+        }
+
+        private static void HardenSnapshotFolderAcl(string path)
+        {
+            DirectorySecurity security = new DirectorySecurity();
+            security.SetAccessRuleProtection(true, false);
+
+            InheritanceFlags inheritance =
+                InheritanceFlags.ContainerInherit |
+                InheritanceFlags.ObjectInherit;
+
+            security.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(
+                    WellKnownSidType.LocalSystemSid,
+                    null),
+                FileSystemRights.FullControl,
+                inheritance,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+
+            security.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(
+                    WellKnownSidType.BuiltinAdministratorsSid,
+                    null),
+                FileSystemRights.FullControl,
+                inheritance,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+
+            security.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(
+                    WellKnownSidType.BuiltinUsersSid,
+                    null),
+                FileSystemRights.ReadAndExecute |
+                FileSystemRights.Read,
+                inheritance,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+
+            Directory.SetAccessControl(path, security);
+        }
+
+        internal static bool IsSnapshotFolderSecurityTrusted(
+            string path,
+            out string details)
+        {
+            if (String.IsNullOrWhiteSpace(path) ||
+                !Directory.Exists(path))
+            {
+                details = "Recovery snapshot folder does not exist.";
+                return false;
+            }
+
+            string pathDetails;
+            if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
+                path,
+                out pathDetails))
+            {
+                details = pathDetails;
+                return false;
+            }
 
             try
             {
-                Directory.CreateDirectory(primary);
-                return primary;
+                DirectorySecurity security =
+                    Directory.GetAccessControl(path);
+
+                AuthorizationRuleCollection rules =
+                    security.GetAccessRules(
+                        true,
+                        true,
+                        typeof(SecurityIdentifier));
+
+                foreach (FileSystemAccessRule rule in rules)
+                {
+                    SecurityIdentifier sid =
+                        rule.IdentityReference as SecurityIdentifier;
+
+                    if (ProtectedStorageAcl.IsDangerousBroadWriteGrant(
+                        sid,
+                        rule.FileSystemRights,
+                        rule.AccessControlType))
+                    {
+                        details =
+                            "A broad user group has write-capable access to recovery snapshot storage.";
+                        return false;
+                    }
+                }
+
+                details =
+                    "Recovery snapshot folder ACL does not grant broad-user write access.";
+                return true;
             }
-            catch
+            catch (Exception ex)
             {
-                string fallback = Path.Combine(
-                    Path.GetTempPath(),
-                    "DomainMembershipCheckRepair",
-                    "Snapshots");
-                Directory.CreateDirectory(fallback);
-                return fallback;
+                details =
+                    "Unable to inspect recovery snapshot folder ACL: " +
+                    ex.Message;
+                return false;
             }
         }
 
@@ -270,10 +418,83 @@ namespace DomainMembershipCheckRepair
         {
             try
             {
-                File.WriteAllText(path, text ?? String.Empty, new UTF8Encoding(false));
+                WriteTextAtomically(path, text);
             }
             catch
             {
+            }
+        }
+
+        internal static void WriteTextAtomically(
+            string path,
+            string text)
+        {
+            if (String.IsNullOrWhiteSpace(path))
+                throw new ArgumentException(
+                    "A recovery snapshot path is required.",
+                    "path");
+
+            string folder = Path.GetDirectoryName(path);
+            if (String.IsNullOrWhiteSpace(folder))
+            {
+                throw new IOException(
+                    "The recovery snapshot path has no parent directory.");
+            }
+
+            string trustedFolder = Path.GetFullPath(
+                GetSnapshotFolderPath());
+
+            string fullFolder =
+                trustedFolder.TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar) +
+                Path.DirectorySeparatorChar;
+
+            string fullPath = Path.GetFullPath(path);
+            if (!fullPath.StartsWith(
+                fullFolder,
+                StringComparison.OrdinalIgnoreCase))
+            {
+                throw new IOException(
+                    "Recovery snapshot path escaped the protected snapshot folder.");
+            }
+
+            string storageDetails;
+            if (!IsSnapshotFolderSecurityTrusted(
+                trustedFolder,
+                out storageDetails))
+            {
+                throw new IOException(
+                    "Recovery snapshot storage is not trusted immediately before write: " +
+                    storageDetails);
+            }
+
+            string tempPath =
+                fullPath + ".tmp-" +
+                Guid.NewGuid().ToString("N");
+
+            try
+            {
+                File.WriteAllText(
+                    tempPath,
+                    text ?? String.Empty,
+                    new UTF8Encoding(false));
+
+                if (File.Exists(fullPath))
+                    File.Replace(tempPath, fullPath, null);
+                else
+                    File.Move(tempPath, fullPath);
+            }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(tempPath))
+                        File.Delete(tempPath);
+                }
+                catch
+                {
+                }
             }
         }
 

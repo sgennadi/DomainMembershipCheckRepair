@@ -101,6 +101,10 @@
 - Added explicit NetSetup.log detection for the documented `SAM_DOMAIN_JOIN_POLICY_LEVEL_V2` / `c0000022` / `NetStatus:0x5` failure pattern, identifying authenticated SAMRPC validation denied by the target DC.
 - Added focused remediation guidance for the DC `RestrictRemoteSam` policy (`HKLM\SYSTEM\CurrentControlSet\Control\Lsa\RestrictRemoteSam`) and promoted this evidence to a dedicated high-priority Domain-join SAMRPC root-cause category.
 - Added regression coverage that distinguishes SAMRPC domain-join policy denial from unrelated access-denied text.
+- Moved recovery snapshots out of Windows Logs/%TEMP% fallback into protected `%ProgramData%\DomainMembershipCheckRepair\Snapshots` storage with ACL and reparse-point verification.
+- Made the BEFORE recovery snapshot a required atomic write before guarded mutation proceeds; AFTER/comparison writes remain best-effort so they cannot mask a mutation that already completed.
+- Removed the computer name from recovery snapshot filenames and added Self Test coverage for snapshot-storage trust.
+- Added explicit CLI/GUI fail-closed handling for required BEFORE snapshot creation so storage failures block the operation with a clear error instead of surfacing as an unhandled exception.
 
 ## 1.5.0
 

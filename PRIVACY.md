@@ -55,6 +55,18 @@ C:\Windows\Debug\NetSetup.log
 
 Those Windows logs are produced by the operating system and are outside the direct control of DomainMembershipCheckRepair.
 
+## Recovery snapshots
+
+Guarded recovery operations can create local BEFORE/AFTER/comparison snapshot text files containing operational state such as the computer name, joined/target domain, discovered DC, secure-channel state, pending rename, MII state, AD object GUID, owner, pwdLastSet and enabled state when those values are available.
+
+Recovery snapshots are stored under the protected local ProgramData application folder:
+
+```text
+%ProgramData%\DomainMembershipCheckRepair\Snapshots
+```
+
+The folder is hardened against broad-user write access and NTFS reparse-point redirection. The required BEFORE snapshot is written atomically before the guarded mutation proceeds. The application does not fall back to `%TEMP%` for these snapshots, and entered domain passwords are never written to them. Snapshot filenames do not include the local computer name.
+
 ## Diagnostic exports
 
 The operator can explicitly export a diagnostic ZIP package. Depending on availability and the options selected, it may contain structured diagnostics, Windows command output, `NetSetup.log`, recovery metadata and the optional application log when explicitly requested.

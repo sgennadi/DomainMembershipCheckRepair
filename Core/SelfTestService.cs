@@ -46,6 +46,7 @@ namespace DomainMembershipCheckRepair
             TestEventLogApi(r);
             TestDpiConfig(r);
             TestTransactionStorage(r);
+            TestRecoverySnapshotStorage(r);
 
             string targetDomain = (domain ?? String.Empty).Trim();
             if (!String.IsNullOrWhiteSpace(targetDomain))
@@ -497,6 +498,32 @@ namespace DomainMembershipCheckRepair
                 : (ok ? "PASS" : "WARN");
 
             Add(r, "Transaction journal ACL", status, details);
+        }
+
+        private static void TestRecoverySnapshotStorage(SelfTestResult r)
+        {
+            string path = RecoverySnapshotScope.GetSnapshotFolderPath();
+            if (!Directory.Exists(path))
+            {
+                Add(
+                    r,
+                    "Recovery snapshot storage",
+                    "SKIP",
+                    "Recovery snapshot folder does not exist yet: " + path);
+                return;
+            }
+
+            string details;
+            bool ok =
+                RecoverySnapshotScope.IsSnapshotFolderSecurityTrusted(
+                    path,
+                    out details);
+
+            Add(
+                r,
+                "Recovery snapshot storage",
+                ok ? "PASS" : "WARN",
+                details);
         }
 
         private static string Collapse(string value, int max)
