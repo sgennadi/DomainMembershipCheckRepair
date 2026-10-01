@@ -118,7 +118,7 @@ namespace DomainMembershipCheckRepair
             }
 
             AddRegistry(
-                r, "Computer account reuse allow list", "Local DC policy/runtime",
+                r, "Computer account reuse allow list", "Local SAM policy/runtime (DC-side setting)",
                 RegistryHive.LocalMachine,
                 @"SYSTEM\CurrentControlSet\Control\SAM",
                 "ComputerAccountReuseAllowList");
@@ -159,6 +159,11 @@ namespace DomainMembershipCheckRepair
                 foreach (string finding in r.Findings)
                     sb.AppendLine("- " + finding);
             }
+
+            sb.AppendLine();
+            sb.AppendLine(
+                "Account-reuse note: ComputerAccountReuseAllowList is evaluated on domain controllers. " +
+                "If this tool is running on a member workstation, absence of the local value does not prove that target DCs are unconfigured.");
 
             return sb.ToString();
         }

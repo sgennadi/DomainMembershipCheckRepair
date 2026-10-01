@@ -109,7 +109,7 @@ namespace DomainMembershipCheckRepair
             {
                 case "0xaac":
                 case "0x00000aac":
-                    return "NERR_AccountReuseBlockedByPolicy: existing computer-account reuse was blocked by Windows account-reuse hardening.";
+                    return "NERR_AccountReuseBlockedByPolicy: existing computer-account reuse was blocked by Windows account-reuse hardening. Verify computer-object ownership, the DC ComputerAccountReuseAllowList trusted-owner policy, and authenticated SAMRPC access. The legacy NetJoinLegacyAccountReuse workaround is no longer supported.";
                 case "0x8b0":
                 case "0x000008b0":
                     return "NERR_UserExists: an account with the same name already exists.";
@@ -147,7 +147,7 @@ namespace DomainMembershipCheckRepair
 
             string all = String.Join("\n", result.RecentRelevantLines.ToArray()).ToLowerInvariant();
             if (all.Contains("account reuse") || all.Contains("reuse") && all.Contains("blocked"))
-                result.Findings.Add("Existing computer-account reuse appears to be blocked; inspect owner/permissions and KB5020276-era hardening.");
+                result.Findings.Add("Existing computer-account reuse appears to be blocked; inspect computer-object ownership, the DC ComputerAccountReuseAllowList trusted-owner policy, and authenticated SAMRPC access. Do not rely on the removed NetJoinLegacyAccountReuse workaround.");
             if (all.Contains("no logon servers") || all.Contains("no such domain"))
                 result.Findings.Add("DC discovery/connectivity failed; validate AD DNS, SRV records, VPN/routing and firewall.");
             if (all.Contains("rpc server is unavailable") || all.Contains("0x6ba"))

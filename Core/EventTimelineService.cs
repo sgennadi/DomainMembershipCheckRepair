@@ -125,12 +125,14 @@ namespace DomainMembershipCheckRepair
             }
         }
 
-        private static bool IsRelevant(string source, int eventId, string message)
+        internal static bool IsRelevant(string source, int eventId, string message)
         {
             string s = (source ?? String.Empty).ToLowerInvariant();
             string m = (message ?? String.Empty).ToLowerInvariant();
 
             if (s.Contains("netlogon") ||
+                s.Contains("netjoin") ||
+                s.Contains("directory-services-sam") ||
                 s.Contains("kerberos") ||
                 s.Contains("lsasrv") ||
                 s.Contains("time-service") ||
@@ -142,10 +144,16 @@ namespace DomainMembershipCheckRepair
             switch (eventId)
             {
                 case 3210:
+                case 4100:
+                case 4101:
                 case 5719:
                 case 5722:
                 case 5805:
                 case 5823:
+                case 16995:
+                case 16996:
+                case 16997:
+                case 16998:
                 case 40960:
                 case 40961:
                     return true;
@@ -155,6 +163,10 @@ namespace DomainMembershipCheckRepair
                    m.Contains("secure channel") ||
                    m.Contains("domain controller") ||
                    m.Contains("machine account") ||
+                   m.Contains("computer account") ||
+                   m.Contains("account reuse") ||
+                   m.Contains("account re-use") ||
+                   m.Contains("sam_domain_join_policy") ||
                    m.Contains("credential guard") ||
                    m.Contains("machine identity");
         }

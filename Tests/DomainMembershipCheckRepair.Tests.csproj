@@ -51,6 +51,9 @@
     <Compile Include="..\Core\NetSetupLogAnalyzer.cs">
       <Link>NetSetupLogAnalyzer.cs</Link>
     </Compile>
+    <Compile Include="..\Core\EventTimelineService.cs">
+      <Link>EventTimelineService.cs</Link>
+    </Compile>
     <Compile Include="..\Models.cs">
       <Link>Models.cs</Link>
     </Compile>
