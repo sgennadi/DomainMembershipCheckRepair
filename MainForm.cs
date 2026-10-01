@@ -1711,44 +1711,58 @@ namespace DomainMembershipCheckRepair
                 user,
                 password);
 
-            TransactionJournal journal =
-                TransactionJournalService.Begin("ad-restore");
-            TransactionJournalService.RecordNote(
-                journal,
-                "Active Directory restore",
-                "Operator confirmed restore of deleted object " +
-                deleted.DistinguishedName + " to " +
-                deleted.RestoreDistinguishedName + ".");
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateRecoverySnapshotForGui(
+                "ad-restore",
+                targetDomain,
+                user,
+                password,
+                out snapshot))
+            {
+                return;
+            }
 
-            AdRestoreResult result =
-                AdRecycleBinRecoveryService.RestoreDeletedComputer(
-                    targetDomain,
-                    dc,
-                    computerName,
-                    user,
-                    password);
+            using (snapshot)
+            {
+                TransactionJournal journal =
+                    TransactionJournalService.Begin("ad-restore");
+                TransactionJournalService.RecordNote(
+                    journal,
+                    "Active Directory restore",
+                    "Operator confirmed restore of deleted object " +
+                    deleted.DistinguishedName + " to " +
+                    deleted.RestoreDistinguishedName + ".");
 
-            TransactionJournalService.RecordNote(
-                journal,
-                "Active Directory restore",
-                result.Success
-                    ? "Deleted AD computer object restore succeeded: " +
-                      result.RestoredDn
-                    : "Deleted AD computer object restore failed: " +
-                      result.Message);
-            journal.Complete();
+                AdRestoreResult result =
+                    AdRecycleBinRecoveryService.RestoreDeletedComputer(
+                        targetDomain,
+                        dc,
+                        computerName,
+                        user,
+                        password);
 
-            Log(
-                result.Success ? "SUCCESS" : "ERROR",
-                result.Message);
+                TransactionJournalService.RecordNote(
+                    journal,
+                    "Active Directory restore",
+                    result.Success
+                        ? "Deleted AD computer object restore succeeded: " +
+                          result.RestoredDn
+                        : "Deleted AD computer object restore failed: " +
+                          result.Message);
+                journal.Complete();
 
-            ReportDialog.ShowReport(
-                this,
-                "Restore Deleted AD",
-                AdRecycleBinRecoveryService.ToText(result));
+                Log(
+                    result.Success ? "SUCCESS" : "ERROR",
+                    result.Message);
 
-            if (result.Success)
-                RefreshStatus(false);
+                ReportDialog.ShowReport(
+                    this,
+                    "Restore Deleted AD",
+                    AdRecycleBinRecoveryService.ToText(result));
+
+                if (result.Success)
+                    RefreshStatus(false);
+            }
         }
 
         private void TransactionsWorkflow()
@@ -1786,11 +1800,30 @@ namespace DomainMembershipCheckRepair
             if (answer != DialogResult.Yes)
                 return;
 
-            string report;
-            bool ok = TransactionJournalService.RollbackLatest(out report);
-            Log(ok ? "SUCCESS" : "WARN", "Local transaction rollback completed.");
-            ReportDialog.ShowReport(this, "Rollback Local Changes", report);
-            RefreshStatus(false);
+            string domain =
+                domainBox == null
+                    ? String.Empty
+                    : (domainBox.Text ?? String.Empty).Trim();
+
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateRecoverySnapshotForGui(
+                "rollback-local",
+                domain,
+                null,
+                null,
+                out snapshot))
+            {
+                return;
+            }
+
+            using (snapshot)
+            {
+                string report;
+                bool ok = TransactionJournalService.RollbackLatest(out report);
+                Log(ok ? "SUCCESS" : "WARN", "Local transaction rollback completed.");
+                ReportDialog.ShowReport(this, "Rollback Local Changes", report);
+                RefreshStatus(false);
+            }
         }
 
         private void CyberArkHealthWorkflow()
