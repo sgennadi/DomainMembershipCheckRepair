@@ -584,81 +584,52 @@ namespace DomainMembershipCheckRepair
             if (TryRelaunchElevatedIfNeeded(action, out elevatedResult))
                 return elevatedResult;
 
-            RecoverySnapshotScope snapshot = null;
-            try
+            switch (action)
             {
-                if (ElevationHelper.RequiresRecoverySnapshot(action) && !options.DryRun)
-                {
-                    string snapshotError;
-                    if (!RecoverySnapshotScope.TryCreate(
-                        action,
-                        options.Domain,
-                        options.PreferredDc,
-                        null,
-                        null,
-                        out snapshot,
-                        out snapshotError))
-                    {
-                        logger.Log(
-                            "ERROR",
-                            "Operation blocked because the required BEFORE recovery snapshot could not be created securely: " +
-                            snapshotError);
-                        return 1;
-                    }
-                }
-
-                switch (action)
-                {
-                    case "status": return ShowStatus(true);
-                    case "check": return CheckTrustOnly();
-                    case "repair": return RepairTrust();
-                    case "join": return JoinCurrentName();
-                    case "rename": return RenameAndJoin(null, null, null, null);
-                    case "restart": return RestartWindows();
-                    case "mii-disable": return DisableMachineIdentityIsolation();
-                    case "advanced": return AdvancedDiagnostics();
-                    case "netsetup": return AnalyzeNetSetup();
-                    case "dc-matrix": return DcMatrix();
-                    case "site-subnet": return SiteSubnet();
-                    case "protocols": return ProtocolDiagnostics();
-                    case "hardening": return HardeningDiagnostics();
-                    case "join-permissions": return JoinPermissions();
-                    case "hybrid-entra": return HybridEntra();
-                    case "policy-source": return PolicySources();
-                    case "replication-metadata": return ReplicationMetadata();
-                    case "spn-collisions": return SpnCollisions();
-                    case "smb-kerberos": return SmbKerberos();
-                    case "kerberos-deep": return KerberosDeep();
-                    case "ldap-compatibility": return LdapCompatibility();
-                    case "rpc-endpoints": return RpcEndpoints();
-                    case "replication-timeline": return ReplicationTimeline();
-                    case "identity-consistency": return IdentityConsistency();
-                    case "next-action": return NextAction();
-                    case "transactions": return Transactions();
-                    case "rollback-local": return RollbackLocal();
-                    case "self-test": return SelfTest();
-                    case "recovery-plan": return RecoveryPlan();
-                    case "support-bundle": return SupportBundle();
-                    case "cyberark": return CyberArkHealth();
-                    case "elevation-probe": return ElevationProbe();
-                    case "ui-smoke": return MainForm.RunUiSmokeTests(options.Json);
-                    case "safe-fixes": return SafeFixes();
-                    case "odj-apply": return ApplyOfflineDomainJoin();
-                    case "odj-provision": return ProvisionOfflineDomainJoin();
-                    case "detect": return DetectAndDisplayDomain();
-                    case "ad-check": return CheckAdAccount();
-                    case "ad-recycle-bin": return AdRecycleBinStatusAction();
-                    case "ad-deleted": return AdDeletedObject();
-                    case "ad-restore": return RestoreDeletedAd();
-                    case "diagnose": return Diagnostics();
-                    case "export-diagnostics": return ExportDiagnostics();
-                    default: return 3;
-                }
-            }
-            finally
-            {
-                if (snapshot != null)
-                    snapshot.Dispose();
+                case "status": return ShowStatus(true);
+                case "check": return CheckTrustOnly();
+                case "repair": return RepairTrust();
+                case "join": return JoinCurrentName();
+                case "rename": return RenameAndJoin(null, null, null, null);
+                case "restart": return RestartWindows();
+                case "mii-disable": return DisableMachineIdentityIsolation();
+                case "advanced": return AdvancedDiagnostics();
+                case "netsetup": return AnalyzeNetSetup();
+                case "dc-matrix": return DcMatrix();
+                case "site-subnet": return SiteSubnet();
+                case "protocols": return ProtocolDiagnostics();
+                case "hardening": return HardeningDiagnostics();
+                case "join-permissions": return JoinPermissions();
+                case "hybrid-entra": return HybridEntra();
+                case "policy-source": return PolicySources();
+                case "replication-metadata": return ReplicationMetadata();
+                case "spn-collisions": return SpnCollisions();
+                case "smb-kerberos": return SmbKerberos();
+                case "kerberos-deep": return KerberosDeep();
+                case "ldap-compatibility": return LdapCompatibility();
+                case "rpc-endpoints": return RpcEndpoints();
+                case "replication-timeline": return ReplicationTimeline();
+                case "identity-consistency": return IdentityConsistency();
+                case "next-action": return NextAction();
+                case "transactions": return Transactions();
+                case "rollback-local": return RollbackLocal();
+                case "self-test": return SelfTest();
+                case "recovery-plan": return RecoveryPlan();
+                case "support-bundle": return SupportBundle();
+                case "cyberark": return CyberArkHealth();
+                case "elevation-probe": return ElevationProbe();
+                case "ui-smoke": return MainForm.RunUiSmokeTests(options.Json);
+                case "safe-fixes": return SafeFixes();
+                case "odj-apply": return ApplyOfflineDomainJoin();
+                case "odj-provision": return ProvisionOfflineDomainJoin();
+                case "detect": return DetectAndDisplayDomain();
+                case "ad-check": return CheckAdAccount();
+                case "ad-recycle-bin": return AdRecycleBinStatusAction();
+                case "ad-deleted": return AdDeletedObject();
+                case "ad-restore": return RestoreDeletedAd();
+                case "diagnose": return Diagnostics();
+                case "export-diagnostics": return ExportDiagnostics();
+                default: return 3;
             }
         }
 
@@ -1817,6 +1788,49 @@ namespace DomainMembershipCheckRepair
                 }
                 return DiagnosticExitCodes.NotTested;
             }
+        }
+
+        private static bool TryCreateCliRecoverySnapshot(
+            string action,
+            string domain,
+            string user,
+            string password,
+            out RecoverySnapshotScope snapshot)
+        {
+            snapshot = null;
+
+            if (!ElevationHelper.RequiresRecoverySnapshot(action))
+            {
+                logger.Log(
+                    "ERROR",
+                    "Internal safety policy error: action '" +
+                    action +
+                    "' is not marked as requiring a recovery snapshot.");
+                return false;
+            }
+
+            string snapshotError;
+            if (!RecoverySnapshotScope.TryCreate(
+                action,
+                domain,
+                options.PreferredDc,
+                user,
+                password,
+                out snapshot,
+                out snapshotError))
+            {
+                logger.Log(
+                    "ERROR",
+                    "Operation blocked because the required BEFORE recovery snapshot could not be created securely: " +
+                    snapshotError);
+                return false;
+            }
+
+            logger.Log(
+                "INFO",
+                "Required BEFORE recovery snapshot created: " +
+                snapshot.BeforePath);
+            return true;
         }
 
         private static void CreatePreChangeBundle(
