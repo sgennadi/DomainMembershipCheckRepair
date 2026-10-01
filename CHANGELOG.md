@@ -106,6 +106,8 @@
 - Removed the computer name from recovery snapshot filenames and added Self Test coverage for snapshot-storage trust.
 - Added explicit CLI/GUI fail-closed handling for required BEFORE snapshot creation so storage failures block the operation with a clear error instead of surfacing as an unhandled exception.
 - Aligned GUI `Restore Deleted AD` and `Rollback Local` with CLI recovery semantics by requiring the same protected BEFORE/AFTER snapshot scope around those mutations.
+- Made mandatory pre-delete AD recovery-package JSON writes atomic with same-directory temporary files plus replace/move semantics, and re-verify protected storage trust immediately before persistence.
+- Added regression coverage for initial/replacement AD recovery-package atomic writes and temporary-file cleanup.
 
 ## 1.5.0
 
