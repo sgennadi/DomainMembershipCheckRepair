@@ -1242,6 +1242,14 @@ namespace DomainMembershipCheckRepair
                 new SecurityIdentifier(
                     WellKnownSidType.BuiltinAdministratorsSid,
                     null);
+            SecurityIdentifier system =
+                new SecurityIdentifier(
+                    WellKnownSidType.LocalSystemSid,
+                    null);
+            SecurityIdentifier localService =
+                new SecurityIdentifier(
+                    WellKnownSidType.LocalServiceSid,
+                    null);
 
             AssertTrue(
                 ProtectedStorageAcl.IsDangerousBroadWriteGrant(
@@ -1284,6 +1292,39 @@ namespace DomainMembershipCheckRepair
                     FileSystemRights.Write,
                     AccessControlType.Deny),
                 "protected storage ignores deny rule as dangerous allow grant");
+
+            AssertTrue(
+                ProtectedStorageAcl.IsTrustedOwner(system),
+                "protected storage trusts LocalSystem as owner");
+
+            AssertTrue(
+                ProtectedStorageAcl.IsTrustedOwner(administrators),
+                "protected storage trusts Builtin Administrators as owner");
+
+            AssertFalse(
+                ProtectedStorageAcl.IsTrustedOwner(users),
+                "protected storage rejects Builtin Users as owner");
+
+            AssertTrue(
+                ProtectedStorageAcl.IsUntrustedWriteGrant(
+                    localService,
+                    FileSystemRights.Write,
+                    AccessControlType.Allow),
+                "protected storage rejects write access for a non-owner-privileged SID");
+
+            AssertFalse(
+                ProtectedStorageAcl.IsUntrustedWriteGrant(
+                    administrators,
+                    FileSystemRights.FullControl,
+                    AccessControlType.Allow),
+                "protected storage permits Administrators full control");
+
+            AssertFalse(
+                ProtectedStorageAcl.IsUntrustedWriteGrant(
+                    users,
+                    FileSystemRights.ReadAndExecute | FileSystemRights.Read,
+                    AccessControlType.Allow),
+                "protected storage permits non-privileged read-only access");
 
             AssertTrue(
                 ProtectedStorageAcl.IsReparsePoint(
