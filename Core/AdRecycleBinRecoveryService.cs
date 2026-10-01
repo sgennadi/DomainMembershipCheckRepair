@@ -816,16 +816,32 @@ namespace DomainMembershipCheckRepair
             if (!Directory.Exists(folder))
                 return String.Empty;
 
-            FileInfo[] files = new DirectoryInfo(folder).GetFiles("*.json");
-            if (files.Length == 0)
-                return String.Empty;
-
-            Array.Sort(files, delegate(FileInfo a, FileInfo b)
+            try
             {
-                return b.LastWriteTimeUtc.CompareTo(a.LastWriteTimeUtc);
-            });
+                FileInfo[] files =
+                    new DirectoryInfo(folder).GetFiles("*.json");
 
-            return files[0].FullName;
+                Array.Sort(files, delegate(FileInfo a, FileInfo b)
+                {
+                    return b.LastWriteTimeUtc.CompareTo(a.LastWriteTimeUtc);
+                });
+
+                foreach (FileInfo file in files)
+                {
+                    string securityDetails;
+                    if (ProtectedStorageAcl.IsProtectedFileTrusted(
+                        file.FullName,
+                        out securityDetails))
+                    {
+                        return file.FullName;
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return String.Empty;
         }
 
         private static LdapConnection CreateConnection(
