@@ -445,13 +445,13 @@ namespace DomainMembershipCheckRepair
                     SecurityIdentifier sid =
                         rule.IdentityReference as SecurityIdentifier;
 
-                    if (ProtectedStorageAcl.IsDangerousBroadWriteGrant(
+                    if (ProtectedStorageAcl.IsUntrustedWriteGrant(
                         sid,
                         rule.FileSystemRights,
                         rule.AccessControlType))
                     {
                         error =
-                            "A broad user group has write-capable access to the journal file.";
+                            "A non-privileged identity has write-capable access to the journal file.";
                         return false;
                     }
                 }
