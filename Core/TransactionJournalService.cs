@@ -257,52 +257,9 @@ namespace DomainMembershipCheckRepair
                 return true;
             }
 
-            string pathDetails;
-            if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
+            return ProtectedStorageAcl.IsProtectedDirectoryTrusted(
                 path,
-                out pathDetails))
-            {
-                details = pathDetails;
-                return false;
-            }
-
-            try
-            {
-                DirectorySecurity security = Directory.GetAccessControl(path);
-                AuthorizationRuleCollection rules = security.GetAccessRules(
-                    true,
-                    true,
-                    typeof(SecurityIdentifier));
-
-                foreach (FileSystemAccessRule rule in rules)
-                {
-                    SecurityIdentifier sid =
-                        rule.IdentityReference as SecurityIdentifier;
-
-                    if (ProtectedStorageAcl.IsDangerousBroadWriteGrant(
-                        sid,
-                        rule.FileSystemRights,
-                        rule.AccessControlType))
-                    {
-                        details =
-                            "Broad users have write-capable access to " +
-                            path + ".";
-                        return false;
-                    }
-                }
-
-                details =
-                    "Transaction folder ACL does not grant broad-user write access: " +
-                    path;
-                return true;
-            }
-            catch (Exception ex)
-            {
-                details =
-                    "Unable to inspect transaction folder ACL: " +
-                    ex.Message;
-                return false;
-            }
+                out details);
         }
 
         internal static bool RollbackLatest(out string report)
@@ -685,30 +642,16 @@ namespace DomainMembershipCheckRepair
 
             try
             {
-                string pathDetails;
-                if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
-                    path,
-                    out pathDetails))
-                {
-                    throw new IOException(
-                        "Transaction journal storage parent path failed reparse-point verification: " +
-                        pathDetails);
-                }
-
-                Directory.CreateDirectory(path);
-
-                if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
-                    path,
-                    out pathDetails))
-                {
-                    throw new IOException(
-                        "Transaction journal storage path failed reparse-point verification: " +
-                        pathDetails);
-                }
-
-                HardenFolderAcl(path);
-
                 string details;
+                if (!ProtectedStorageAcl.EnsureProtectedDirectory(
+                    path,
+                    out details))
+                {
+                    throw new IOException(
+                        "Transaction journal storage failed security preparation: " +
+                        details);
+                }
+
                 if (!CheckStorageSecurity(out details))
                 {
                     throw new IOException(
