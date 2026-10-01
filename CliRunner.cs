@@ -590,7 +590,7 @@ namespace DomainMembershipCheckRepair
                 case "check": return CheckTrustOnly();
                 case "repair": return RepairTrust();
                 case "join": return JoinCurrentName();
-                case "rename": return RenameAndJoin(null, null, null, null);
+                case "rename": return RenameAndJoin(null, null, null, null, false);
                 case "restart": return RestartWindows();
                 case "mii-disable": return DisableMachineIdentityIsolation();
                 case "advanced": return AdvancedDiagnostics();
@@ -631,6 +631,38 @@ namespace DomainMembershipCheckRepair
                 case "export-diagnostics": return ExportDiagnostics();
                 default: return 3;
             }
+        }
+
+        private static bool TryCreateCliRecoverySnapshot(
+            string operation,
+            string domain,
+            string user,
+            string password,
+            out RecoverySnapshotScope snapshot)
+        {
+            snapshot = null;
+
+            if (options.DryRun)
+                return true;
+
+            string error;
+            if (RecoverySnapshotScope.TryCreate(
+                operation,
+                domain,
+                options.PreferredDc,
+                user,
+                password,
+                out snapshot,
+                out error))
+            {
+                return true;
+            }
+
+            logger.Log(
+                "ERROR",
+                "Operation blocked because the required BEFORE recovery snapshot could not be created securely: " +
+                error);
+            return false;
         }
 
         private static int ShowStatus(bool verbose)
