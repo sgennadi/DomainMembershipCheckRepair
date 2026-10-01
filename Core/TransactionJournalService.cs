@@ -120,6 +120,14 @@ namespace DomainMembershipCheckRepair
                     "Transaction journal path escaped the protected journal folder.");
             }
 
+            string storageDetails;
+            if (!CheckStorageSecurity(out storageDetails))
+            {
+                throw new IOException(
+                    "Transaction journal storage is not trusted immediately before write: " +
+                    storageDetails);
+            }
+
             WriteTextAtomically(
                 fullPath,
                 sb.ToString());
