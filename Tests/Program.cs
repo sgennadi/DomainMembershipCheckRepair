@@ -31,6 +31,7 @@ namespace DomainMembershipCheckRepair
             TestGuiResumeOptions();
             TestPostRebootResumeCommand();
             TestNetSetupErrorMapping();
+            TestDomainJoinReuseEventClassification();
             TestUiLayoutMath();
             TestKerberosEncryptionTypeDecoding();
             TestRemoteProtocolArguments();
@@ -486,6 +487,44 @@ namespace DomainMembershipCheckRepair
             AssertTrue(rpc.IndexOf("RPC", StringComparison.OrdinalIgnoreCase) >= 0, "0x6BA RPC mapping");
 
             AssertEqual(String.Empty, NetSetupLogAnalyzer.ExplainCode("0xDEADBEEF"), "unknown NetSetup code");
+        }
+
+        private static void TestDomainJoinReuseEventClassification()
+        {
+            AssertTrue(
+                EventTimelineService.IsRelevant(
+                    "Netjoin",
+                    4101,
+                    "An attempt to re-use this account was prevented for security reasons."),
+                "Netjoin 4101 reuse-block event is relevant");
+
+            AssertTrue(
+                EventTimelineService.IsRelevant(
+                    "Directory-Services-SAM",
+                    16998,
+                    "The security account manager rejected a client request to re-use a computer account during domain join."),
+                "Directory-Services-SAM 16998 reuse rejection is relevant");
+
+            AssertTrue(
+                EventTimelineService.IsRelevant(
+                    String.Empty,
+                    16996,
+                    String.Empty),
+                "Directory-Services-SAM malformed allow-list event ID is relevant");
+
+            AssertTrue(
+                EventTimelineService.IsRelevant(
+                    String.Empty,
+                    9999,
+                    "NetpDsValidateComputerAccountReuseAttempt SAM_DOMAIN_JOIN_POLICY_LEVEL_V2 returned access denied."),
+                "SAMRPC account-reuse policy evidence is relevant");
+
+            AssertFalse(
+                EventTimelineService.IsRelevant(
+                    "Application",
+                    1000,
+                    "Unrelated application event."),
+                "unrelated application event is ignored");
         }
 
         private static void TestKerberosEncryptionTypeDecoding()
