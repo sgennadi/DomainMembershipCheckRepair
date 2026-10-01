@@ -291,7 +291,12 @@ namespace DomainMembershipCheckRepair
                     result.Restorable =
                         !result.Recycled &&
                         !String.IsNullOrWhiteSpace(result.DistinguishedName) &&
-                        !String.IsNullOrWhiteSpace(result.RestoreDistinguishedName);
+                        !String.IsNullOrWhiteSpace(result.RestoreDistinguishedName) &&
+                        !String.IsNullOrWhiteSpace(result.ObjectGuid) &&
+                        String.Equals(
+                            result.SamAccountName,
+                            (computerName ?? String.Empty).Trim() + "$",
+                            StringComparison.OrdinalIgnoreCase);
 
                     return result;
                 }
@@ -495,6 +500,53 @@ namespace DomainMembershipCheckRepair
                             throw;
                     }
 
+                    SearchRequest finalDeletedRequest = new SearchRequest(
+                        deleted.DistinguishedName,
+                        "(objectClass=*)",
+                        SearchScope.Base,
+                        "sAMAccountName",
+                        "objectGUID",
+                        "isDeleted",
+                        "isRecycled",
+                        "lastKnownParent",
+                        "msDS-LastKnownRDN");
+
+                    finalDeletedRequest.Controls.Add(
+                        new DirectoryControl(ShowRecycledOid, null, true, true));
+
+                    SearchResponse finalDeletedResponse =
+                        (SearchResponse)connection.SendRequest(finalDeletedRequest);
+
+                    if (finalDeletedResponse.Entries.Count != 1)
+                    {
+                        result.Message =
+                            "Restore safety check failed: the deleted AD object could not be re-read unambiguously immediately before restore.";
+                        return result;
+                    }
+
+                    SearchResultEntry finalDeleted =
+                        finalDeletedResponse.Entries[0];
+
+                    string finalValidationError =
+                        ValidateDeletedObjectForRestore(
+                            computerName,
+                            deleted.ObjectGuid,
+                            deleted.SamAccountName,
+                            deleted.LastKnownParent,
+                            deleted.LastKnownRdn,
+                            GetString(finalDeleted, "sAMAccountName"),
+                            GetGuid(finalDeleted, "objectGUID"),
+                            GetBoolean(finalDeleted, "isDeleted"),
+                            GetBoolean(finalDeleted, "isRecycled"),
+                            GetString(finalDeleted, "lastKnownParent"),
+                            GetString(finalDeleted, "msDS-LastKnownRDN"));
+
+                    if (!String.IsNullOrWhiteSpace(finalValidationError))
+                    {
+                        result.Message = finalValidationError;
+                        return result;
+                    }
+
                     ModifyRequest modify = new ModifyRequest(deleted.DistinguishedName);
 
                     DirectoryAttributeModification removeDeleted =
@@ -529,6 +581,75 @@ namespace DomainMembershipCheckRepair
                 result.Message = ex.Message;
                 return result;
             }
+        }
+
+        internal static string ValidateDeletedObjectForRestore(
+            string computerName,
+            string expectedGuid,
+            string expectedSam,
+            string expectedLastKnownParent,
+            string expectedLastKnownRdn,
+            string actualSam,
+            string actualGuid,
+            bool actualIsDeleted,
+            bool actualIsRecycled,
+            string actualLastKnownParent,
+            string actualLastKnownRdn)
+        {
+            string expectedComputerSam =
+                (computerName ?? String.Empty).Trim() + "$";
+
+            if (String.IsNullOrWhiteSpace(computerName) ||
+                String.IsNullOrWhiteSpace(expectedGuid) ||
+                String.IsNullOrWhiteSpace(expectedSam))
+            {
+                return
+                    "Restore safety check failed: the expected deleted-object identity is incomplete.";
+            }
+
+            if (!actualIsDeleted || actualIsRecycled)
+            {
+                return
+                    "Restore safety check failed: the AD object is no longer an eligible deleted object.";
+            }
+
+            if (!String.Equals(
+                    expectedSam,
+                    expectedComputerSam,
+                    StringComparison.OrdinalIgnoreCase) ||
+                !String.Equals(
+                    actualSam,
+                    expectedComputerSam,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return
+                    "Restore safety check failed: the deleted AD object's sAMAccountName no longer matches the requested computer.";
+            }
+
+            if (String.IsNullOrWhiteSpace(actualGuid) ||
+                !String.Equals(
+                    actualGuid,
+                    expectedGuid,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return
+                    "Restore safety check failed: the deleted AD object GUID changed or could not be verified.";
+            }
+
+            if (!String.Equals(
+                    actualLastKnownParent ?? String.Empty,
+                    expectedLastKnownParent ?? String.Empty,
+                    StringComparison.OrdinalIgnoreCase) ||
+                !String.Equals(
+                    actualLastKnownRdn ?? String.Empty,
+                    expectedLastKnownRdn ?? String.Empty,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return
+                    "Restore safety check failed: the deleted AD object's last-known restore location changed. Re-run the deleted-object lookup.";
+            }
+
+            return null;
         }
 
         internal static string ToText(AdRecycleBinStatus status)
@@ -626,6 +747,8 @@ namespace DomainMembershipCheckRepair
             connection.Timeout = TimeSpan.FromSeconds(10);
             connection.AuthType = AuthType.Negotiate;
             connection.SessionOptions.ProtocolVersion = 3;
+            connection.SessionOptions.Signing = true;
+            connection.SessionOptions.Sealing = true;
 
             NetworkCredential credential = BuildCredential(user, password);
             if (credential != null)
