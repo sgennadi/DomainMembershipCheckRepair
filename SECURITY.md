@@ -24,7 +24,7 @@ DomainMembershipCheckRepair intentionally does not persist entered domain userna
 
 ## Destructive AD operations
 
-Deleting an Active Directory computer object is destructive and always requires explicit confirmation. The program re-reads the object and verifies its class, sAMAccountName, object GUID, and leaf/child-object state immediately before deletion. The final LDAP delete is deliberately non-recursive; if a child object appears after the safety check, Active Directory must reject the delete rather than recursively removing the subtree.
+Deleting an Active Directory computer object is destructive and always requires explicit confirmation. The program re-reads the object and verifies its class, sAMAccountName, object GUID, and leaf/child-object state immediately before deletion. The final LDAP delete is deliberately non-recursive; if a child object appears after the safety check, Active Directory must reject the delete rather than recursively removing the subtree. The mandatory pre-delete recovery metadata package is written only after its ProgramData storage ACL is hardened and re-verified; if broad users retain write-capable access or ACL verification fails, package creation fails and destructive deletion remains blocked.
 
 
 ## Validation infrastructure
