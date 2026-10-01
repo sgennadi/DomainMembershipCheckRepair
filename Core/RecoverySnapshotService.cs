@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Security.AccessControl;
-using System.Security.Principal;
 using System.Text;
 
 namespace DomainMembershipCheckRepair
@@ -288,46 +286,6 @@ namespace DomainMembershipCheckRepair
                     Environment.SpecialFolder.CommonApplicationData),
                 "DomainMembershipCheckRepair",
                 "Snapshots");
-        }
-
-        private static void HardenSnapshotFolderAcl(string path)
-        {
-            DirectorySecurity security = new DirectorySecurity();
-            security.SetAccessRuleProtection(true, false);
-
-            InheritanceFlags inheritance =
-                InheritanceFlags.ContainerInherit |
-                InheritanceFlags.ObjectInherit;
-
-            security.AddAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(
-                    WellKnownSidType.LocalSystemSid,
-                    null),
-                FileSystemRights.FullControl,
-                inheritance,
-                PropagationFlags.None,
-                AccessControlType.Allow));
-
-            security.AddAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(
-                    WellKnownSidType.BuiltinAdministratorsSid,
-                    null),
-                FileSystemRights.FullControl,
-                inheritance,
-                PropagationFlags.None,
-                AccessControlType.Allow));
-
-            security.AddAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(
-                    WellKnownSidType.BuiltinUsersSid,
-                    null),
-                FileSystemRights.ReadAndExecute |
-                FileSystemRights.Read,
-                inheritance,
-                PropagationFlags.None,
-                AccessControlType.Allow));
-
-            Directory.SetAccessControl(path, security);
         }
 
         internal static bool IsSnapshotFolderSecurityTrusted(
