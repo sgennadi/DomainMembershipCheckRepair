@@ -983,6 +983,16 @@ namespace DomainMembershipCheckRepair
             string path = GetRecoveryFolderPath();
             Directory.CreateDirectory(path);
 
+            string pathDetails;
+            if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
+                path,
+                out pathDetails))
+            {
+                throw new IOException(
+                    "Recovery package storage path failed reparse-point verification: " +
+                    pathDetails);
+            }
+
             string securityError;
             if (!HardenAndVerifyRecoveryFolder(path, out securityError))
             {
@@ -1063,6 +1073,15 @@ namespace DomainMembershipCheckRepair
             if (String.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
             {
                 details = "Recovery package folder does not exist.";
+                return false;
+            }
+
+            string pathDetails;
+            if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
+                path,
+                out pathDetails))
+            {
+                details = pathDetails;
                 return false;
             }
 
