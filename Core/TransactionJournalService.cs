@@ -110,9 +110,64 @@ namespace DomainMembershipCheckRepair
             sb.AppendLine("  ]");
             sb.AppendLine("}");
 
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
-            File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
-            journal.Path = path;
+            string protectedFolder = GetFolder();
+            string fullPath = Path.GetFullPath(path);
+            string fullFolder = Path.GetFullPath(protectedFolder)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) +
+                Path.DirectorySeparatorChar;
+
+            if (!fullPath.StartsWith(fullFolder, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new IOException(
+                    "Transaction journal path escaped the protected journal folder.");
+            }
+
+            WriteTextAtomically(
+                fullPath,
+                sb.ToString());
+
+            journal.Path = fullPath;
+        }
+
+        internal static void WriteTextAtomically(
+            string path,
+            string text)
+        {
+            if (String.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("A journal path is required.", "path");
+
+            string folder = Path.GetDirectoryName(path);
+            if (String.IsNullOrWhiteSpace(folder))
+                throw new IOException("The journal path has no parent directory.");
+
+            Directory.CreateDirectory(folder);
+
+            string tempPath =
+                path + ".tmp-" + Guid.NewGuid().ToString("N");
+
+            try
+            {
+                File.WriteAllText(
+                    tempPath,
+                    text ?? String.Empty,
+                    new UTF8Encoding(false));
+
+                if (File.Exists(path))
+                    File.Replace(tempPath, path, null);
+                else
+                    File.Move(tempPath, path);
+            }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(tempPath))
+                        File.Delete(tempPath);
+                }
+                catch
+                {
+                }
+            }
         }
 
         internal static void RecordRegistryDwordChange(
@@ -618,9 +673,29 @@ namespace DomainMembershipCheckRepair
         private static string GetFolder()
         {
             string path = GetFolderPath();
-            Directory.CreateDirectory(path);
-            HardenFolderAcl(path);
-            return path;
+
+            try
+            {
+                Directory.CreateDirectory(path);
+                HardenFolderAcl(path);
+
+                string details;
+                if (!CheckStorageSecurity(out details))
+                {
+                    throw new IOException(
+                        "Transaction journal storage failed security verification: " +
+                        details);
+                }
+
+                return path;
+            }
+            catch (Exception ex)
+            {
+                throw new IOException(
+                    "Transaction journal storage could not be hardened and verified: " +
+                    ex.Message,
+                    ex);
+            }
         }
 
         private static string GetFolderPath()
@@ -633,42 +708,34 @@ namespace DomainMembershipCheckRepair
 
         private static void HardenFolderAcl(string path)
         {
-            try
-            {
-                DirectorySecurity security = new DirectorySecurity();
-                security.SetAccessRuleProtection(true, false);
+            DirectorySecurity security = new DirectorySecurity();
+            security.SetAccessRuleProtection(true, false);
 
-                InheritanceFlags inheritance =
-                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+            InheritanceFlags inheritance =
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
 
-                security.AddAccessRule(new FileSystemAccessRule(
-                    new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
-                    FileSystemRights.FullControl,
-                    inheritance,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                FileSystemRights.FullControl,
+                inheritance,
+                PropagationFlags.None,
+                AccessControlType.Allow));
 
-                security.AddAccessRule(new FileSystemAccessRule(
-                    new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-                    FileSystemRights.FullControl,
-                    inheritance,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                FileSystemRights.FullControl,
+                inheritance,
+                PropagationFlags.None,
+                AccessControlType.Allow));
 
-                security.AddAccessRule(new FileSystemAccessRule(
-                    new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
-                    FileSystemRights.ReadAndExecute | FileSystemRights.Read,
-                    inheritance,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
+                FileSystemRights.ReadAndExecute | FileSystemRights.Read,
+                inheritance,
+                PropagationFlags.None,
+                AccessControlType.Allow));
 
-                Directory.SetAccessControl(path, security);
-            }
-            catch
-            {
-                // Rollback still applies its own strict target allowlist even if ACL
-                // hardening is unavailable on a non-NTFS or restricted filesystem.
-            }
+            Directory.SetAccessControl(path, security);
         }
 
         private static void Prune()
