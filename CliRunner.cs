@@ -2232,6 +2232,19 @@ namespace DomainMembershipCheckRepair
             if (String.IsNullOrWhiteSpace(targetDomain))
                 return 3;
 
+            RecoverySnapshotScope snapshot;
+            if (!TryCreateCliRecoverySnapshot(
+                "join",
+                targetDomain,
+                user,
+                password,
+                out snapshot))
+            {
+                return 1;
+            }
+
+            using (snapshot)
+            {
             string currentName = Environment.MachineName;
             logger.Log("INFO", "Attempting Join/Rejoin with the current computer name '" + currentName + "'.");
 
@@ -2313,12 +2326,13 @@ namespace DomainMembershipCheckRepair
             if (selection == "1")
                 return SafeFixesAndRetryJoin(currentName, user, password, targetDomain);
             if (selection == "2")
-                return RenameAndJoin(currentName, user, password, targetDomain);
+                return RenameAndJoin(currentName, user, password, targetDomain, true);
             if (selection == "3" && canDelete)
                 return DeleteExistingAccountAndRetryJoin(currentName, user, password, targetDomain, account);
 
             logger.Log("INFO", "Operation cancelled by the operator.");
             return 7;
+            }
         }
 
         private static int SafeFixesAndRetryJoin(string computerName, string user, string password, string targetDomain)
@@ -2348,7 +2362,7 @@ namespace DomainMembershipCheckRepair
             return 6;
         }
 
-        private static int RenameAndJoin(string currentName, string existingUser, string existingPassword, string existingTargetDomain)
+        private static int RenameAndJoin(string currentName, string existingUser, string existingPassword, string existingTargetDomain, bool recoverySnapshotAlreadyActive)
         {
             if (String.IsNullOrWhiteSpace(currentName))
                 currentName = Environment.MachineName;
@@ -2442,6 +2456,20 @@ namespace DomainMembershipCheckRepair
                 break;
             }
 
+            RecoverySnapshotScope snapshot = null;
+            if (!recoverySnapshotAlreadyActive &&
+                !TryCreateCliRecoverySnapshot(
+                    "rename",
+                    targetDomain,
+                    user,
+                    password,
+                    out snapshot))
+            {
+                return 1;
+            }
+
+            using (snapshot)
+            {
             CreatePreChangeBundle(
                 "rename-and-join",
                 targetDomain,
@@ -2494,6 +2522,7 @@ namespace DomainMembershipCheckRepair
 
             Console.WriteLine("Check C:\\Windows\\Debug\\NetSetup.log");
             return 8;
+            }
         }
 
         private static bool GetCredentials(out string user, out string password)
@@ -2869,7 +2898,7 @@ namespace DomainMembershipCheckRepair
             if (status == NativeMethods.NERR_UserExists || status == NativeMethods.NERR_AccountReuseBlockedByPolicy || status == NativeMethods.ERROR_ACCESS_DENIED)
             {
                 if (AskYesNo("The join still reports an account/name conflict. Try a NEW computer name now?", false))
-                    return RenameAndJoin(computerName, user, password, targetDomain);
+                    return RenameAndJoin(computerName, user, password, targetDomain, true);
             }
 
             Console.WriteLine("Check C:\\Windows\\Debug\\NetSetup.log");
