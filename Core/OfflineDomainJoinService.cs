@@ -19,12 +19,188 @@ namespace DomainMembershipCheckRepair
                 return 3;
             }
 
-            string full = Path.GetFullPath(blobPath);
-            string[] arguments = BuildApplyArgumentList(
-                full,
-                Environment.GetFolderPath(
-                    Environment.SpecialFolder.Windows));
-            return RunDjoin(arguments, out output);
+            string full;
+            try
+            {
+                full = Path.GetFullPath(blobPath);
+            }
+            catch (Exception ex)
+            {
+                output =
+                    "Invalid Offline Domain Join blob path: " +
+                    ex.Message;
+                return 3;
+            }
+
+            string staging = String.Empty;
+            try
+            {
+                staging =
+                    PrivateStagingService.CreateSession(
+                        "odj-apply");
+
+                string stagedBlob =
+                    Path.Combine(
+                        staging,
+                        "provisioning-blob.txt");
+
+                string copyError;
+                if (!CopyBlobSnapshot(
+                    full,
+                    stagedBlob,
+                    out copyError))
+                {
+                    output =
+                        "Offline Domain Join blob could not be snapshotted securely before apply: " +
+                        copyError;
+                    return 3;
+                }
+
+                string[] arguments = BuildApplyArgumentList(
+                    stagedBlob,
+                    Environment.GetFolderPath(
+                        Environment.SpecialFolder.Windows));
+
+                return RunDjoin(
+                    arguments,
+                    out output);
+            }
+            catch (Exception ex)
+            {
+                output =
+                    "Offline Domain Join apply failed before djoin.exe could run: " +
+                    ex.Message;
+                return 1;
+            }
+            finally
+            {
+                PrivateStagingService.DeleteSession(
+                    staging);
+            }
+        }
+
+        internal static bool CopyBlobSnapshot(
+            string sourcePath,
+            string destinationPath,
+            out string error)
+        {
+            error = String.Empty;
+
+            if (String.IsNullOrWhiteSpace(sourcePath) ||
+                !File.Exists(sourcePath))
+            {
+                error =
+                    "Source provisioning blob does not exist.";
+                return false;
+            }
+
+            if (String.IsNullOrWhiteSpace(destinationPath))
+            {
+                error =
+                    "Private provisioning snapshot destination is empty.";
+                return false;
+            }
+
+            try
+            {
+                string source =
+                    Path.GetFullPath(sourcePath);
+                string destination =
+                    Path.GetFullPath(destinationPath);
+
+                FileAttributes attributes =
+                    File.GetAttributes(source);
+                if ((attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    error =
+                        "Source provisioning blob is a reparse point.";
+                    return false;
+                }
+
+                string sourceFolder =
+                    Path.GetDirectoryName(source);
+                string pathDetails;
+                if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
+                    sourceFolder,
+                    out pathDetails))
+                {
+                    error =
+                        "Source provisioning blob path failed reparse-point verification: " +
+                        pathDetails;
+                    return false;
+                }
+
+                string destinationFolder =
+                    Path.GetDirectoryName(destination);
+                if (String.IsNullOrWhiteSpace(destinationFolder) ||
+                    !Directory.Exists(destinationFolder))
+                {
+                    error =
+                        "Private provisioning snapshot destination folder does not exist.";
+                    return false;
+                }
+
+                string stagingDetails;
+                if (!PrivateStagingService.IsPrivateDirectoryTrusted(
+                    destinationFolder,
+                    out stagingDetails))
+                {
+                    error =
+                        "Private provisioning snapshot destination is not trusted: " +
+                        stagingDetails;
+                    return false;
+                }
+
+                if (File.Exists(destination))
+                {
+                    error =
+                        "Private provisioning snapshot destination already exists.";
+                    return false;
+                }
+
+                using (FileStream input =
+                    new FileStream(
+                        source,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.Read))
+                {
+                    if (input.Length <= 0)
+                    {
+                        error =
+                            "Source provisioning blob is empty.";
+                        return false;
+                    }
+
+                    using (FileStream outputStream =
+                        new FileStream(
+                            destination,
+                            FileMode.CreateNew,
+                            FileAccess.Write,
+                            FileShare.None))
+                    {
+                        input.CopyTo(outputStream);
+                        outputStream.Flush(true);
+                    }
+                }
+
+                if (!File.Exists(destination) ||
+                    new FileInfo(destination).Length <= 0)
+                {
+                    error =
+                        "Private provisioning snapshot was not created correctly.";
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error =
+                    "Unable to create private provisioning blob snapshot: " +
+                    ex.Message;
+                return false;
+            }
         }
 
         internal static int ProvisionBlob(string domain, string machine, string outputPath, bool reuse, out string output)
