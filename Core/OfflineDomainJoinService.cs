@@ -232,6 +232,14 @@ namespace DomainMembershipCheckRepair
                     currentUser = identity.User;
                 }
 
+                if (!IsProvisioningDestinationDirectoryTrusted(
+                    folder,
+                    currentUser,
+                    out error))
+                {
+                    return false;
+                }
+
                 FileSecurity security =
                     CreateProvisioningBlobSecurity(
                         currentUser);
@@ -326,6 +334,99 @@ namespace DomainMembershipCheckRepair
                     {
                     }
                 }
+            }
+        }
+
+        internal static bool IsUntrustedProvisioningDirectoryWriteGrant(
+            SecurityIdentifier sid,
+            SecurityIdentifier currentUserSid,
+            FileSystemRights rights,
+            AccessControlType accessType)
+        {
+            if (sid == null ||
+                accessType != AccessControlType.Allow ||
+                !ProtectedStorageAcl.HasWriteCapability(rights))
+            {
+                return false;
+            }
+
+            if (currentUserSid != null &&
+                sid.Equals(currentUserSid))
+            {
+                return false;
+            }
+
+            return !ProtectedStorageAcl.IsTrustedOwner(
+                sid);
+        }
+
+        private static bool IsProvisioningDestinationDirectoryTrusted(
+            string path,
+            SecurityIdentifier currentUser,
+            out string details)
+        {
+            details = String.Empty;
+
+            try
+            {
+                DirectorySecurity security =
+                    Directory.GetAccessControl(
+                        path,
+                        AccessControlSections.Owner |
+                        AccessControlSections.Access);
+
+                SecurityIdentifier owner =
+                    security.GetOwner(
+                        typeof(SecurityIdentifier))
+                    as SecurityIdentifier;
+
+                bool ownerTrusted =
+                    owner != null &&
+                    ((currentUser != null &&
+                      owner.Equals(currentUser)) ||
+                     ProtectedStorageAcl.IsTrustedOwner(owner));
+
+                if (!ownerTrusted)
+                {
+                    details =
+                        "Provisioning blob destination folder owner is not the current user, LocalSystem or Administrators.";
+                    return false;
+                }
+
+                AuthorizationRuleCollection rules =
+                    security.GetAccessRules(
+                        true,
+                        true,
+                        typeof(SecurityIdentifier));
+
+                foreach (FileSystemAccessRule rule in rules)
+                {
+                    SecurityIdentifier sid =
+                        rule.IdentityReference
+                        as SecurityIdentifier;
+
+                    if (IsUntrustedProvisioningDirectoryWriteGrant(
+                        sid,
+                        currentUser,
+                        rule.FileSystemRights,
+                        rule.AccessControlType))
+                    {
+                        details =
+                            "Another identity has write/delete-capable access to the provisioning blob destination folder.";
+                        return false;
+                    }
+                }
+
+                details =
+                    "Provisioning blob destination folder does not grant write/delete-capable access to other identities.";
+                return true;
+            }
+            catch (Exception ex)
+            {
+                details =
+                    "Unable to verify provisioning blob destination folder ACL: " +
+                    ex.Message;
+                return false;
             }
         }
 
