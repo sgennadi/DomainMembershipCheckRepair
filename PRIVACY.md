@@ -39,13 +39,15 @@ The project itself does not include analytics, telemetry, advertising, or remote
 
 Application file logging is **disabled by default** and is not remembered between runs.
 
-If the operator explicitly enables file logging, the application can write to:
+If the operator explicitly enables file logging, the application writes to the current user's private local application-data folder:
 
 ```text
-C:\Windows\Logs\DomainMembershipRepair.log
+%LOCALAPPDATA%\DomainMembershipCheckRepair\Logs\DomainMembershipRepair.log
 ```
 
-The application does not intentionally record entered passwords in this log.
+The log directory and file disable ACL inheritance and allow access only to the current Windows user, LocalSystem and Builtin Administrators. The application does not intentionally record entered passwords in this log. File logging remains disabled by default and is not remembered between runs.
+
+Older versions could write to `C:\Windows\Logs\DomainMembershipRepair.log`. Existing legacy files are not automatically deleted or migrated; new versions do not append to that legacy location.
 
 Windows itself may also maintain operating-system logs related to domain operations, including:
 
