@@ -96,8 +96,7 @@ namespace DomainMembershipCheckRepair
 
         internal static string GetSafetyFolderPath()
         {
-            return Path.Combine(
-                ProtectedStorageAcl.GetApplicationRootPath(),
+            return ProtectedStorageAcl.GetManagedChildPath(
                 "SafetyBundles");
         }
 
