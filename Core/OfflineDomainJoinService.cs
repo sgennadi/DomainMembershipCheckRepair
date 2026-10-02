@@ -302,6 +302,7 @@ namespace DomainMembershipCheckRepair
                     return false;
                 }
 
+                error = String.Empty;
                 return true;
             }
             catch (Exception ex)
