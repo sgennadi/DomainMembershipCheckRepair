@@ -12,7 +12,10 @@ namespace DomainMembershipCheckRepair
 {
     internal sealed partial class MainForm : Form
     {
-        private const string LogFile = DiagnosticsService.ApplicationLogPath;
+        private static string LogFile
+        {
+            get { return DiagnosticsService.ApplicationLogPath; }
+        }
 
         private TextBox domainBox;
         private Label domainSourceValue;
@@ -3014,16 +3017,10 @@ namespace DomainMembershipCheckRepair
             if (fileLogBox == null || !fileLogBox.Checked)
                 return;
 
-            try
-            {
-                string directory = Path.GetDirectoryName(LogFile);
-                if (!Directory.Exists(directory))
-                    Directory.CreateDirectory(directory);
-                File.AppendAllText(LogFile, line + Environment.NewLine, Encoding.UTF8);
-            }
-            catch
-            {
-            }
+            string fileLogError;
+            PrivateApplicationLogService.AppendLine(
+                line,
+                out fileLogError);
         }
 
         private static string FirstNonEmpty(string first, string second)
