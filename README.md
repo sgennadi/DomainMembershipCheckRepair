@@ -205,7 +205,7 @@ DomainMembershipCheckRepair.exe --cli --action elevation-probe
 DomainMembershipCheckRepair.exe --cli --action ui-smoke --json
 DomainMembershipCheckRepair.exe --cli --action safe-fixes
 DomainMembershipCheckRepair.exe --cli --action odj-apply --blob C:\Temp\odj.txt
-DomainMembershipCheckRepair.exe --cli --action odj-provision --domain example.com --computer PC-042 --output C:\Temp\PC-042-odj.txt
+DomainMembershipCheckRepair.exe --cli --action odj-provision --domain example.com --computer PC-042 --output "%LOCALAPPDATA%\DomainMembershipCheckRepair\ODJ\PC-042-odj.txt"
 ```
 
 Options:
@@ -541,7 +541,7 @@ Optional reuse of an existing computer account:
 
 The tool calls the built-in Windows `djoin.exe`; it does not store domain credentials.
 
-A provisioning blob is security-sensitive material. Provisioning now occurs first inside the private per-user staging area and only then commits the requested `--output` file with ACL inheritance disabled and access limited to the current Windows user, LocalSystem and Builtin Administrators. An existing output file is never overwritten silently; choose a new path or explicitly remove the old blob first. Keep the blob only as long as operationally necessary and transfer it through an appropriately protected channel.
+A provisioning blob is security-sensitive material. Provisioning now occurs first inside the private per-user staging area and only then commits the requested `--output` file with ACL inheritance disabled and access limited to the current Windows user, LocalSystem and Builtin Administrators. An existing output file is never overwritten silently; choose a new path or explicitly remove the old blob first. The destination folder must not grant write/delete-capable access to other identities; read-only inherited access is permitted. Keep the blob only as long as operationally necessary and transfer it through an appropriately protected channel.
 
 ## Read-only AD account check
 
