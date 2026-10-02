@@ -541,6 +541,8 @@ Optional reuse of an existing computer account:
 
 The tool calls the built-in Windows `djoin.exe`; it does not store domain credentials.
 
+A provisioning blob is security-sensitive material. Provisioning now occurs first inside the private per-user staging area and only then commits the requested `--output` file with ACL inheritance disabled and access limited to the current Windows user, LocalSystem and Builtin Administrators. An existing output file is never overwritten silently; choose a new path or explicitly remove the old blob first. Keep the blob only as long as operationally necessary and transfer it through an appropriately protected channel.
+
 ## Read-only AD account check
 
 When an account exists, the utility can display:
