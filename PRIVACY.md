@@ -57,6 +57,14 @@ C:\Windows\Debug\NetSetup.log
 
 Those Windows logs are produced by the operating system and are outside the direct control of DomainMembershipCheckRepair.
 
+## Offline Domain Join provisioning blobs
+
+When the operator explicitly runs `odj-provision`, Windows `djoin.exe` creates an Offline Domain Join provisioning blob. Treat this file as security-sensitive provisioning material.
+
+The application first creates the blob in the private per-user staging area and then commits the requested destination using a protected file ACL that allows only the current Windows user, LocalSystem and Builtin Administrators. The destination folder is also checked and the commit is refused if another identity has write/delete-capable access. Existing destination files are not overwritten automatically. Temporary staging data is removed after the operation.
+
+The operator controls the final destination and is responsible for protecting the blob during transfer and deleting it when it is no longer required.
+
 ## Recovery snapshots
 
 Guarded recovery operations can create local BEFORE/AFTER/comparison snapshot text files containing operational state such as the computer name, joined/target domain, discovered DC, secure-channel state, pending rename, MII state, AD object GUID, owner, pwdLastSet and enabled state when those values are available.
