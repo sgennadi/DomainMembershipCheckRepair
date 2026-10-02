@@ -3018,9 +3018,28 @@ namespace DomainMembershipCheckRepair
                 return;
 
             string fileLogError;
-            PrivateApplicationLogService.AppendLine(
+            if (!PrivateApplicationLogService.AppendLine(
                 line,
-                out fileLogError);
+                out fileLogError))
+            {
+                fileLogBox.Checked = false;
+
+                string warning =
+                    "[" +
+                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") +
+                    "] [WARN] Application file logging was disabled for this run because the private log could not be written securely: " +
+                    fileLogError;
+
+                if (logBox != null)
+                {
+                    logBox.AppendText(
+                        warning +
+                        Environment.NewLine);
+                    logBox.SelectionStart =
+                        logBox.TextLength;
+                    logBox.ScrollToCaret();
+                }
+            }
         }
 
         private static string FirstNonEmpty(string first, string second)
