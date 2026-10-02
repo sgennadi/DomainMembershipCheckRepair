@@ -130,6 +130,9 @@
 - Hardened `odj-provision` output: `djoin.exe` now writes the provisioning blob to private per-user staging first, then commits the requested output through a non-inherited ACL restricted to the current Windows user, LocalSystem and Builtin Administrators.
 - Added reparse-path checks, destination-folder writer checks, post-commit ACL verification, temporary-file cleanup, and explicit refusal to overwrite an existing ODJ provisioning blob.
 - Added regression coverage for protected ODJ blob commit, content preservation, ACL identity policy, temp cleanup and overwrite refusal.
+- Hardened `odj-apply` input: the selected provisioning blob is now copied under a read-locked source handle into private per-user staging, and `djoin.exe` receives only that stable snapshot instead of the original user path.
+- ODJ apply rejects source-file/path reparse redirection, empty blobs and pre-existing private snapshot destinations; the temporary private copy is removed after the apply attempt.
+- Added regression coverage for ODJ apply snapshot content, empty-input rejection and existing-private-destination refusal.
 
 ## 1.5.0
 
