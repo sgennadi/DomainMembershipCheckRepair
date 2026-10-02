@@ -117,6 +117,9 @@
 - Transaction journal reads/rollback selection and latest AD recovery-package discovery now ignore files whose owner/ACL/path trust cannot be verified.
 - Added regression coverage for protected-file path containment outside the managed ProgramData root.
 - Added an elevated Self Test runtime probe that creates a dedicated protected ProgramData file, applies the real owner/DACL policy, re-verifies file trust, and cleans the probe; standard-user Self Test runs report this probe as SKIP rather than weakening storage permissions.
+- Replaced `%TEMP%` staging for raw diagnostic/support-bundle material with `%ProgramData%\DomainMembershipCheckRepair\RawStaging`, using per-run directories restricted to LocalSystem and Builtin Administrators with no ordinary-user read access.
+- Added fail-safe staging cleanup plus pruning of trusted stale sessions older than 24 hours after an interrupted process, and added an elevated Self Test probe for the private staging ACL path.
+- Added regression coverage proving that private staging rejects even read-only allow ACEs for non-privileged identities while permitting LocalSystem/Administrators.
 
 ## 1.5.0
 
