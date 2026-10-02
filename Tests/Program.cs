@@ -25,6 +25,7 @@ namespace DomainMembershipCheckRepair
             TestWindowsCommandLineQuoting();
             TestWindowsArgumentListBuilding();
             TestOfflineDomainJoinArguments();
+            TestOfflineDomainJoinProtectedBlobCommit();
             TestSafeRecoveryArguments();
             TestProcessExecutableResolution();
             TestElevationActions();
@@ -257,6 +258,117 @@ namespace DomainMembershipCheckRepair
                     @"C:\Temp\pc.txt",
                     false),
                 "ODJ provision omits reuse when not requested");
+        }
+
+        private static void TestOfflineDomainJoinProtectedBlobCommit()
+        {
+            string root =
+                Path.Combine(
+                    Path.GetTempPath(),
+                    "DomainMembershipCheckRepair.Tests",
+                    "odj-" +
+                    Guid.NewGuid().ToString("N"));
+
+            string source =
+                Path.Combine(
+                    root,
+                    "private-source.txt");
+
+            string destination =
+                Path.Combine(
+                    root,
+                    "output",
+                    "PC-01-odj.txt");
+
+            Directory.CreateDirectory(root);
+
+            try
+            {
+                File.WriteAllText(
+                    source,
+                    "ODJ-PROVISIONING-BLOB-TEST");
+
+                string error;
+                bool committed =
+                    OfflineDomainJoinService.CommitProvisionedBlob(
+                        source,
+                        destination,
+                        out error);
+
+                AssertTrue(
+                    committed,
+                    "ODJ provisioning blob protected commit succeeds");
+
+                AssertTrue(
+                    File.Exists(destination),
+                    "ODJ provisioning blob destination exists");
+
+                AssertEqual(
+                    "ODJ-PROVISIONING-BLOB-TEST",
+                    File.ReadAllText(destination),
+                    "ODJ provisioning blob content preserved");
+
+                AssertEqualInt(
+                    0,
+                    Directory.GetFiles(
+                        Path.GetDirectoryName(destination),
+                        "PC-01-odj.txt.tmp-*",
+                        SearchOption.TopDirectoryOnly).Length,
+                    "ODJ provisioning blob temporary files cleaned");
+
+                SecurityIdentifier currentUser;
+                using (WindowsIdentity identity =
+                    WindowsIdentity.GetCurrent())
+                {
+                    currentUser =
+                        identity == null
+                            ? null
+                            : identity.User;
+                }
+
+                SecurityIdentifier otherUser =
+                    new SecurityIdentifier(
+                        "S-1-5-21-1000-1000-1000-1202");
+
+                AssertTrue(
+                    OfflineDomainJoinService.IsUntrustedProvisioningBlobAllowRule(
+                        otherUser,
+                        currentUser,
+                        AccessControlType.Allow),
+                    "ODJ provisioning blob rejects another user's allow ACE");
+
+                AssertFalse(
+                    OfflineDomainJoinService.IsUntrustedProvisioningBlobAllowRule(
+                        currentUser,
+                        currentUser,
+                        AccessControlType.Allow),
+                    "ODJ provisioning blob permits current user");
+
+                string secondError;
+                AssertFalse(
+                    OfflineDomainJoinService.CommitProvisionedBlob(
+                        source,
+                        destination,
+                        out secondError),
+                    "ODJ provisioning blob refuses existing destination overwrite");
+
+                AssertTrue(
+                    secondError.IndexOf(
+                        "already exists",
+                        StringComparison.OrdinalIgnoreCase) >= 0,
+                    "ODJ existing destination refusal is explicit");
+            }
+            finally
+            {
+                try
+                {
+                    if (Directory.Exists(root))
+                        Directory.Delete(root, true);
+                }
+                catch
+                {
+                }
+            }
         }
 
         private static void TestSafeRecoveryArguments()
