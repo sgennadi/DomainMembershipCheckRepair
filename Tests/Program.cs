@@ -1366,10 +1366,12 @@ namespace DomainMembershipCheckRepair
 
         private static void TestPrivateStagingAclPolicy()
         {
-            SecurityIdentifier users =
+            SecurityIdentifier currentUser =
                 new SecurityIdentifier(
-                    WellKnownSidType.BuiltinUsersSid,
-                    null);
+                    "S-1-5-21-1000-1000-1000-1001");
+            SecurityIdentifier otherUser =
+                new SecurityIdentifier(
+                    "S-1-5-21-1000-1000-1000-1002");
             SecurityIdentifier administrators =
                 new SecurityIdentifier(
                     WellKnownSidType.BuiltinAdministratorsSid,
@@ -1381,25 +1383,36 @@ namespace DomainMembershipCheckRepair
 
             AssertTrue(
                 PrivateStagingService.IsUntrustedPrivateAllowRule(
-                    users,
+                    otherUser,
+                    currentUser,
                     AccessControlType.Allow),
-                "private staging rejects Builtin Users allow access even when read-only");
+                "private staging rejects another user's allow access even when read-only");
+
+            AssertFalse(
+                PrivateStagingService.IsUntrustedPrivateAllowRule(
+                    currentUser,
+                    currentUser,
+                    AccessControlType.Allow),
+                "private staging permits the current user");
 
             AssertFalse(
                 PrivateStagingService.IsUntrustedPrivateAllowRule(
                     administrators,
+                    currentUser,
                     AccessControlType.Allow),
                 "private staging permits Administrators allow access");
 
             AssertFalse(
                 PrivateStagingService.IsUntrustedPrivateAllowRule(
                     system,
+                    currentUser,
                     AccessControlType.Allow),
                 "private staging permits LocalSystem allow access");
 
             AssertFalse(
                 PrivateStagingService.IsUntrustedPrivateAllowRule(
-                    users,
+                    otherUser,
+                    currentUser,
                     AccessControlType.Deny),
                 "private staging does not treat deny rules as allow access");
         }
