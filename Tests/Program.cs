@@ -26,6 +26,7 @@ namespace DomainMembershipCheckRepair
             TestWindowsArgumentListBuilding();
             TestOfflineDomainJoinArguments();
             TestOfflineDomainJoinProtectedBlobCommit();
+            TestOfflineDomainJoinApplySnapshot();
             TestSafeRecoveryArguments();
             TestProcessExecutableResolution();
             TestElevationActions();
@@ -395,6 +396,115 @@ namespace DomainMembershipCheckRepair
             }
             finally
             {
+                try
+                {
+                    if (Directory.Exists(root))
+                        Directory.Delete(root, true);
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        private static void TestOfflineDomainJoinApplySnapshot()
+        {
+            string root =
+                Path.Combine(
+                    Path.GetTempPath(),
+                    "DomainMembershipCheckRepair.Tests",
+                    "odj-apply-" +
+                    Guid.NewGuid().ToString("N"));
+
+            Directory.CreateDirectory(root);
+
+            string source =
+                Path.Combine(
+                    root,
+                    "source-blob.txt");
+
+            string emptySource =
+                Path.Combine(
+                    root,
+                    "empty-blob.txt");
+
+            string staging = String.Empty;
+
+            try
+            {
+                File.WriteAllText(
+                    source,
+                    "ODJ-APPLY-BLOB-SNAPSHOT-TEST");
+
+                File.WriteAllText(
+                    emptySource,
+                    String.Empty);
+
+                staging =
+                    PrivateStagingService.CreateSession(
+                        "odj-apply-test");
+
+                string destination =
+                    Path.Combine(
+                        staging,
+                        "provisioning-blob.txt");
+
+                string error;
+                AssertTrue(
+                    OfflineDomainJoinService.CopyBlobSnapshot(
+                        source,
+                        destination,
+                        out error),
+                    "ODJ apply private snapshot succeeds: " +
+                    error);
+
+                AssertTrue(
+                    File.Exists(destination),
+                    "ODJ apply private snapshot exists");
+
+                AssertEqual(
+                    "ODJ-APPLY-BLOB-SNAPSHOT-TEST",
+                    File.ReadAllText(destination),
+                    "ODJ apply private snapshot preserves content");
+
+                string secondError;
+                AssertFalse(
+                    OfflineDomainJoinService.CopyBlobSnapshot(
+                        source,
+                        destination,
+                        out secondError),
+                    "ODJ apply snapshot refuses existing private destination");
+
+                AssertTrue(
+                    secondError.IndexOf(
+                        "already exists",
+                        StringComparison.OrdinalIgnoreCase) >= 0,
+                    "ODJ apply existing private destination refusal is explicit");
+
+                string emptyDestination =
+                    Path.Combine(
+                        staging,
+                        "empty-copy.txt");
+
+                string emptyError;
+                AssertFalse(
+                    OfflineDomainJoinService.CopyBlobSnapshot(
+                        emptySource,
+                        emptyDestination,
+                        out emptyError),
+                    "ODJ apply rejects empty source blob");
+
+                AssertTrue(
+                    emptyError.IndexOf(
+                        "empty",
+                        StringComparison.OrdinalIgnoreCase) >= 0,
+                    "ODJ apply empty source refusal is explicit");
+            }
+            finally
+            {
+                PrivateStagingService.DeleteSession(
+                    staging);
+
                 try
                 {
                     if (Directory.Exists(root))
