@@ -25,6 +25,8 @@ namespace DomainMembershipCheckRepair
                     error);
             }
 
+            PruneStaleSessions(root);
+
             string name =
                 Sanitize(purpose) + "-" +
                 Guid.NewGuid().ToString("N");
@@ -249,6 +251,50 @@ namespace DomainMembershipCheckRepair
             {
                 if (Directory.Exists(fullPath))
                     Directory.Delete(fullPath, true);
+            }
+            catch
+            {
+            }
+        }
+
+        private static void PruneStaleSessions(
+            string root)
+        {
+            try
+            {
+                if (!Directory.Exists(root))
+                    return;
+
+                DateTime cutoff =
+                    DateTime.UtcNow.AddHours(-24);
+
+                foreach (string directory in
+                    Directory.GetDirectories(root))
+                {
+                    try
+                    {
+                        DirectoryInfo info =
+                            new DirectoryInfo(directory);
+
+                        if (info.LastWriteTimeUtc >= cutoff)
+                            continue;
+
+                        string details;
+                        if (!IsPrivateDirectoryTrusted(
+                            directory,
+                            out details))
+                        {
+                            continue;
+                        }
+
+                        Directory.Delete(
+                            directory,
+                            true);
+                    }
+                    catch
+                    {
+                    }
+                }
             }
             catch
             {
