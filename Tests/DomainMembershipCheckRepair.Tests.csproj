@@ -111,6 +111,9 @@
     <Compile Include="..\Core\ProtectedStorageAcl.cs">
       <Link>ProtectedStorageAcl.cs</Link>
     </Compile>
+    <Compile Include="..\Core\PrivateStagingService.cs">
+      <Link>PrivateStagingService.cs</Link>
+    </Compile>
     <Compile Include="..\Core\TransactionJournalService.cs">
       <Link>TransactionJournalService.cs</Link>
     </Compile>
