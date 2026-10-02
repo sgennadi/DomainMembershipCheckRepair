@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 
 namespace DomainMembershipCheckRepair
@@ -59,13 +61,421 @@ namespace DomainMembershipCheckRepair
                 return 3;
             }
 
-            string[] args = BuildProvisionArgumentList(
-                domain.Trim(),
-                machine.Trim(),
-                fullOutputPath,
-                reuse);
+            if (File.Exists(fullOutputPath))
+            {
+                output =
+                    "Offline Domain Join output already exists. Refusing to overwrite a provisioning blob: " +
+                    fullOutputPath;
+                return 3;
+            }
 
-            return RunDjoin(args, out output);
+            string staging = String.Empty;
+            try
+            {
+                staging =
+                    PrivateStagingService.CreateSession(
+                        "odj-provision");
+
+                string stagedBlob =
+                    Path.Combine(
+                        staging,
+                        "provisioning-blob.txt");
+
+                string[] args = BuildProvisionArgumentList(
+                    domain.Trim(),
+                    machine.Trim(),
+                    stagedBlob,
+                    reuse);
+
+                string djoinOutput;
+                int code =
+                    RunDjoin(
+                        args,
+                        out djoinOutput);
+
+                if (code != 0)
+                {
+                    output = djoinOutput;
+                    return code;
+                }
+
+                if (!File.Exists(stagedBlob) ||
+                    new FileInfo(stagedBlob).Length == 0)
+                {
+                    output =
+                        "djoin.exe reported success but did not create a non-empty provisioning blob.";
+                    return 1;
+                }
+
+                string commitError;
+                if (!CommitProvisionedBlob(
+                    stagedBlob,
+                    fullOutputPath,
+                    out commitError))
+                {
+                    output =
+                        "Offline Domain Join provisioning succeeded, but the blob could not be committed securely: " +
+                        commitError;
+                    return 1;
+                }
+
+                output =
+                    (djoinOutput ?? String.Empty).TrimEnd() +
+                    Environment.NewLine +
+                    "Protected provisioning blob: " +
+                    fullOutputPath;
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                output =
+                    "Offline Domain Join provisioning failed: " +
+                    ex.Message;
+                return 1;
+            }
+            finally
+            {
+                PrivateStagingService.DeleteSession(
+                    staging);
+            }
+        }
+
+        internal static bool CommitProvisionedBlob(
+            string sourcePath,
+            string destinationPath,
+            out string error)
+        {
+            error = String.Empty;
+
+            if (String.IsNullOrWhiteSpace(sourcePath) ||
+                !File.Exists(sourcePath))
+            {
+                error =
+                    "Private staged provisioning blob does not exist.";
+                return false;
+            }
+
+            string destination;
+            try
+            {
+                destination =
+                    Path.GetFullPath(destinationPath);
+            }
+            catch (Exception ex)
+            {
+                error =
+                    "Invalid provisioning blob destination: " +
+                    ex.Message;
+                return false;
+            }
+
+            if (File.Exists(destination))
+            {
+                error =
+                    "Provisioning blob destination already exists; overwrite is not allowed.";
+                return false;
+            }
+
+            string folder =
+                Path.GetDirectoryName(destination);
+            if (String.IsNullOrWhiteSpace(folder))
+            {
+                error =
+                    "Provisioning blob destination has no parent directory.";
+                return false;
+            }
+
+            string temp =
+                destination +
+                ".tmp-" +
+                Guid.NewGuid().ToString("N");
+
+            bool destinationCreated = false;
+
+            try
+            {
+                string pathDetails;
+                if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
+                    folder,
+                    out pathDetails))
+                {
+                    error =
+                        "Provisioning blob destination path failed reparse-point verification: " +
+                        pathDetails;
+                    return false;
+                }
+
+                Directory.CreateDirectory(folder);
+
+                if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
+                    folder,
+                    out pathDetails))
+                {
+                    error =
+                        "Provisioning blob destination path failed reparse-point verification after creation: " +
+                        pathDetails;
+                    return false;
+                }
+
+                SecurityIdentifier currentUser;
+                using (WindowsIdentity identity =
+                    WindowsIdentity.GetCurrent())
+                {
+                    if (identity == null ||
+                        identity.User == null)
+                    {
+                        error =
+                            "Current Windows user SID is unavailable.";
+                        return false;
+                    }
+
+                    currentUser = identity.User;
+                }
+
+                FileSecurity security =
+                    CreateProvisioningBlobSecurity(
+                        currentUser);
+
+                using (FileStream input =
+                    new FileStream(
+                        sourcePath,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.Read))
+                using (FileStream outputStream =
+                    new FileStream(
+                        temp,
+                        FileMode.CreateNew,
+                        FileSystemRights.FullControl,
+                        FileShare.None,
+                        4096,
+                        FileOptions.WriteThrough,
+                        security))
+                {
+                    input.CopyTo(outputStream);
+                    outputStream.Flush(true);
+                }
+
+                if (!File.Exists(temp) ||
+                    new FileInfo(temp).Length == 0)
+                {
+                    error =
+                        "Protected temporary provisioning blob was not written correctly.";
+                    return false;
+                }
+
+                if (!IsProvisioningBlobTrusted(
+                    temp,
+                    currentUser,
+                    out error))
+                {
+                    return false;
+                }
+
+                File.Move(
+                    temp,
+                    destination);
+                destinationCreated = true;
+
+                if (!IsProvisioningBlobTrusted(
+                    destination,
+                    currentUser,
+                    out error))
+                {
+                    try
+                    {
+                        File.Delete(destination);
+                    }
+                    catch
+                    {
+                    }
+
+                    destinationCreated = false;
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error =
+                    "Unable to commit the protected provisioning blob: " +
+                    ex.Message;
+                return false;
+            }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(temp))
+                        File.Delete(temp);
+                }
+                catch
+                {
+                }
+
+                if (!String.IsNullOrWhiteSpace(error) &&
+                    destinationCreated)
+                {
+                    try
+                    {
+                        if (File.Exists(destination))
+                            File.Delete(destination);
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+        }
+
+        internal static bool IsUntrustedProvisioningBlobAllowRule(
+            SecurityIdentifier sid,
+            SecurityIdentifier currentUserSid,
+            AccessControlType accessType)
+        {
+            if (sid == null ||
+                accessType != AccessControlType.Allow)
+            {
+                return false;
+            }
+
+            if (currentUserSid != null &&
+                sid.Equals(currentUserSid))
+            {
+                return false;
+            }
+
+            return !ProtectedStorageAcl.IsTrustedOwner(
+                sid);
+        }
+
+        private static FileSecurity CreateProvisioningBlobSecurity(
+            SecurityIdentifier currentUser)
+        {
+            FileSecurity security =
+                new FileSecurity();
+
+            security.SetOwner(currentUser);
+            security.SetAccessRuleProtection(
+                true,
+                false);
+
+            security.AddAccessRule(
+                new FileSystemAccessRule(
+                    currentUser,
+                    FileSystemRights.FullControl,
+                    AccessControlType.Allow));
+
+            security.AddAccessRule(
+                new FileSystemAccessRule(
+                    new SecurityIdentifier(
+                        WellKnownSidType.LocalSystemSid,
+                        null),
+                    FileSystemRights.FullControl,
+                    AccessControlType.Allow));
+
+            security.AddAccessRule(
+                new FileSystemAccessRule(
+                    new SecurityIdentifier(
+                        WellKnownSidType.BuiltinAdministratorsSid,
+                        null),
+                    FileSystemRights.FullControl,
+                    AccessControlType.Allow));
+
+            return security;
+        }
+
+        private static bool IsProvisioningBlobTrusted(
+            string path,
+            SecurityIdentifier currentUser,
+            out string details)
+        {
+            details = String.Empty;
+
+            try
+            {
+                if (!File.Exists(path))
+                {
+                    details =
+                        "Provisioning blob does not exist.";
+                    return false;
+                }
+
+                FileAttributes attributes =
+                    File.GetAttributes(path);
+                if ((attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    details =
+                        "Provisioning blob is a reparse point.";
+                    return false;
+                }
+
+                FileSecurity security =
+                    File.GetAccessControl(
+                        path,
+                        AccessControlSections.Owner |
+                        AccessControlSections.Access);
+
+                SecurityIdentifier owner =
+                    security.GetOwner(
+                        typeof(SecurityIdentifier))
+                    as SecurityIdentifier;
+
+                bool ownerTrusted =
+                    owner != null &&
+                    ((currentUser != null &&
+                      owner.Equals(currentUser)) ||
+                     ProtectedStorageAcl.IsTrustedOwner(owner));
+
+                if (!ownerTrusted)
+                {
+                    details =
+                        "Provisioning blob owner is not the current user, LocalSystem or Administrators.";
+                    return false;
+                }
+
+                if (!security.AreAccessRulesProtected)
+                {
+                    details =
+                        "Provisioning blob ACL still inherits access rules.";
+                    return false;
+                }
+
+                AuthorizationRuleCollection rules =
+                    security.GetAccessRules(
+                        true,
+                        true,
+                        typeof(SecurityIdentifier));
+
+                foreach (FileSystemAccessRule rule in rules)
+                {
+                    SecurityIdentifier sid =
+                        rule.IdentityReference
+                        as SecurityIdentifier;
+
+                    if (IsUntrustedProvisioningBlobAllowRule(
+                        sid,
+                        currentUser,
+                        rule.AccessControlType))
+                    {
+                        details =
+                            "Another identity has allow access to the provisioning blob.";
+                        return false;
+                    }
+                }
+
+                details =
+                    "Provisioning blob ACL is restricted to the current user, LocalSystem and Administrators.";
+                return true;
+            }
+            catch (Exception ex)
+            {
+                details =
+                    "Unable to verify provisioning blob ACL: " +
+                    ex.Message;
+                return false;
+            }
         }
 
         private static int RunDjoin(
