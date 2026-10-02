@@ -48,6 +48,7 @@ namespace DomainMembershipCheckRepair
             TestTransactionStorage(r);
             TestRecoverySnapshotStorage(r);
             TestProtectedFileStorage(r);
+            TestPrivateDiagnosticStaging(r);
 
             string targetDomain = (domain ?? String.Empty).Trim();
             if (!String.IsNullOrWhiteSpace(targetDomain))
@@ -644,6 +645,51 @@ namespace DomainMembershipCheckRepair
             Add(
                 r,
                 "Protected file owner/ACL probe",
+                status,
+                resultDetails);
+        }
+
+        private static void TestPrivateDiagnosticStaging(
+            SelfTestResult r)
+        {
+            string session = String.Empty;
+            string status = "FAIL";
+            string resultDetails = String.Empty;
+
+            try
+            {
+                session =
+                    PrivateStagingService.CreateSession(
+                        "selftest");
+
+                string details;
+                if (!PrivateStagingService.IsPrivateDirectoryTrusted(
+                    session,
+                    out details))
+                {
+                    throw new IOException(
+                        "Private staging trust verification failed: " +
+                        details);
+                }
+
+                status = "PASS";
+                resultDetails =
+                    "Created and verified a per-user RawStaging session restricted to the current user, LocalSystem and Administrators. " +
+                    details;
+            }
+            catch (Exception ex)
+            {
+                resultDetails = ex.Message;
+            }
+            finally
+            {
+                PrivateStagingService.DeleteSession(
+                    session);
+            }
+
+            Add(
+                r,
+                "Private diagnostic staging ACL",
                 status,
                 resultDetails);
         }

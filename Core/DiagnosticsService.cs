@@ -269,8 +269,9 @@ namespace DomainMembershipCheckRepair
             if (!String.IsNullOrWhiteSpace(outputDirectory) && !Directory.Exists(outputDirectory))
                 Directory.CreateDirectory(outputDirectory);
 
-            string tempRoot = Path.Combine(Path.GetTempPath(), "DomainMembershipCheckRepair", Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(tempRoot);
+            string tempRoot =
+                PrivateStagingService.CreateSession(
+                    "diagnostic-export");
 
             try
             {
@@ -307,14 +308,7 @@ namespace DomainMembershipCheckRepair
             }
             finally
             {
-                try
-                {
-                    if (Directory.Exists(tempRoot))
-                        Directory.Delete(tempRoot, true);
-                }
-                catch
-                {
-                }
+                PrivateStagingService.DeleteSession(tempRoot);
             }
         }
 

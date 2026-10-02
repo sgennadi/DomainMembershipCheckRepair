@@ -54,6 +54,7 @@ namespace DomainMembershipCheckRepair
             TestAdRecoveryHelpers();
             TestAdRestoreFinalSafety();
             TestProtectedStorageAclPolicy();
+            TestPrivateStagingAclPolicy();
             TestAdDeleteFinalSafety();
             TestSupportBundleSanitizer();
             TestSupportBundleZipRedaction();
@@ -1361,6 +1362,59 @@ namespace DomainMembershipCheckRepair
                     ProtectedStorageAcl.GetApplicationRootPath(),
                     out fileSecurityDetails),
                 "protected file target cannot be the managed root directory itself");
+        }
+
+        private static void TestPrivateStagingAclPolicy()
+        {
+            SecurityIdentifier currentUser =
+                new SecurityIdentifier(
+                    "S-1-5-21-1000-1000-1000-1001");
+            SecurityIdentifier otherUser =
+                new SecurityIdentifier(
+                    "S-1-5-21-1000-1000-1000-1002");
+            SecurityIdentifier administrators =
+                new SecurityIdentifier(
+                    WellKnownSidType.BuiltinAdministratorsSid,
+                    null);
+            SecurityIdentifier system =
+                new SecurityIdentifier(
+                    WellKnownSidType.LocalSystemSid,
+                    null);
+
+            AssertTrue(
+                PrivateStagingService.IsUntrustedPrivateAllowRule(
+                    otherUser,
+                    currentUser,
+                    AccessControlType.Allow),
+                "private staging rejects another user's allow access even when read-only");
+
+            AssertFalse(
+                PrivateStagingService.IsUntrustedPrivateAllowRule(
+                    currentUser,
+                    currentUser,
+                    AccessControlType.Allow),
+                "private staging permits the current user");
+
+            AssertFalse(
+                PrivateStagingService.IsUntrustedPrivateAllowRule(
+                    administrators,
+                    currentUser,
+                    AccessControlType.Allow),
+                "private staging permits Administrators allow access");
+
+            AssertFalse(
+                PrivateStagingService.IsUntrustedPrivateAllowRule(
+                    system,
+                    currentUser,
+                    AccessControlType.Allow),
+                "private staging permits LocalSystem allow access");
+
+            AssertFalse(
+                PrivateStagingService.IsUntrustedPrivateAllowRule(
+                    otherUser,
+                    currentUser,
+                    AccessControlType.Deny),
+                "private staging does not treat deny rules as allow access");
         }
 
         private static void TestAdDeleteFinalSafety()

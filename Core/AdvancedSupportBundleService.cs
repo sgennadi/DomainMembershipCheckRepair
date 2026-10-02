@@ -46,8 +46,9 @@ namespace DomainMembershipCheckRepair
             if (!String.IsNullOrWhiteSpace(folder) && !Directory.Exists(folder))
                 Directory.CreateDirectory(folder);
 
-            string temp = Path.Combine(Path.GetTempPath(), "DomainMembershipCheckRepair", Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(temp);
+            string temp =
+                PrivateStagingService.CreateSession(
+                    "advanced-support");
 
             try
             {
@@ -170,7 +171,7 @@ namespace DomainMembershipCheckRepair
             }
             finally
             {
-                try { Directory.Delete(temp, true); } catch { }
+                PrivateStagingService.DeleteSession(temp);
             }
         }
 
