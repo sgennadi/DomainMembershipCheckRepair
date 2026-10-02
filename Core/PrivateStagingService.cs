@@ -10,7 +10,9 @@ namespace DomainMembershipCheckRepair
         internal static string GetRootPath()
         {
             return Path.Combine(
-                ProtectedStorageAcl.GetApplicationRootPath(),
+                Environment.GetFolderPath(
+                    Environment.SpecialFolder.LocalApplicationData),
+                "DomainMembershipCheckRepair",
                 "RawStaging");
         }
 
@@ -57,22 +59,16 @@ namespace DomainMembershipCheckRepair
                 return false;
             }
 
+            SecurityIdentifier currentUser;
+            if (!TryGetCurrentUserSid(
+                out currentUser,
+                out error))
+            {
+                return false;
+            }
+
             try
             {
-                string applicationRoot =
-                    ProtectedStorageAcl.GetApplicationRootPath();
-
-                string applicationError;
-                if (!ProtectedStorageAcl.EnsureProtectedDirectory(
-                    applicationRoot,
-                    out applicationError))
-                {
-                    error =
-                        "Managed application root is not trusted: " +
-                        applicationError;
-                    return false;
-                }
-
                 string pathDetails;
                 if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
                     fullPath,
@@ -96,7 +92,9 @@ namespace DomainMembershipCheckRepair
                     return false;
                 }
 
-                HardenPrivateDirectory(fullPath);
+                HardenPrivateDirectory(
+                    fullPath,
+                    currentUser);
 
                 return IsPrivateDirectoryTrusted(
                     fullPath,
@@ -121,6 +119,14 @@ namespace DomainMembershipCheckRepair
             if (!TryNormalizePrivatePath(
                 path,
                 out fullPath,
+                out details))
+            {
+                return false;
+            }
+
+            SecurityIdentifier currentUser;
+            if (!TryGetCurrentUserSid(
+                out currentUser,
                 out details))
             {
                 return false;
@@ -156,10 +162,12 @@ namespace DomainMembershipCheckRepair
                         typeof(SecurityIdentifier))
                     as SecurityIdentifier;
 
-                if (!ProtectedStorageAcl.IsTrustedOwner(owner))
+                if (!IsAllowedPrivateIdentity(
+                    owner,
+                    currentUser))
                 {
                     details =
-                        "Private staging owner is not LocalSystem or Builtin Administrators.";
+                        "Private staging owner is not the current user, LocalSystem or Builtin Administrators.";
                     return false;
                 }
 
@@ -184,16 +192,17 @@ namespace DomainMembershipCheckRepair
 
                     if (IsUntrustedPrivateAllowRule(
                         sid,
+                        currentUser,
                         rule.AccessControlType))
                     {
                         details =
-                            "A non-privileged identity has allow access to private staging.";
+                            "An identity other than the current user, LocalSystem or Administrators has allow access to private staging.";
                         return false;
                     }
                 }
 
                 details =
-                    "Private staging owner and ACL are restricted to LocalSystem/Administrators.";
+                    "Private staging owner and ACL are restricted to the current user, LocalSystem and Administrators.";
                 return true;
             }
             catch (Exception ex)
@@ -207,6 +216,7 @@ namespace DomainMembershipCheckRepair
 
         internal static bool IsUntrustedPrivateAllowRule(
             SecurityIdentifier sid,
+            SecurityIdentifier currentUserSid,
             AccessControlType accessType)
         {
             if (sid == null ||
@@ -215,7 +225,9 @@ namespace DomainMembershipCheckRepair
                 return false;
             }
 
-            return !ProtectedStorageAcl.IsTrustedOwner(sid);
+            return !IsAllowedPrivateIdentity(
+                sid,
+                currentUserSid);
         }
 
         internal static void DeleteSession(string path)
@@ -369,8 +381,59 @@ namespace DomainMembershipCheckRepair
             }
         }
 
+        private static bool TryGetCurrentUserSid(
+            out SecurityIdentifier sid,
+            out string error)
+        {
+            sid = null;
+            error = String.Empty;
+
+            try
+            {
+                using (WindowsIdentity identity =
+                    WindowsIdentity.GetCurrent())
+                {
+                    if (identity == null ||
+                        identity.User == null)
+                    {
+                        error =
+                            "The current Windows user SID is unavailable.";
+                        return false;
+                    }
+
+                    sid = identity.User;
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                error =
+                    "Unable to resolve the current Windows user SID: " +
+                    ex.Message;
+                return false;
+            }
+        }
+
+        private static bool IsAllowedPrivateIdentity(
+            SecurityIdentifier sid,
+            SecurityIdentifier currentUserSid)
+        {
+            if (sid == null)
+                return false;
+
+            if (currentUserSid != null &&
+                sid.Equals(currentUserSid))
+            {
+                return true;
+            }
+
+            return ProtectedStorageAcl.IsTrustedOwner(
+                sid);
+        }
+
         private static void HardenPrivateDirectory(
-            string path)
+            string path,
+            SecurityIdentifier currentUser)
         {
             SecurityIdentifier administrators =
                 new SecurityIdentifier(
@@ -381,14 +444,14 @@ namespace DomainMembershipCheckRepair
                 Directory.GetAccessControl(
                     path,
                     AccessControlSections.Owner);
-            ownerSecurity.SetOwner(administrators);
+            ownerSecurity.SetOwner(currentUser);
             Directory.SetAccessControl(
                 path,
                 ownerSecurity);
 
             DirectorySecurity security =
                 new DirectorySecurity();
-            security.SetOwner(administrators);
+            security.SetOwner(currentUser);
             security.SetAccessRuleProtection(
                 true,
                 false);
@@ -396,6 +459,14 @@ namespace DomainMembershipCheckRepair
             InheritanceFlags inheritance =
                 InheritanceFlags.ContainerInherit |
                 InheritanceFlags.ObjectInherit;
+
+            security.AddAccessRule(
+                new FileSystemAccessRule(
+                    currentUser,
+                    FileSystemRights.FullControl,
+                    inheritance,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
 
             security.AddAccessRule(
                 new FileSystemAccessRule(
