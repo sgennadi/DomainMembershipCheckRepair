@@ -65,6 +65,9 @@ The application first creates the blob in the private per-user staging area and 
 
 The operator controls the final destination and is responsible for protecting the blob during transfer and deleting it when it is no longer required.
 
+When applying an existing blob, the selected source is copied into the private per-user staging area first and `djoin.exe` reads only that temporary snapshot. The original source file is left unchanged. The staging copy is removed after the apply attempt.
+
+
 ## Recovery snapshots
 
 Guarded recovery operations can create local BEFORE/AFTER/comparison snapshot text files containing operational state such as the computer name, joined/target domain, discovered DC, secure-channel state, pending rename, MII state, AD object GUID, owner, pwdLastSet and enabled state when those values are available.
