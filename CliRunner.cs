@@ -42,6 +42,7 @@ namespace DomainMembershipCheckRepair
 
         private readonly bool fileLogging;
         private readonly bool quietConsole;
+        private bool fileLoggingFailureReported;
 
         internal CliLogger(bool enabled, bool quiet)
         {
@@ -59,9 +60,16 @@ namespace DomainMembershipCheckRepair
                 return;
 
             string error;
-            PrivateApplicationLogService.AppendLine(
+            if (!PrivateApplicationLogService.AppendLine(
                 line,
-                out error);
+                out error) &&
+                !fileLoggingFailureReported)
+            {
+                fileLoggingFailureReported = true;
+                Console.Error.WriteLine(
+                    "WARNING: application file logging was disabled for this run because the private log could not be written securely: " +
+                    error);
+            }
         }
     }
 
