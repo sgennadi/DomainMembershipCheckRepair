@@ -50,6 +50,7 @@ namespace DomainMembershipCheckRepair
             TestSafetyBundleStorage(r);
             TestProtectedFileStorage(r);
             TestPrivateDiagnosticStaging(r);
+            TestPrivateApplicationLogStorage(r);
 
             string targetDomain = (domain ?? String.Empty).Trim();
             if (!String.IsNullOrWhiteSpace(targetDomain))
@@ -715,6 +716,28 @@ namespace DomainMembershipCheckRepair
                 "Private diagnostic staging ACL",
                 status,
                 resultDetails);
+        }
+
+        private static void TestPrivateApplicationLogStorage(
+            SelfTestResult r)
+        {
+            string details;
+            bool ok =
+                PrivateApplicationLogService.CheckStorageSecurity(
+                    out details);
+
+            string status =
+                details.IndexOf(
+                    "does not exist yet",
+                    StringComparison.OrdinalIgnoreCase) >= 0
+                    ? "SKIP"
+                    : (ok ? "PASS" : "WARN");
+
+            Add(
+                r,
+                "Private application log ACL",
+                status,
+                details);
         }
 
         private static string Collapse(string value, int max)
