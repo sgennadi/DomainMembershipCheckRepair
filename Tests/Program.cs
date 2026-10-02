@@ -344,6 +344,37 @@ namespace DomainMembershipCheckRepair
                         AccessControlType.Allow),
                     "ODJ provisioning blob permits current user");
 
+                SecurityIdentifier policyCurrent =
+                    new SecurityIdentifier(
+                        "S-1-5-21-1000-1000-1000-1301");
+                SecurityIdentifier policyOther =
+                    new SecurityIdentifier(
+                        "S-1-5-21-1000-1000-1000-1302");
+
+                AssertTrue(
+                    OfflineDomainJoinService.IsUntrustedProvisioningDirectoryWriteGrant(
+                        policyOther,
+                        policyCurrent,
+                        FileSystemRights.WriteData,
+                        AccessControlType.Allow),
+                    "ODJ provisioning rejects another writer on destination folder");
+
+                AssertFalse(
+                    OfflineDomainJoinService.IsUntrustedProvisioningDirectoryWriteGrant(
+                        policyOther,
+                        policyCurrent,
+                        FileSystemRights.ReadData,
+                        AccessControlType.Allow),
+                    "ODJ provisioning permits another identity read-only directory access");
+
+                AssertFalse(
+                    OfflineDomainJoinService.IsUntrustedProvisioningDirectoryWriteGrant(
+                        policyCurrent,
+                        policyCurrent,
+                        FileSystemRights.FullControl,
+                        AccessControlType.Allow),
+                    "ODJ provisioning permits current-user write access on destination folder");
+
                 string secondError;
                 AssertFalse(
                     OfflineDomainJoinService.CommitProvisionedBlob(
