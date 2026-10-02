@@ -163,9 +163,9 @@ namespace DomainMembershipCheckRepair
 
                 cancellationToken.ThrowIfCancellationRequested();
                 Report(progress, "Support Bundle: creating ZIP archive");
-                if (File.Exists(path))
-                    File.Delete(path);
-                ZipFile.CreateFromDirectory(temp, path, CompressionLevel.Optimal, false);
+                AtomicArchiveService.CreateZipFromDirectoryAtomically(
+                    temp,
+                    path);
                 cancellationToken.ThrowIfCancellationRequested();
                 return path;
             }
