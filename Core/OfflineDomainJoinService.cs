@@ -356,6 +356,12 @@ namespace DomainMembershipCheckRepair
                 return false;
             }
 
+            if (sid.IsWellKnown(
+                WellKnownSidType.CreatorOwnerSid))
+            {
+                return false;
+            }
+
             return !ProtectedStorageAcl.IsTrustedOwner(
                 sid);
         }
