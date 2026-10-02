@@ -652,16 +652,6 @@ namespace DomainMembershipCheckRepair
         private static void TestPrivateDiagnosticStaging(
             SelfTestResult r)
         {
-            if (!ElevationHelper.IsAdministrator())
-            {
-                Add(
-                    r,
-                    "Private diagnostic staging ACL",
-                    "SKIP",
-                    "Administrator privileges are required to create and owner-harden a private RawStaging probe.");
-                return;
-            }
-
             string session = String.Empty;
             string status = "FAIL";
             string resultDetails = String.Empty;
@@ -684,7 +674,7 @@ namespace DomainMembershipCheckRepair
 
                 status = "PASS";
                 resultDetails =
-                    "Created and verified a private RawStaging session with no non-privileged allow ACEs. " +
+                    "Created and verified a per-user RawStaging session restricted to the current user, LocalSystem and Administrators. " +
                     details;
             }
             catch (Exception ex)
