@@ -48,6 +48,7 @@ namespace DomainMembershipCheckRepair
             TestTransactionStorage(r);
             TestRecoverySnapshotStorage(r);
             TestProtectedFileStorage(r);
+            TestPrivateDiagnosticStaging(r);
 
             string targetDomain = (domain ?? String.Empty).Trim();
             if (!String.IsNullOrWhiteSpace(targetDomain))
@@ -644,6 +645,61 @@ namespace DomainMembershipCheckRepair
             Add(
                 r,
                 "Protected file owner/ACL probe",
+                status,
+                resultDetails);
+        }
+
+        private static void TestPrivateDiagnosticStaging(
+            SelfTestResult r)
+        {
+            if (!ElevationHelper.IsAdministrator())
+            {
+                Add(
+                    r,
+                    "Private diagnostic staging ACL",
+                    "SKIP",
+                    "Administrator privileges are required to create and owner-harden a private RawStaging probe.");
+                return;
+            }
+
+            string session = String.Empty;
+            string status = "FAIL";
+            string resultDetails = String.Empty;
+
+            try
+            {
+                session =
+                    PrivateStagingService.CreateSession(
+                        "selftest");
+
+                string details;
+                if (!PrivateStagingService.IsPrivateDirectoryTrusted(
+                    session,
+                    out details))
+                {
+                    throw new IOException(
+                        "Private staging trust verification failed: " +
+                        details);
+                }
+
+                status = "PASS";
+                resultDetails =
+                    "Created and verified a private RawStaging session with no non-privileged allow ACEs. " +
+                    details;
+            }
+            catch (Exception ex)
+            {
+                resultDetails = ex.Message;
+            }
+            finally
+            {
+                PrivateStagingService.DeleteSession(
+                    session);
+            }
+
+            Add(
+                r,
+                "Private diagnostic staging ACL",
                 status,
                 resultDetails);
         }
