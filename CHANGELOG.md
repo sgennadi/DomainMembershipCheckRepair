@@ -127,6 +127,9 @@
 - Moved optional GUI/CLI application file logging from `C:\Windows\Logs\DomainMembershipRepair.log` to the per-user `%LOCALAPPDATA%\DomainMembershipCheckRepair\Logs\DomainMembershipRepair.log`, so standard-user logging works without elevation.
 - Added protected owner/DACL/reparse validation for the application log directory and file, allowing only the current Windows user, LocalSystem and Builtin Administrators; GUI/CLI now surface trust/write failures instead of silently swallowing them.
 - Updated Diagnostics and Support Bundle collection to use the same private application-log path, plus regression/Self Test coverage for the per-user ACL policy. Existing legacy Windows Logs files are left untouched and are no longer appended by new versions.
+- Hardened `odj-provision` output: `djoin.exe` now writes the provisioning blob to private per-user staging first, then commits the requested output through a non-inherited ACL restricted to the current Windows user, LocalSystem and Builtin Administrators.
+- Added reparse-path checks, post-commit ACL verification, temporary-file cleanup, and explicit refusal to overwrite an existing ODJ provisioning blob.
+- Added regression coverage for protected ODJ blob commit, content preservation, ACL identity policy, temp cleanup and overwrite refusal.
 
 ## 1.5.0
 
