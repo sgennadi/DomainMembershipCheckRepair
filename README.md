@@ -129,8 +129,10 @@ The **Write application log to file** checkbox is OFF by default and is not save
 Application log path when enabled:
 
 ```text
-C:\Windows\Logs\DomainMembershipRepair.log
+%LOCALAPPDATA%\DomainMembershipCheckRepair\Logs\DomainMembershipRepair.log
 ```
+
+The per-user log directory and file use a protected ACL that allows only the current Windows user, LocalSystem and Builtin Administrators. This keeps file logging usable without elevation. Existing legacy logs previously created under `C:\Windows\Logs\DomainMembershipRepair.log` are not deleted or migrated automatically, but new versions no longer write there.
 
 ## Privilege and CyberArk EPM model
 

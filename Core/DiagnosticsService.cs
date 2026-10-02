@@ -38,7 +38,10 @@ namespace DomainMembershipCheckRepair
 
     internal static class DiagnosticsService
     {
-        internal const string ApplicationLogPath = @"C:\Windows\Logs\DomainMembershipRepair.log";
+        internal static string ApplicationLogPath
+        {
+            get { return PrivateApplicationLogService.GetLogFilePath(); }
+        }
         internal const string NetSetupLogPath = @"C:\Windows\Debug\NetSetup.log";
 
         internal static DiagnosticsSnapshot Capture(string explicitTargetDomain, string preferredDirectoryServer)

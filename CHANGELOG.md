@@ -124,6 +124,9 @@
 - Added regression coverage for successful ZIP replacement, failed-packaging preservation of the previous archive, and temporary ZIP cleanup.
 - Moved pre-change safety bundles from Windows Logs/%TEMP% fallback storage into protected `%ProgramData%\DomainMembershipCheckRepair\SafetyBundles`, with shared owner/DACL/reparse verification before use and no `%TEMP%` fallback.
 - Added protected-file preflight and final owner/DACL trust verification for committed safety-bundle ZIP files, plus Self Test/storage-path coverage and traversal rejection for managed child paths.
+- Moved optional GUI/CLI application file logging from `C:\Windows\Logs\DomainMembershipRepair.log` to the per-user `%LOCALAPPDATA%\DomainMembershipCheckRepair\Logs\DomainMembershipRepair.log`, so standard-user logging works without elevation.
+- Added protected owner/DACL/reparse validation for the application log directory and file, allowing only the current Windows user, LocalSystem and Builtin Administrators; GUI/CLI now surface trust/write failures instead of silently swallowing them.
+- Updated Diagnostics and Support Bundle collection to use the same private application-log path, plus regression/Self Test coverage for the per-user ACL policy. Existing legacy Windows Logs files are left untouched and are no longer appended by new versions.
 
 ## 1.5.0
 

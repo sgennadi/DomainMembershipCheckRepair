@@ -114,6 +114,9 @@
     <Compile Include="..\Core\PrivateStagingService.cs">
       <Link>PrivateStagingService.cs</Link>
     </Compile>
+    <Compile Include="..\Core\PrivateApplicationLogService.cs">
+      <Link>PrivateApplicationLogService.cs</Link>
+    </Compile>
     <Compile Include="..\Core\AtomicArchiveService.cs">
       <Link>AtomicArchiveService.cs</Link>
     </Compile>

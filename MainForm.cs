@@ -12,7 +12,10 @@ namespace DomainMembershipCheckRepair
 {
     internal sealed partial class MainForm : Form
     {
-        private const string LogFile = DiagnosticsService.ApplicationLogPath;
+        private static string LogFile
+        {
+            get { return DiagnosticsService.ApplicationLogPath; }
+        }
 
         private TextBox domainBox;
         private Label domainSourceValue;
@@ -3014,15 +3017,28 @@ namespace DomainMembershipCheckRepair
             if (fileLogBox == null || !fileLogBox.Checked)
                 return;
 
-            try
+            string fileLogError;
+            if (!PrivateApplicationLogService.AppendLine(
+                line,
+                out fileLogError))
             {
-                string directory = Path.GetDirectoryName(LogFile);
-                if (!Directory.Exists(directory))
-                    Directory.CreateDirectory(directory);
-                File.AppendAllText(LogFile, line + Environment.NewLine, Encoding.UTF8);
-            }
-            catch
-            {
+                fileLogBox.Checked = false;
+
+                string warning =
+                    "[" +
+                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") +
+                    "] [WARN] Application file logging was disabled for this run because the private log could not be written securely: " +
+                    fileLogError;
+
+                if (logBox != null)
+                {
+                    logBox.AppendText(
+                        warning +
+                        Environment.NewLine);
+                    logBox.SelectionStart =
+                        logBox.TextLength;
+                    logBox.ScrollToCaret();
+                }
             }
         }
 

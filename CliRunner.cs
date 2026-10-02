@@ -35,9 +35,14 @@ namespace DomainMembershipCheckRepair
 
     internal sealed class CliLogger
     {
-        internal const string LogFile = @"C:\Windows\Logs\DomainMembershipRepair.log";
+        internal static string LogFile
+        {
+            get { return PrivateApplicationLogService.GetLogFilePath(); }
+        }
+
         private readonly bool fileLogging;
         private readonly bool quietConsole;
+        private bool fileLoggingFailureReported;
 
         internal CliLogger(bool enabled, bool quiet)
         {
@@ -54,15 +59,16 @@ namespace DomainMembershipCheckRepair
             if (!fileLogging)
                 return;
 
-            try
+            string error;
+            if (!PrivateApplicationLogService.AppendLine(
+                line,
+                out error) &&
+                !fileLoggingFailureReported)
             {
-                string directory = Path.GetDirectoryName(LogFile);
-                if (!Directory.Exists(directory))
-                    Directory.CreateDirectory(directory);
-                File.AppendAllText(LogFile, line + Environment.NewLine, Encoding.UTF8);
-            }
-            catch
-            {
+                fileLoggingFailureReported = true;
+                Console.Error.WriteLine(
+                    "WARNING: application file logging was disabled for this run because the private log could not be written securely: " +
+                    error);
             }
         }
     }
