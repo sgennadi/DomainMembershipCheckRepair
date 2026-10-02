@@ -78,10 +78,10 @@ Sanitization is fail-closed per file: if collected content cannot be safely read
 Before sanitization, raw diagnostic/support-bundle material is staged only under the private local directory:
 
 ```text
-%ProgramData%\DomainMembershipCheckRepair\RawStaging
+%LOCALAPPDATA%\DomainMembershipCheckRepair\RawStaging
 ```
 
-The RawStaging root and each per-export session disable ACL inheritance and allow access only to LocalSystem and Builtin Administrators; ordinary Users are not granted read access. The application no longer stages raw diagnostic bundles in `%TEMP%`. Per-export staging is deleted in a `finally` path after packaging. If the process terminates unexpectedly, trusted staging sessions older than 24 hours are pruned when a later staging session is created.
+The RawStaging root and each per-export session disable ACL inheritance and allow access only to the current Windows user, LocalSystem and Builtin Administrators; other users are not granted read access. The application no longer stages raw diagnostic bundles in `%TEMP%`. Per-export staging is deleted in a `finally` path after packaging. If the process terminates unexpectedly, trusted staging sessions older than 24 hours are pruned when a later staging session is created.
 
 Automatic redaction is a defense-in-depth measure and cannot guarantee recognition of every possible environment-specific identifier. Operators should still review a bundle before external sharing.
 
