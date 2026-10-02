@@ -1377,7 +1377,8 @@ namespace DomainMembershipCheckRepair
 
             string folder =
                 Path.GetFullPath(
-                    SafetyBundleService.GetSafetyFolderPath());
+                    ProtectedStorageAcl.GetManagedChildPath(
+                        "SafetyBundles"));
 
             string prefix =
                 root +
@@ -1387,14 +1388,31 @@ namespace DomainMembershipCheckRepair
                 folder.StartsWith(
                     prefix,
                     StringComparison.OrdinalIgnoreCase),
-                "safety bundle storage stays under managed ProgramData root");
+                "managed safety bundle storage stays under ProgramData root");
 
             AssertTrue(
                 folder.EndsWith(
                     Path.DirectorySeparatorChar +
                     "SafetyBundles",
                     StringComparison.OrdinalIgnoreCase),
-                "safety bundle storage uses dedicated SafetyBundles child");
+                "managed safety bundle storage uses dedicated child");
+
+            bool traversalRejected = false;
+            try
+            {
+                ProtectedStorageAcl.GetManagedChildPath(
+                    ".." +
+                    Path.DirectorySeparatorChar +
+                    "escape");
+            }
+            catch (ArgumentException)
+            {
+                traversalRejected = true;
+            }
+
+            AssertTrue(
+                traversalRejected,
+                "managed storage child helper rejects traversal");
         }
 
         private static void TestPrivateStagingAclPolicy()
