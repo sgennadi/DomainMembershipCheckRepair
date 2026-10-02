@@ -300,10 +300,9 @@ namespace DomainMembershipCheckRepair
                     tempRoot,
                     sanitizer);
 
-                if (File.Exists(path))
-                    File.Delete(path);
-
-                ZipFile.CreateFromDirectory(tempRoot, path, CompressionLevel.Optimal, false);
+                AtomicArchiveService.CreateZipFromDirectoryAtomically(
+                    tempRoot,
+                    path);
                 return path;
             }
             finally

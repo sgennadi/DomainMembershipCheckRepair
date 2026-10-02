@@ -30,6 +30,8 @@ Transaction-journal creation now fails closed if protected ProgramData ownership
 
 Raw diagnostic/support-bundle material is never staged in ordinary `%TEMP%`. Before fail-closed sanitization and ZIP creation it is collected under `%LOCALAPPDATA%\DomainMembershipCheckRepair\RawStaging` in per-run directories whose owner/DACL is restricted to the current Windows user, LocalSystem and Builtin Administrators, with inheritance disabled and no non-privileged allow ACEs. Sessions are removed after packaging; trusted stale sessions older than 24 hours are pruned on a later staging run. Self Test includes a runtime probe of this per-user private staging ACL path and does not require elevation for that probe.
 
+Sanitized diagnostic/support ZIP output is committed atomically. The archive is first created as a same-directory temporary file, reopened and validated as a non-empty readable ZIP, and only then moved/replaced over the destination. A packaging failure therefore leaves the previous completed archive intact and temporary ZIP files are cleaned up best-effort.
+
 Active Directory Recycle Bin queries and restore operations use LDAP 389 with Windows Negotiate plus explicit signing and sealing. Immediately before restore, the exact deleted object is re-read and its sAMAccountName, object GUID, deleted/recycled state, lastKnownParent and msDS-LastKnownRDN are revalidated; restore fails closed if that identity or restore location changed.
 
 

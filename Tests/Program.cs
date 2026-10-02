@@ -58,6 +58,7 @@ namespace DomainMembershipCheckRepair
             TestAdDeleteFinalSafety();
             TestSupportBundleSanitizer();
             TestSupportBundleZipRedaction();
+            TestAtomicArchiveCommit();
 
             if (failures == 0)
             {
@@ -1657,6 +1658,131 @@ namespace DomainMembershipCheckRepair
                 AssertTrue(
                     combined.IndexOf("[REDACTED]", StringComparison.Ordinal) >= 0,
                     "support bundle ZIP contains secret redaction marker");
+            }
+            finally
+            {
+                try
+                {
+                    if (Directory.Exists(root))
+                        Directory.Delete(root, true);
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        private static void TestAtomicArchiveCommit()
+        {
+            string root = Path.Combine(
+                Path.GetTempPath(),
+                "DomainMembershipCheckRepair.Tests",
+                Guid.NewGuid().ToString("N"));
+            string source = Path.Combine(root, "source");
+            string destination = Path.Combine(root, "bundle.zip");
+
+            Directory.CreateDirectory(source);
+
+            try
+            {
+                File.WriteAllText(
+                    Path.Combine(source, "new.txt"),
+                    "new-content");
+
+                string oldSource = Path.Combine(root, "old-source");
+                Directory.CreateDirectory(oldSource);
+                File.WriteAllText(
+                    Path.Combine(oldSource, "old.txt"),
+                    "old-content");
+
+                ZipFile.CreateFromDirectory(
+                    oldSource,
+                    destination,
+                    CompressionLevel.Optimal,
+                    false);
+
+                AtomicArchiveService.CreateZipFromDirectoryAtomically(
+                    source,
+                    destination);
+
+                AtomicArchiveService.VerifyArchive(destination);
+
+                using (ZipArchive archive = ZipFile.OpenRead(destination))
+                {
+                    AssertTrue(
+                        archive.GetEntry("new.txt") != null,
+                        "atomic archive replacement contains new content");
+                    AssertTrue(
+                        archive.GetEntry("old.txt") == null,
+                        "atomic archive replacement removed previous content");
+                }
+
+                AssertEqualInt(
+                    0,
+                    Directory.GetFiles(
+                        root,
+                        "bundle.zip.tmp-*",
+                        SearchOption.TopDirectoryOnly).Length,
+                    "atomic archive leaves no temporary ZIP after success");
+
+                string failureSource = Path.Combine(root, "failure-source");
+                Directory.CreateDirectory(failureSource);
+                string lockedPath = Path.Combine(failureSource, "locked.txt");
+                File.WriteAllText(lockedPath, "locked");
+
+                string stableSource = Path.Combine(root, "stable-source");
+                Directory.CreateDirectory(stableSource);
+                File.WriteAllText(
+                    Path.Combine(stableSource, "stable.txt"),
+                    "stable-content");
+
+                ZipFile.CreateFromDirectory(
+                    stableSource,
+                    destination + ".stable",
+                    CompressionLevel.Optimal,
+                    false);
+                File.Replace(
+                    destination + ".stable",
+                    destination,
+                    null);
+
+                bool failed = false;
+                using (FileStream locked = new FileStream(
+                    lockedPath,
+                    FileMode.Open,
+                    FileAccess.ReadWrite,
+                    FileShare.None))
+                {
+                    try
+                    {
+                        AtomicArchiveService.CreateZipFromDirectoryAtomically(
+                            failureSource,
+                            destination);
+                    }
+                    catch
+                    {
+                        failed = true;
+                    }
+                }
+
+                AssertTrue(
+                    failed,
+                    "atomic archive reports packaging failure");
+
+                using (ZipArchive archive = ZipFile.OpenRead(destination))
+                {
+                    AssertTrue(
+                        archive.GetEntry("stable.txt") != null,
+                        "previous archive survives failed replacement");
+                }
+
+                AssertEqualInt(
+                    0,
+                    Directory.GetFiles(
+                        root,
+                        "bundle.zip.tmp-*",
+                        SearchOption.TopDirectoryOnly).Length,
+                    "atomic archive cleans temporary ZIP after failure");
             }
             finally
             {

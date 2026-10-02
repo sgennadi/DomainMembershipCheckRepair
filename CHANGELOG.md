@@ -120,6 +120,8 @@
 - Replaced `%TEMP%` staging for raw diagnostic/support-bundle material with `%LOCALAPPDATA%\DomainMembershipCheckRepair\RawStaging`, using per-run directories restricted to the current Windows user, LocalSystem and Builtin Administrators with no other-user read access.
 - Added fail-safe staging cleanup plus pruning of trusted stale sessions older than 24 hours after an interrupted process, and added a standard-user-compatible Self Test probe for the private staging ACL path.
 - Added regression coverage proving that private staging rejects even read-only allow ACEs for non-privileged identities while permitting LocalSystem/Administrators.
+- Made sanitized Diagnostics Export and Advanced Support Bundle ZIP commits atomic: build and validate a same-directory temporary archive before replace/move, preserving the previous complete ZIP when packaging fails.
+- Added regression coverage for successful ZIP replacement, failed-packaging preservation of the previous archive, and temporary ZIP cleanup.
 
 ## 1.5.0
 
