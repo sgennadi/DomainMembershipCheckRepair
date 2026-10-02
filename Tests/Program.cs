@@ -56,6 +56,7 @@ namespace DomainMembershipCheckRepair
             TestProtectedStorageAclPolicy();
             TestSafetyBundleStoragePath();
             TestPrivateStagingAclPolicy();
+            TestPrivateApplicationLogAclPolicy();
             TestAdDeleteFinalSafety();
             TestSupportBundleSanitizer();
             TestSupportBundleZipRedaction();
@@ -1466,6 +1467,68 @@ namespace DomainMembershipCheckRepair
                     currentUser,
                     AccessControlType.Deny),
                 "private staging does not treat deny rules as allow access");
+        }
+
+        private static void TestPrivateApplicationLogAclPolicy()
+        {
+            SecurityIdentifier currentUser =
+                new SecurityIdentifier(
+                    "S-1-5-21-1000-1000-1000-1101");
+            SecurityIdentifier otherUser =
+                new SecurityIdentifier(
+                    "S-1-5-21-1000-1000-1000-1102");
+            SecurityIdentifier administrators =
+                new SecurityIdentifier(
+                    WellKnownSidType.BuiltinAdministratorsSid,
+                    null);
+            SecurityIdentifier system =
+                new SecurityIdentifier(
+                    WellKnownSidType.LocalSystemSid,
+                    null);
+
+            AssertTrue(
+                PrivateApplicationLogService.IsUntrustedPrivateAllowRule(
+                    otherUser,
+                    currentUser,
+                    AccessControlType.Allow),
+                "private application log rejects another user's allow access");
+
+            AssertFalse(
+                PrivateApplicationLogService.IsUntrustedPrivateAllowRule(
+                    currentUser,
+                    currentUser,
+                    AccessControlType.Allow),
+                "private application log permits the current user");
+
+            AssertFalse(
+                PrivateApplicationLogService.IsUntrustedPrivateAllowRule(
+                    administrators,
+                    currentUser,
+                    AccessControlType.Allow),
+                "private application log permits Administrators");
+
+            AssertFalse(
+                PrivateApplicationLogService.IsUntrustedPrivateAllowRule(
+                    system,
+                    currentUser,
+                    AccessControlType.Allow),
+                "private application log permits LocalSystem");
+
+            AssertFalse(
+                PrivateApplicationLogService.IsUntrustedPrivateAllowRule(
+                    otherUser,
+                    currentUser,
+                    AccessControlType.Deny),
+                "private application log ignores deny rules as untrusted allow grants");
+
+            AssertTrue(
+                PrivateApplicationLogService.GetLogFilePath().EndsWith(
+                    Path.Combine(
+                        "DomainMembershipCheckRepair",
+                        "Logs",
+                        "DomainMembershipRepair.log"),
+                    StringComparison.OrdinalIgnoreCase),
+                "private application log path uses per-user Logs directory");
         }
 
         private static void TestAdDeleteFinalSafety()
