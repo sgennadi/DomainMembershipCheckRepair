@@ -297,7 +297,11 @@ namespace DomainMembershipCheckRepair
 
                 AssertTrue(
                     committed,
-                    "ODJ provisioning blob protected commit succeeds");
+                    "ODJ provisioning blob protected commit succeeds: " +
+                    error);
+
+                if (!committed)
+                    return;
 
                 AssertTrue(
                     File.Exists(destination),
