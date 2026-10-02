@@ -87,6 +87,14 @@ Automatic redaction is a defense-in-depth measure and cannot guarantee recogniti
 
 Default diagnostic and pre-change support-bundle filenames do not include the local computer name.
 
+Pre-change safety bundles created around mutating recovery operations are stored under:
+
+```text
+%ProgramData%\DomainMembershipCheckRepair\SafetyBundles
+```
+
+That folder uses the same protected ProgramData owner/DACL/reparse policy as recovery evidence and does not fall back to `%TEMP%`. The committed sanitized ZIP is hardened and re-verified after creation.
+
 Diagnostic packages are created locally. The application does not automatically upload or transmit them anywhere.
 
 ### Repository integration-lab artifacts

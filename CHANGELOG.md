@@ -122,6 +122,8 @@
 - Added regression coverage proving that private staging rejects even read-only allow ACEs for non-privileged identities while permitting LocalSystem/Administrators.
 - Made sanitized Diagnostics Export and Advanced Support Bundle ZIP commits atomic: build and validate a same-directory temporary archive before replace/move, preserving the previous complete ZIP when packaging fails.
 - Added regression coverage for successful ZIP replacement, failed-packaging preservation of the previous archive, and temporary ZIP cleanup.
+- Moved pre-change safety bundles from Windows Logs/%TEMP% fallback storage into protected `%ProgramData%\DomainMembershipCheckRepair\SafetyBundles`, with shared owner/DACL/reparse verification before use and no `%TEMP%` fallback.
+- Added protected-file preflight and final owner/DACL trust verification for committed safety-bundle ZIP files, plus Self Test/storage-path coverage and traversal rejection for managed child paths.
 
 ## 1.5.0
 

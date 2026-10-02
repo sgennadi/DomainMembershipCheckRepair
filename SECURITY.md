@@ -32,6 +32,8 @@ Raw diagnostic/support-bundle material is never staged in ordinary `%TEMP%`. Bef
 
 Sanitized diagnostic/support ZIP output is committed atomically. The archive is first created as a same-directory temporary file, reopened and validated as a non-empty readable ZIP, and only then moved/replaced over the destination. A packaging failure therefore leaves the previous completed archive intact and temporary ZIP files are cleaned up best-effort.
 
+Pre-change safety bundles for mutating recovery operations are stored only under the managed `%ProgramData%\DomainMembershipCheckRepair\SafetyBundles` child. There is no `%TEMP%` fallback. The directory is owner/DACL/reparse-verified before use, existing destinations must pass protected-file preflight, and each committed ZIP is owner/ACL-hardened and re-verified after the atomic archive commit.
+
 Active Directory Recycle Bin queries and restore operations use LDAP 389 with Windows Negotiate plus explicit signing and sealing. Immediately before restore, the exact deleted object is re-read and its sAMAccountName, object GUID, deleted/recycled state, lastKnownParent and msDS-LastKnownRDN are revalidated; restore fails closed if that identity or restore location changed.
 
 

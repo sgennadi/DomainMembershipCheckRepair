@@ -20,8 +20,17 @@ namespace DomainMembershipCheckRepair
 
             try
             {
-                string folder = GetSafetyFolder();
-                Directory.CreateDirectory(folder);
+                string folder = GetSafetyFolderPath();
+
+                string storageDetails;
+                if (!ProtectedStorageAcl.EnsureProtectedDirectory(
+                    folder,
+                    out storageDetails))
+                {
+                    throw new IOException(
+                        "Safety bundle storage could not be prepared securely: " +
+                        storageDetails);
+                }
 
                 path = Path.Combine(
                     folder,
@@ -29,19 +38,53 @@ namespace DomainMembershipCheckRepair
                     Sanitize(operation) +
                     "-prechange-sanitized.zip");
 
-                AdvancedDiagnosticsResult advanced = AdvancedDiagnosticsService.Analyze(
-                    domain,
-                    preferredDc,
-                    String.IsNullOrWhiteSpace(computerName) ? Environment.MachineName : computerName,
-                    user,
-                    password);
+                if (!ProtectedStorageAcl.PrepareProtectedFileTarget(
+                    path,
+                    out storageDetails))
+                {
+                    throw new IOException(
+                        "Safety bundle destination failed protected-file preflight: " +
+                        storageDetails);
+                }
+
+                AdvancedDiagnosticsResult advanced =
+                    AdvancedDiagnosticsService.Analyze(
+                        domain,
+                        preferredDc,
+                        String.IsNullOrWhiteSpace(computerName)
+                            ? Environment.MachineName
+                            : computerName,
+                        user,
+                        password);
 
                 path = AdvancedSupportBundleService.Export(
                     advanced,
                     path,
                     false);
 
-                return File.Exists(path);
+                if (!File.Exists(path))
+                    throw new IOException(
+                        "Safety bundle export did not create the expected archive.");
+
+                if (!ProtectedStorageAcl.HardenProtectedFile(
+                    path,
+                    out storageDetails))
+                {
+                    throw new IOException(
+                        "Safety bundle archive could not be owner/ACL hardened after commit: " +
+                        storageDetails);
+                }
+
+                if (!ProtectedStorageAcl.IsProtectedFileTrusted(
+                    path,
+                    out storageDetails))
+                {
+                    throw new IOException(
+                        "Safety bundle archive failed final trust verification: " +
+                        storageDetails);
+                }
+
+                return true;
             }
             catch (Exception ex)
             {
@@ -51,35 +94,39 @@ namespace DomainMembershipCheckRepair
             }
         }
 
-        private static string GetSafetyFolder()
+        internal static string GetSafetyFolderPath()
         {
-            string primary = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-                "Logs",
-                "DomainMembershipCheckRepair",
+            return ProtectedStorageAcl.GetManagedChildPath(
                 "SafetyBundles");
+        }
 
-            try
+        internal static bool CheckStorageSecurity(
+            out string details)
+        {
+            string folder = GetSafetyFolderPath();
+            if (!Directory.Exists(folder))
             {
-                Directory.CreateDirectory(primary);
-                return primary;
+                details =
+                    "Safety bundle folder does not exist yet: " +
+                    folder;
+                return false;
             }
-            catch
-            {
-                string fallback = Path.Combine(
-                    Path.GetTempPath(),
-                    "DomainMembershipCheckRepair",
-                    "SafetyBundles");
-                Directory.CreateDirectory(fallback);
-                return fallback;
-            }
+
+            return ProtectedStorageAcl.IsProtectedDirectoryTrusted(
+                folder,
+                out details);
         }
 
         private static string Sanitize(string value)
         {
-            string text = String.IsNullOrWhiteSpace(value) ? "operation" : value.Trim();
+            string text =
+                String.IsNullOrWhiteSpace(value)
+                    ? "operation"
+                    : value.Trim();
+
             foreach (char c in Path.GetInvalidFileNameChars())
                 text = text.Replace(c, '-');
+
             return text.Replace(' ', '-');
         }
     }

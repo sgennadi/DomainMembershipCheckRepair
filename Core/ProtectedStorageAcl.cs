@@ -15,6 +15,29 @@ namespace DomainMembershipCheckRepair
                 "DomainMembershipCheckRepair");
         }
 
+        internal static string GetManagedChildPath(
+            string childName)
+        {
+            string name =
+                (childName ?? String.Empty).Trim();
+
+            if (name.Length == 0 ||
+                name == "." ||
+                name == ".." ||
+                name.IndexOf(Path.DirectorySeparatorChar) >= 0 ||
+                name.IndexOf(Path.AltDirectorySeparatorChar) >= 0 ||
+                name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            {
+                throw new ArgumentException(
+                    "A simple managed child directory name is required.",
+                    "childName");
+            }
+
+            return Path.Combine(
+                GetApplicationRootPath(),
+                name);
+        }
+
         internal static bool EnsureProtectedDirectory(
             string path,
             out string error)

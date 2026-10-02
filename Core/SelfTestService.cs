@@ -47,6 +47,7 @@ namespace DomainMembershipCheckRepair
             TestDpiConfig(r);
             TestTransactionStorage(r);
             TestRecoverySnapshotStorage(r);
+            TestSafetyBundleStorage(r);
             TestProtectedFileStorage(r);
             TestPrivateDiagnosticStaging(r);
 
@@ -525,6 +526,28 @@ namespace DomainMembershipCheckRepair
                 r,
                 "Recovery snapshot storage",
                 ok ? "PASS" : "WARN",
+                details);
+        }
+
+        private static void TestSafetyBundleStorage(
+            SelfTestResult r)
+        {
+            string details;
+            bool ok =
+                SafetyBundleService.CheckStorageSecurity(
+                    out details);
+
+            string status =
+                details.IndexOf(
+                    "does not exist yet",
+                    StringComparison.OrdinalIgnoreCase) >= 0
+                    ? "SKIP"
+                    : (ok ? "PASS" : "WARN");
+
+            Add(
+                r,
+                "Safety bundle storage",
+                status,
                 details);
         }
 

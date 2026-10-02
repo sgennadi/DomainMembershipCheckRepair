@@ -54,6 +54,7 @@ namespace DomainMembershipCheckRepair
             TestAdRecoveryHelpers();
             TestAdRestoreFinalSafety();
             TestProtectedStorageAclPolicy();
+            TestSafetyBundleStoragePath();
             TestPrivateStagingAclPolicy();
             TestAdDeleteFinalSafety();
             TestSupportBundleSanitizer();
@@ -1363,6 +1364,55 @@ namespace DomainMembershipCheckRepair
                     ProtectedStorageAcl.GetApplicationRootPath(),
                     out fileSecurityDetails),
                 "protected file target cannot be the managed root directory itself");
+        }
+
+        private static void TestSafetyBundleStoragePath()
+        {
+            string root =
+                Path.GetFullPath(
+                    ProtectedStorageAcl.GetApplicationRootPath())
+                .TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar);
+
+            string folder =
+                Path.GetFullPath(
+                    ProtectedStorageAcl.GetManagedChildPath(
+                        "SafetyBundles"));
+
+            string prefix =
+                root +
+                Path.DirectorySeparatorChar;
+
+            AssertTrue(
+                folder.StartsWith(
+                    prefix,
+                    StringComparison.OrdinalIgnoreCase),
+                "managed safety bundle storage stays under ProgramData root");
+
+            AssertTrue(
+                folder.EndsWith(
+                    Path.DirectorySeparatorChar +
+                    "SafetyBundles",
+                    StringComparison.OrdinalIgnoreCase),
+                "managed safety bundle storage uses dedicated child");
+
+            bool traversalRejected = false;
+            try
+            {
+                ProtectedStorageAcl.GetManagedChildPath(
+                    ".." +
+                    Path.DirectorySeparatorChar +
+                    "escape");
+            }
+            catch (ArgumentException)
+            {
+                traversalRejected = true;
+            }
+
+            AssertTrue(
+                traversalRejected,
+                "managed storage child helper rejects traversal");
         }
 
         private static void TestPrivateStagingAclPolicy()
