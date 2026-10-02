@@ -249,8 +249,20 @@ namespace DomainMembershipCheckRepair
 
             try
             {
-                if (Directory.Exists(fullPath))
-                    Directory.Delete(fullPath, true);
+                if (!Directory.Exists(fullPath))
+                    return;
+
+                string details;
+                if (!IsPrivateDirectoryTrusted(
+                    fullPath,
+                    out details))
+                {
+                    return;
+                }
+
+                Directory.Delete(
+                    fullPath,
+                    true);
             }
             catch
             {
