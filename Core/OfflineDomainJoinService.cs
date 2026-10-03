@@ -192,6 +192,35 @@ namespace DomainMembershipCheckRepair
                     return false;
                 }
 
+                SecurityIdentifier currentUser;
+                using (WindowsIdentity identity =
+                    WindowsIdentity.GetCurrent())
+                {
+                    if (identity == null ||
+                        identity.User == null)
+                    {
+                        error =
+                            "Current Windows user SID is unavailable for snapshot verification.";
+                        TryDeleteSnapshot(destination);
+                        return false;
+                    }
+
+                    currentUser = identity.User;
+                }
+
+                string snapshotDetails;
+                if (!IsProvisioningBlobTrusted(
+                    destination,
+                    currentUser,
+                    out snapshotDetails))
+                {
+                    error =
+                        "Private provisioning snapshot ACL verification failed: " +
+                        snapshotDetails;
+                    TryDeleteSnapshot(destination);
+                    return false;
+                }
+
                 return true;
             }
             catch (Exception ex)
@@ -200,6 +229,21 @@ namespace DomainMembershipCheckRepair
                     "Unable to create private provisioning blob snapshot: " +
                     ex.Message;
                 return false;
+            }
+        }
+
+        private static void TryDeleteSnapshot(string path)
+        {
+            try
+            {
+                if (!String.IsNullOrWhiteSpace(path) &&
+                    File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch
+            {
             }
         }
 
