@@ -3027,6 +3027,19 @@ namespace DomainMembershipCheckRepair
             if (!EnsureElevatedForGui("restart"))
                 return;
 
+            DialogResult confirm = MessageBox.Show(
+                this,
+                "Schedule a Windows restart in 15 seconds?\r\n\r\n" +
+                "Unsaved work in other applications may be lost.\r\n" +
+                "You can cancel a scheduled restart with: shutdown /a",
+                "Confirm Windows restart",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2);
+
+            if (confirm != DialogResult.Yes)
+                return;
+
             CommandResult restart =
                 ProcessRunner.RunArguments(
                     "shutdown.exe",
