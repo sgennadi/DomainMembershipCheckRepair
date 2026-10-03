@@ -527,6 +527,8 @@ Apply an existing provisioning blob from the GUI or CLI:
 DomainMembershipCheckRepair.exe --cli --action odj-apply --blob C:\Temp\odj.txt
 ```
 
+Before `djoin.exe` applies the blob, the application opens the selected source without write sharing and copies it into the private per-user staging area. `djoin.exe` receives only that stable private snapshot; the original source file is not modified or deleted.
+
 Provision a blob on a machine/account that has the required Active Directory permissions:
 
 ```text
