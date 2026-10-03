@@ -467,6 +467,60 @@ namespace DomainMembershipCheckRepair
                     File.ReadAllText(destination),
                     "ODJ apply private snapshot preserves content");
 
+                using (WindowsIdentity identity =
+                    WindowsIdentity.GetCurrent())
+                {
+                    AssertTrue(
+                        identity != null &&
+                        identity.User != null,
+                        "ODJ apply snapshot test has current Windows user SID");
+
+                    if (identity != null &&
+                        identity.User != null)
+                    {
+                        FileSecurity snapshotSecurity =
+                            File.GetAccessControl(
+                                destination,
+                                AccessControlSections.Owner |
+                                AccessControlSections.Access);
+
+                        SecurityIdentifier snapshotOwner =
+                            snapshotSecurity.GetOwner(
+                                typeof(SecurityIdentifier))
+                            as SecurityIdentifier;
+
+                        AssertTrue(
+                            snapshotOwner != null &&
+                            (snapshotOwner.Equals(identity.User) ||
+                             ProtectedStorageAcl.IsTrustedOwner(snapshotOwner)),
+                            "ODJ apply private snapshot owner is trusted");
+
+                        AssertTrue(
+                            snapshotSecurity.AreAccessRulesProtected,
+                            "ODJ apply private snapshot ACL inheritance is disabled");
+
+                        AuthorizationRuleCollection snapshotRules =
+                            snapshotSecurity.GetAccessRules(
+                                true,
+                                true,
+                                typeof(SecurityIdentifier));
+
+                        foreach (FileSystemAccessRule rule in snapshotRules)
+                        {
+                            SecurityIdentifier sid =
+                                rule.IdentityReference
+                                as SecurityIdentifier;
+
+                            AssertFalse(
+                                OfflineDomainJoinService.IsUntrustedProvisioningBlobAllowRule(
+                                    sid,
+                                    identity.User,
+                                    rule.AccessControlType),
+                                "ODJ apply private snapshot has no untrusted allow rule");
+                        }
+                    }
+                }
+
                 string secondError;
                 AssertFalse(
                     OfflineDomainJoinService.CopyBlobSnapshot(

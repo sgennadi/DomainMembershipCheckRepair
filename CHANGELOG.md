@@ -133,6 +133,8 @@
 - Hardened `odj-apply` input: the selected provisioning blob is now copied under a read-locked source handle into private per-user staging, and `djoin.exe` receives only that stable snapshot instead of the original user path.
 - ODJ apply rejects source-file/path reparse redirection, empty blobs and pre-existing private snapshot destinations; the temporary private copy is removed after the apply attempt.
 - Added regression coverage for ODJ apply snapshot content, empty-input rejection and existing-private-destination refusal.
+- ODJ apply now fail-closed verifies the private snapshot file owner/DACL after creation and removes the snapshot immediately if verification fails; regression coverage validates the resulting file ACL.
+- ODJ apply now revalidates the source file reparse attribute and parent path after acquiring the read-locked source handle, narrowing the path-swap/TOCTOU window before snapshot bytes are consumed.
 
 ## 1.5.0
 
