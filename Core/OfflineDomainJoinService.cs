@@ -165,6 +165,26 @@ namespace DomainMembershipCheckRepair
                         FileAccess.Read,
                         FileShare.Read))
                 {
+                    FileAttributes openedAttributes =
+                        File.GetAttributes(source);
+                    if ((openedAttributes & FileAttributes.ReparsePoint) != 0)
+                    {
+                        error =
+                            "Source provisioning blob became a reparse point before snapshot copy.";
+                        return false;
+                    }
+
+                    string openedPathDetails;
+                    if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
+                        sourceFolder,
+                        out openedPathDetails))
+                    {
+                        error =
+                            "Source provisioning blob path changed during secure open: " +
+                            openedPathDetails;
+                        return false;
+                    }
+
                     if (input.Length <= 0)
                     {
                         error =
