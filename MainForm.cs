@@ -1919,6 +1919,29 @@ namespace DomainMembershipCheckRepair
 
         private void OfflineDomainJoinWorkflow()
         {
+            DialogResult mode = MessageBox.Show(
+                this,
+                "Choose the Offline Domain Join operation.\r\n\r\n" +
+                "Yes = Apply an existing provisioning blob to this computer\r\n" +
+                "No = Provision a new protected blob for a computer account\r\n" +
+                "Cancel = Do nothing",
+                "Offline Domain Join",
+                MessageBoxButtons.YesNoCancel,
+                MessageBoxIcon.Information,
+                MessageBoxDefaultButton.Button1);
+
+            if (mode == DialogResult.Yes)
+            {
+                ApplyOfflineDomainJoinWorkflow();
+                return;
+            }
+
+            if (mode == DialogResult.No)
+                ProvisionOfflineDomainJoinWorkflow();
+        }
+
+        private void ApplyOfflineDomainJoinWorkflow()
+        {
             if (!EnsureElevatedForGui("odj-apply"))
                 return;
 
@@ -1933,9 +1956,10 @@ namespace DomainMembershipCheckRepair
                     this,
                     "Apply this Offline Domain Join provisioning package to the local Windows installation?\r\n\r\n" +
                     open.FileName + "\r\n\r\nA restart will be required.",
-                    "Offline Domain Join",
+                    "Offline Domain Join - Apply",
                     MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning);
+                    MessageBoxIcon.Warning,
+                    MessageBoxDefaultButton.Button2);
 
                 if (confirm != DialogResult.Yes)
                     return;
@@ -1973,6 +1997,99 @@ namespace DomainMembershipCheckRepair
 
                     AskRestart("Offline Domain Join was applied successfully.");
                 }
+            }
+        }
+
+        private void ProvisionOfflineDomainJoinWorkflow()
+        {
+            string targetDomain;
+            if (!TryGetTargetDomain(out targetDomain))
+                return;
+
+            string computerName = ComputerNameLookupDialog.ShowDialog(
+                this,
+                Environment.MachineName);
+            if (computerName == null)
+                return;
+
+            string validationError = ValidateComputerName(computerName);
+            if (validationError != null)
+            {
+                MessageBox.Show(
+                    this,
+                    validationError,
+                    "Invalid computer name",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            DialogResult reuseChoice = MessageBox.Show(
+                this,
+                "Should djoin.exe be allowed to reuse an existing Active Directory computer account with this name?\r\n\r\n" +
+                "Yes = include /reuse\r\n" +
+                "No = provision without /reuse\r\n" +
+                "Cancel = stop",
+                "Offline Domain Join - Provision",
+                MessageBoxButtons.YesNoCancel,
+                MessageBoxIcon.Question,
+                MessageBoxDefaultButton.Button2);
+
+            if (reuseChoice == DialogResult.Cancel)
+                return;
+
+            using (SaveFileDialog save = new SaveFileDialog())
+            {
+                save.Title = "Save protected Offline Domain Join provisioning blob";
+                save.Filter = "ODJ provisioning files (*.txt)|*.txt|All files (*.*)|*.*";
+                save.FileName = computerName + "-odj.txt";
+                save.OverwritePrompt = false;
+
+                if (save.ShowDialog(this) != DialogResult.OK)
+                    return;
+
+                if (File.Exists(save.FileName))
+                {
+                    MessageBox.Show(
+                        this,
+                        "The selected output file already exists. For safety, provisioning blobs are never overwritten.\r\n\r\nChoose a new file name.",
+                        "Offline Domain Join - Provision",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                string output;
+                int code = OfflineDomainJoinService.ProvisionBlob(
+                    targetDomain,
+                    computerName,
+                    save.FileName,
+                    reuseChoice == DialogResult.Yes,
+                    out output);
+
+                Log(
+                    code == 0 ? "SUCCESS" : "ERROR",
+                    "Offline Domain Join provisioning returned " +
+                    code +
+                    ". " +
+                    output);
+
+                if (code != 0)
+                {
+                    ReportDialog.ShowReport(
+                        this,
+                        "Offline Domain Join provisioning failed",
+                        output);
+                    return;
+                }
+
+                MessageBox.Show(
+                    this,
+                    "Protected Offline Domain Join provisioning blob created successfully.\r\n\r\n" +
+                    save.FileName + "\r\n\r\nProtect this file during transfer and delete it when it is no longer needed.",
+                    "Offline Domain Join - Provision",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
             }
         }
 
