@@ -165,6 +165,26 @@ namespace DomainMembershipCheckRepair
                         FileAccess.Read,
                         FileShare.Read))
                 {
+                    FileAttributes openedAttributes =
+                        File.GetAttributes(source);
+                    if ((openedAttributes & FileAttributes.ReparsePoint) != 0)
+                    {
+                        error =
+                            "Source provisioning blob became a reparse point before snapshot copy.";
+                        return false;
+                    }
+
+                    string openedPathDetails;
+                    if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(
+                        sourceFolder,
+                        out openedPathDetails))
+                    {
+                        error =
+                            "Source provisioning blob path changed during secure open: " +
+                            openedPathDetails;
+                        return false;
+                    }
+
                     if (input.Length <= 0)
                     {
                         error =
@@ -172,12 +192,34 @@ namespace DomainMembershipCheckRepair
                         return false;
                     }
 
+                    SecurityIdentifier snapshotUser;
+                    using (WindowsIdentity identity =
+                        WindowsIdentity.GetCurrent())
+                    {
+                        if (identity == null ||
+                            identity.User == null)
+                        {
+                            error =
+                                "Current Windows user SID is unavailable for snapshot creation.";
+                            return false;
+                        }
+
+                        snapshotUser = identity.User;
+                    }
+
+                    FileSecurity snapshotSecurity =
+                        CreateProvisioningBlobSecurity(
+                            snapshotUser);
+
                     using (FileStream outputStream =
                         new FileStream(
                             destination,
                             FileMode.CreateNew,
-                            FileAccess.Write,
-                            FileShare.None))
+                            FileSystemRights.FullControl,
+                            FileShare.None,
+                            4096,
+                            FileOptions.WriteThrough,
+                            snapshotSecurity))
                     {
                         input.CopyTo(outputStream);
                         outputStream.Flush(true);
@@ -192,6 +234,35 @@ namespace DomainMembershipCheckRepair
                     return false;
                 }
 
+                SecurityIdentifier currentUser;
+                using (WindowsIdentity identity =
+                    WindowsIdentity.GetCurrent())
+                {
+                    if (identity == null ||
+                        identity.User == null)
+                    {
+                        error =
+                            "Current Windows user SID is unavailable for snapshot verification.";
+                        TryDeleteSnapshot(destination);
+                        return false;
+                    }
+
+                    currentUser = identity.User;
+                }
+
+                string snapshotDetails;
+                if (!IsProvisioningBlobTrusted(
+                    destination,
+                    currentUser,
+                    out snapshotDetails))
+                {
+                    error =
+                        "Private provisioning snapshot ACL verification failed: " +
+                        snapshotDetails;
+                    TryDeleteSnapshot(destination);
+                    return false;
+                }
+
                 return true;
             }
             catch (Exception ex)
@@ -200,6 +271,21 @@ namespace DomainMembershipCheckRepair
                     "Unable to create private provisioning blob snapshot: " +
                     ex.Message;
                 return false;
+            }
+        }
+
+        private static void TryDeleteSnapshot(string path)
+        {
+            try
+            {
+                if (!String.IsNullOrWhiteSpace(path) &&
+                    File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch
+            {
             }
         }
 
