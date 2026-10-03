@@ -172,12 +172,34 @@ namespace DomainMembershipCheckRepair
                         return false;
                     }
 
+                    SecurityIdentifier currentUser;
+                    using (WindowsIdentity identity =
+                        WindowsIdentity.GetCurrent())
+                    {
+                        if (identity == null ||
+                            identity.User == null)
+                        {
+                            error =
+                                "Current Windows user SID is unavailable for snapshot creation.";
+                            return false;
+                        }
+
+                        currentUser = identity.User;
+                    }
+
+                    FileSecurity snapshotSecurity =
+                        CreateProvisioningBlobSecurity(
+                            currentUser);
+
                     using (FileStream outputStream =
                         new FileStream(
                             destination,
                             FileMode.CreateNew,
-                            FileAccess.Write,
-                            FileShare.None))
+                            FileSystemRights.FullControl,
+                            FileShare.None,
+                            4096,
+                            FileOptions.WriteThrough,
+                            snapshotSecurity))
                     {
                         input.CopyTo(outputStream);
                         outputStream.Flush(true);
