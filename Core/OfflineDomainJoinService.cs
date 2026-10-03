@@ -192,7 +192,7 @@ namespace DomainMembershipCheckRepair
                         return false;
                     }
 
-                    SecurityIdentifier currentUser;
+                    SecurityIdentifier snapshotUser;
                     using (WindowsIdentity identity =
                         WindowsIdentity.GetCurrent())
                     {
@@ -204,12 +204,12 @@ namespace DomainMembershipCheckRepair
                             return false;
                         }
 
-                        currentUser = identity.User;
+                        snapshotUser = identity.User;
                     }
 
                     FileSecurity snapshotSecurity =
                         CreateProvisioningBlobSecurity(
-                            currentUser);
+                            snapshotUser);
 
                     using (FileStream outputStream =
                         new FileStream(
