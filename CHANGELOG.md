@@ -2,6 +2,9 @@
 
 ## 1.6.0
 
+- Added GUI parity for Offline Domain Join provisioning: the Offline Join action now offers Apply or Provision modes, protected non-overwriting output selection, computer-name validation and optional `/reuse`, matching the CLI `odj-provision` capability.
+- GUI Restart Windows now requires an explicit Yes/No confirmation after elevation, defaults to No, warns about unsaved work and shows the `shutdown /a` escape path.
+
 - Added AD replication metadata analyzer with `repadmin /replsummary`, `/showobjmeta` and `/showattr` support when RSAT AD DS tools are installed.
 - Added SPN collision analyzer for HOST, RestrictedKrbHost, TERMSRV and explicit CIFS registrations.
 - Added SMB/Kerberos analyzer with explicit CIFS ticket acquisition, SMB access testing and NTLM/signing policy context.
@@ -133,6 +136,8 @@
 - Hardened `odj-apply` input: the selected provisioning blob is now copied under a read-locked source handle into private per-user staging, and `djoin.exe` receives only that stable snapshot instead of the original user path.
 - ODJ apply rejects source-file/path reparse redirection, empty blobs and pre-existing private snapshot destinations; the temporary private copy is removed after the apply attempt.
 - Added regression coverage for ODJ apply snapshot content, empty-input rejection and existing-private-destination refusal.
+- ODJ apply now fail-closed verifies the private snapshot file owner/DACL after creation and removes the snapshot immediately if verification fails; regression coverage validates the resulting file ACL.
+- ODJ apply now revalidates the source file reparse attribute and parent path after acquiring the read-locked source handle, narrowing the path-swap/TOCTOU window before snapshot bytes are consumed.
 
 ## 1.5.0
 
