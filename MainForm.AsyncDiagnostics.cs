@@ -19,6 +19,69 @@ namespace DomainMembershipCheckRepair
         private Button cancelDiagnosticsButton;
         private Label diagnosticsProgressLabel;
         private CancellationTokenSource diagnosticsCancellation;
+        private bool diagnosticsClosing;
+
+        // Read these properties on the UI thread, including inside queued callbacks.
+        private bool IsDiagnosticUiAvailable
+        {
+            get { return !diagnosticsClosing && !IsDisposed && !Disposing && IsHandleCreated; }
+        }
+
+        private bool CanUpdateDiagnosticUi(CancellationTokenSource source)
+        {
+            return IsDiagnosticUiAvailable &&
+                Object.ReferenceEquals(diagnosticsCancellation, source);
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            diagnosticsClosing = true;
+            try
+            {
+                // Cancel before the existing handlers. A throwing cancellation
+                // callback must not prevent closing or leak an async UI exception.
+                TryCancelDiagnosticSource(diagnosticsCancellation);
+                base.OnFormClosing(e);
+            }
+            finally
+            {
+                if (e.Cancel && !IsDisposed && !Disposing)
+                    diagnosticsClosing = false;
+            }
+        }
+
+        protected override void OnHandleDestroyed(EventArgs e)
+        {
+            if (!RecreatingHandle)
+            {
+                // Direct Dispose need not raise FormClosing. Handle recreation
+                // is different: it must not permanently disable diagnostics.
+                diagnosticsClosing = true;
+                TryCancelDiagnosticSource(diagnosticsCancellation);
+            }
+            base.OnHandleDestroyed(e);
+        }
+
+        private void TryCancelDiagnosticSource(CancellationTokenSource source)
+        {
+            if (source == null)
+                return;
+            try
+            {
+                source.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // The operation has already finished its cleanup.
+            }
+            catch (AggregateException ex)
+            {
+                // Cancel marks the token before invoking callbacks. Callback
+                // failures do not undo cancellation or justify an automatic retry.
+                if (IsDiagnosticUiAvailable)
+                    Log("WARN", "A diagnostic cancellation callback failed: " + ex.Message);
+            }
+        }
 
         private DiagnosticInputs CaptureDiagnosticInputs()
         {
@@ -43,6 +106,9 @@ namespace DomainMembershipCheckRepair
             Func<CancellationToken, Action<string>, T> work,
             Action<T> completed)
         {
+            if (!IsDiagnosticUiAvailable)
+                return;
+
             if (diagnosticsCancellation != null)
             {
                 MessageBox.Show(
@@ -55,89 +121,123 @@ namespace DomainMembershipCheckRepair
             }
 
             CancellationTokenSource source = new CancellationTokenSource();
+            CancellationToken token = source.Token;
             diagnosticsCancellation = source;
-            SetBusy(true);
-            UpdateDiagnosticProgress(operationName + ": starting...");
+            bool acceptingProgress = true;
 
             Action<string> progress = delegate(string text)
             {
-                if (IsDisposed || Disposing)
+                if (token.IsCancellationRequested)
                     return;
-
                 try
                 {
-                    if (InvokeRequired)
+                    // Never fall back to touching controls on a worker thread.
+                    // BeginInvoke may fail during teardown; delivery independently
+                    // checks lifetime and operation identity on the UI thread.
+                    BeginInvoke(new MethodInvoker(delegate
                     {
-                        BeginInvoke(new Action<string>(UpdateDiagnosticProgress), text);
-                    }
-                    else
-                    {
-                        UpdateDiagnosticProgress(text);
-                    }
+                        if (acceptingProgress && CanUpdateDiagnosticUi(source) &&
+                            !token.IsCancellationRequested)
+                            UpdateDiagnosticProgress(text);
+                    }));
                 }
-                catch
+                catch (InvalidOperationException)
                 {
+                    // Includes ObjectDisposedException when the UI is gone.
                 }
             };
 
             try
             {
+                // SetBusy currently pumps messages. Closing/cancelling during
+                // that call must not start work or leave an undisposed source.
+                SetBusy(true);
+                token.ThrowIfCancellationRequested();
+                if (!CanUpdateDiagnosticUi(source))
+                    return;
+                UpdateDiagnosticProgress(operationName + ": starting...");
+
                 T result = await Task.Run(
                     delegate
                     {
-                        source.Token.ThrowIfCancellationRequested();
-                        return work(source.Token, progress);
+                        token.ThrowIfCancellationRequested();
+                        return work(token, progress);
                     },
-                    source.Token);
+                    token);
 
-                source.Token.ThrowIfCancellationRequested();
+                acceptingProgress = false;
+                token.ThrowIfCancellationRequested();
+                if (!CanUpdateDiagnosticUi(source))
+                    return;
+
+                if (cancelDiagnosticsButton != null && !cancelDiagnosticsButton.IsDisposed)
+                    cancelDiagnosticsButton.Enabled = false;
                 UpdateDiagnosticProgress(operationName + ": completed.");
 
                 if (completed != null)
                     completed(result);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
-                UpdateDiagnosticProgress(operationName + ": cancelled.");
-                Log("INFO", operationName + " cancelled by the user.");
+                acceptingProgress = false;
+                if (CanUpdateDiagnosticUi(source))
+                {
+                    UpdateDiagnosticProgress(operationName + ": cancelled.");
+                    Log("INFO", operationName + " cancelled by the user.");
+                }
             }
             catch (Exception ex)
             {
-                UpdateDiagnosticProgress(operationName + ": failed.");
-                Log("ERROR", operationName + " failed: " + ex.Message);
-                MessageBox.Show(
-                    this,
-                    ex.Message,
-                    operationName + " failed",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
+                acceptingProgress = false;
+                if (CanUpdateDiagnosticUi(source))
+                {
+                    UpdateDiagnosticProgress(operationName + ": failed.");
+                    Log("ERROR", operationName + " failed: " + ex.Message);
+                    MessageBox.Show(
+                        this,
+                        ex.Message,
+                        operationName + " failed",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                }
             }
             finally
             {
-                if (Object.ReferenceEquals(diagnosticsCancellation, source))
+                acceptingProgress = false;
+                bool ownsOperation = Object.ReferenceEquals(diagnosticsCancellation, source);
+                if (ownsOperation)
                     diagnosticsCancellation = null;
 
-                source.Dispose();
-                SetBusy(false);
+                try
+                {
+                    if (ownsOperation && IsDiagnosticUiAvailable)
+                        SetBusy(false);
+                }
+                finally
+                {
+                    // Dispose only after the worker has returned, not on Cancel.
+                    source.Dispose();
+                }
             }
         }
 
         private void CancelDiagnosticOperation()
         {
             CancellationTokenSource source = diagnosticsCancellation;
-            if (source == null || source.IsCancellationRequested)
+            if (source == null || !CanUpdateDiagnosticUi(source) || source.IsCancellationRequested)
                 return;
 
             UpdateDiagnosticProgress("Cancelling after the current API call...");
-            if (cancelDiagnosticsButton != null)
+            if (cancelDiagnosticsButton != null && !cancelDiagnosticsButton.IsDisposed)
                 cancelDiagnosticsButton.Enabled = false;
 
-            source.Cancel();
+            TryCancelDiagnosticSource(source);
         }
 
         private void UpdateDiagnosticProgress(string text)
         {
-            if (diagnosticsProgressLabel == null)
+            if (!IsDiagnosticUiAvailable || diagnosticsProgressLabel == null ||
+                diagnosticsProgressLabel.IsDisposed)
                 return;
 
             diagnosticsProgressLabel.Text = String.IsNullOrWhiteSpace(text)
@@ -170,9 +270,15 @@ namespace DomainMembershipCheckRepair
                         "Post-reboot Advanced Diagnostics",
                         AdvancedDiagnosticsService.ToText(result));
 
+                    if (!IsDiagnosticUiAvailable)
+                        return;
+
                     DiagnosticsSnapshot post = DiagnosticsService.Capture(
                         inputs.Domain,
                         inputs.PreferredDc);
+
+                    if (!IsDiagnosticUiAvailable)
+                        return;
 
                     if (post.SecureChannelApplicable && !post.SecureChannelHealthy)
                     {
@@ -183,7 +289,7 @@ namespace DomainMembershipCheckRepair
                             MessageBoxButtons.YesNo,
                             MessageBoxIcon.Warning);
 
-                        if (repair == DialogResult.Yes)
+                        if (repair == DialogResult.Yes && IsDiagnosticUiAvailable)
                             RepairTrustWorkflow();
                     }
                 });

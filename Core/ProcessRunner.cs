@@ -42,11 +42,7 @@ namespace DomainMembershipCheckRepair
             IEnumerable<string> arguments,
             int timeoutMs)
         {
-            return RunArguments(
-                fileName,
-                arguments,
-                timeoutMs,
-                CancellationToken.None);
+            return RunArguments(fileName, arguments, timeoutMs, CancellationToken.None);
         }
 
         internal static CommandResult RunArguments(
@@ -55,6 +51,11 @@ namespace DomainMembershipCheckRepair
             int timeoutMs,
             CancellationToken cancellationToken)
         {
+            // Cancellation known at entry must not enumerate arguments or start
+            // a helper that might have side effects before its first wait slice.
+            if (cancellationToken.IsCancellationRequested)
+                return new CommandResult { Cancelled = true };
+
             return Run(
                 fileName,
                 WindowsCommandLine.BuildArguments(arguments),
@@ -73,12 +74,16 @@ namespace DomainMembershipCheckRepair
 
             try
             {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    result.Cancelled = true;
+                    return result;
+                }
+
                 string executable = ResolveExecutable(fileName);
                 if (String.IsNullOrWhiteSpace(executable))
                 {
-                    result.Error =
-                        "Executable was not found: " +
-                        (fileName ?? String.Empty);
+                    result.Error = "Executable was not found: " + (fileName ?? String.Empty);
                     return result;
                 }
 
@@ -92,6 +97,14 @@ namespace DomainMembershipCheckRepair
 
                 process = new Process();
                 process.StartInfo = psi;
+
+                // Recheck after path resolution/setup. This narrows the start
+                // window; cancellation and process creation are not atomic.
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    result.Cancelled = true;
+                    return result;
+                }
 
                 if (!process.Start())
                 {
@@ -181,8 +194,7 @@ namespace DomainMembershipCheckRepair
             if (value.IndexOf(Path.DirectorySeparatorChar) < 0 &&
                 value.IndexOf(Path.AltDirectorySeparatorChar) < 0)
             {
-                string systemPath =
-                    Path.Combine(Environment.SystemDirectory, value);
+                string systemPath = Path.Combine(Environment.SystemDirectory, value);
                 if (File.Exists(systemPath))
                     return systemPath;
             }
@@ -192,14 +204,9 @@ namespace DomainMembershipCheckRepair
             {
                 try
                 {
-                    string relative =
-                        Path.GetFullPath(
-                            Path.Combine(
-                                AppDomain.CurrentDomain.BaseDirectory,
-                                value));
-                    return File.Exists(relative)
-                        ? relative
-                        : String.Empty;
+                    string relative = Path.GetFullPath(
+                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, value));
+                    return File.Exists(relative) ? relative : String.Empty;
                 }
                 catch
                 {
@@ -209,6 +216,5 @@ namespace DomainMembershipCheckRepair
 
             return String.Empty;
         }
-
     }
 }

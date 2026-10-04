@@ -82,6 +82,22 @@ jobs:
         shell: cmd
         run: msbuild DomainMembershipCheckRepair.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=x64
 
+      - name: Build diagnostic lifecycle tests (x86)
+        shell: cmd
+        run: msbuild Tests\DomainMembershipCheckRepair.DiagnosticLifecycle.Tests.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=x86
+
+      - name: Run actual MainForm diagnostic lifecycle tests (x86)
+        shell: cmd
+        run: Tests\bin\Release\DiagnosticLifecycle\x86\DomainMembershipCheckRepair.DiagnosticLifecycle.Tests.exe bin\Release\x86\DomainMembershipCheckRepair.exe
+
+      - name: Build diagnostic lifecycle tests (x64)
+        shell: cmd
+        run: msbuild Tests\DomainMembershipCheckRepair.DiagnosticLifecycle.Tests.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=x64
+
+      - name: Run actual MainForm diagnostic lifecycle tests (x64)
+        shell: cmd
+        run: Tests\bin\Release\DiagnosticLifecycle\x64\DomainMembershipCheckRepair.DiagnosticLifecycle.Tests.exe bin\Release\x64\DomainMembershipCheckRepair.exe
+
       - name: Run GUI/DPI smoke tests (x86)
         shell: cmd
         run: bin\Release\x86\DomainMembershipCheckRepair.exe --cli --action ui-smoke --json
