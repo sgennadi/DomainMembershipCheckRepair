@@ -66,6 +66,14 @@ jobs:
         shell: cmd
         run: Tests\bin\Release\OdjPreflight\DomainMembershipCheckRepair.OdjPreflight.Tests.exe
 
+      - name: Build ODJ GUI workflow regression tests
+        shell: cmd
+        run: msbuild Tests\DomainMembershipCheckRepair.OdjGui.Tests.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU
+
+      - name: Run ODJ GUI workflow regression tests (simulated dialogs)
+        shell: cmd
+        run: Tests\bin\Release\OdjGui\DomainMembershipCheckRepair.OdjGui.Tests.exe --root .
+
       - name: Build x86
         shell: cmd
         run: msbuild DomainMembershipCheckRepair.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=x86

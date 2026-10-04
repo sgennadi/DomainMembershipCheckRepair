@@ -110,6 +110,7 @@
     <Compile Include="Core\ResumeService.cs" />
     <Compile Include="Core\CyberArkDiagnosticsService.cs" />
     <Compile Include="Core\OfflineDomainJoinService.cs" />
+    <Compile Include="Core\OdjGuiWorkflow.cs" />
     <Compile Include="Core\SiteSubnetDiagnosticsService.cs" />
     <Compile Include="Core\ProtocolDiagnosticsService.cs" />
     <Compile Include="Core\HardeningDiagnosticsService.cs" />
@@ -142,6 +143,7 @@
     <Compile Include="Core\AdDirectoryService.cs" />
     <Compile Include="CliRunner.cs" />
     <Compile Include="MainForm.cs" />
+    <Compile Include="MainForm.OfflineDomainJoin.cs" />
     <Compile Include="MainForm.Polish.cs" />
     <Compile Include="MainForm.AsyncDiagnostics.cs" />
     <Compile Include="MainForm.UiSmoke.cs" />

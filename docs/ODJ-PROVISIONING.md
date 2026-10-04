@@ -4,7 +4,9 @@
 
 ODJ provisioning now checks the selected output destination before invoking `djoin.exe`. The GUI and CLI both use this service. The existing protected final commit remains in place; preflight does not replace the final validation.
 
-The new Build regression suite has 15 cases. Provisioning is simulated in every case, while Windows file creation, owner/DACL handling and directory-junction rejection are exercised on the runner. No real domain join, provisioning or Active Directory change is performed by these tests.
+The output-preflight Build regression suite has 15 cases. Provisioning is simulated in every case, while Windows file creation, owner/DACL handling and directory-junction rejection are exercised on the runner. No real domain join, provisioning or Active Directory change is performed by these tests.
+
+The GUI now resumes an elevated `odj-apply` directly in Apply mode without reopening the Apply/Provision selector. The ordinary Offline Join button still offers both modes and defaults to Cancel. Apply and Provision require explicit default-No confirmations. Provision displays the current Windows account, domain, computer name, output path and `/reuse` selection before proceeding. A shared, testable GUI controller stops on cancellation and prevents reentrant execution while a workflow is active.
 
 ## Choosing an output directory
 
@@ -22,7 +24,9 @@ Successful preflight cannot guarantee that disk space, ACLs, the output name or 
 
 The current implementation invokes `djoin.exe` under the current Windows process identity. The main-window domain username/password fields and CLI `--user` do not switch the provisioning helper to another identity. Use a Windows session with the intended permissions. Provisioning does not automatically request local elevation or copy a password to another process.
 
-The `/reuse` option is explicit. It is not an automatic retry or a workaround for an existing-output-file refusal.
+The GUI's final confirmation explicitly states that the main-window Domain user and Password fields are not used for this operation. It rechecks the account name after confirmation and stops if it changed or could not be obtained. The confirmed request contains no password. This identity-name consistency check is not a guarantee against every process-level impersonation or filesystem race.
+
+The `/reuse` option is explicit. It is not an automatic retry or a workaround for an existing-output-file refusal. Choosing No in the reuse dialog means provision without `/reuse`; it is not the final authorization to provision. The separate final confirmation defaults to No.
 
 ## Reading failures correctly
 
@@ -39,10 +43,14 @@ Run from the repository root on Windows with the .NET Framework 4.8 targeting pa
 ```bat
 msbuild Tests\DomainMembershipCheckRepair.OdjPreflight.Tests.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU
 Tests\bin\Release\OdjPreflight\DomainMembershipCheckRepair.OdjPreflight.Tests.exe
+msbuild Tests\DomainMembershipCheckRepair.OdjGui.Tests.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU
+Tests\bin\Release\OdjGui\DomainMembershipCheckRepair.OdjGui.Tests.exe --root .
 ```
 
-The tests cover invalid tokens, existing file/directory destinations, missing parents, device/stream names, untrusted parent writers, denied file creation, a real directory junction, probe removal and unchanged parent ACLs, valid private output, read-only parent access, post-preflight name/ACL changes, missing output after simulated success, nonzero command results and command exceptions. They also check temporary-file/private-staging cleanup and the absence of automatic retries.
+The preflight tests cover invalid tokens, existing file/directory destinations, missing parents, device/stream names, untrusted parent writers, denied file creation, a real directory junction, probe removal and unchanged parent ACLs, valid private output, read-only parent access, post-preflight name/ACL changes, missing output after simulated success, nonzero command results and command exceptions. They also check temporary-file/private-staging cleanup and the absence of automatic retries.
 
-## Scope remaining from issue #44
+The GUI tests execute the same orchestration used by MainForm with simulated dialog results and terminal operations. They cover cancellation at each chooser and confirmation, denied elevation, Apply-only resume, validation failures, identity changes, immutable confirmed requests, safe defaults, reentrant calls and exceptions without automatic retry. Additional source-contract checks verify that MainForm's actual resume case, button wrappers and adapter are wired to this controller. These checks are not real UAC or native dialog automation.
 
-This change addresses provisioning destination preflight and outcome reporting. The GUI's elevated Apply resume dispatch and interactive cancellation/confirmation regression coverage are not changed by this implementation. Build success is not a live-domain integration test or native ARM64 runtime validation. Release signing and protected-main origin requirements are unchanged.
+## Scope and validation limits
+
+Issue #44's preflight, GUI resume, identity disclosure and cancellation-regression requirements are implemented in the source. A passing hosted build does not validate an actual UAC/CyberArk handoff, a live-domain provisioning/apply cycle, or native ARM64 execution. Those require a separately authorized Windows lab. The existing x86/x64 GUI/DPI smoke suite remains enabled. Release signing and protected-main origin requirements are unchanged.
