@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{CC1C1CB4-D4AA-4C2D-931D-80F919B426C9}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>DomainMembershipCheckRepair</RootNamespace>
+    <AssemblyName>DomainMembershipCheckRepair.OdjPreflight.Tests</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\$(Configuration)\OdjPreflight\</OutputPath>
+    <BaseIntermediateOutputPath>obj\OdjPreflight\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="OfflineDomainJoinPreflightTests.cs" />
+    <Compile Include="..\Core\OfflineDomainJoinService.cs"><Link>OfflineDomainJoinService.cs</Link></Compile>
+    <Compile Include="..\Core\DomainValidation.cs"><Link>DomainValidation.cs</Link></Compile>
+    <Compile Include="..\Core\PrivateStagingService.cs"><Link>PrivateStagingService.cs</Link></Compile>
+    <Compile Include="..\Core\ProtectedStorageAcl.cs"><Link>ProtectedStorageAcl.cs</Link></Compile>
+    <Compile Include="..\Core\WindowsCommandLine.cs"><Link>WindowsCommandLine.cs</Link></Compile>
+    <Compile Include="..\Core\ProcessRunner.cs"><Link>ProcessRunner.cs</Link></Compile>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

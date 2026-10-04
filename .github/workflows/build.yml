@@ -58,6 +58,14 @@ jobs:
         shell: cmd
         run: Tests\bin\Release\DomainMembershipCheckRepair.Tests.exe
 
+      - name: Build ODJ preflight regression tests
+        shell: cmd
+        run: msbuild Tests\DomainMembershipCheckRepair.OdjPreflight.Tests.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU
+
+      - name: Run ODJ preflight regression tests (simulated provisioning)
+        shell: cmd
+        run: Tests\bin\Release\OdjPreflight\DomainMembershipCheckRepair.OdjPreflight.Tests.exe
+
       - name: Build x86
         shell: cmd
         run: msbuild DomainMembershipCheckRepair.csproj /m /t:Rebuild /p:Configuration=Release /p:Platform=x86
