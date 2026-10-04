@@ -289,49 +289,63 @@ namespace DomainMembershipCheckRepair
             }
         }
 
+        // Per-call injection keeps regression tests away from real AD mutations.
+        // The normal entry point always uses the canonical Windows helper runner.
+        internal delegate int ProvisioningRunner(
+            IEnumerable<string> arguments,
+            out string output);
+
         internal static int ProvisionBlob(string domain, string machine, string outputPath, bool reuse, out string output)
+        {
+            return ProvisionBlob(domain, machine, outputPath, reuse, RunDjoin, out output);
+        }
+
+        internal static int ProvisionBlob(
+            string domain,
+            string machine,
+            string outputPath,
+            bool reuse,
+            ProvisioningRunner runner,
+            out string output)
         {
             output = String.Empty;
             if (String.IsNullOrWhiteSpace(domain) || String.IsNullOrWhiteSpace(machine) || String.IsNullOrWhiteSpace(outputPath))
             {
-                output = "Domain, machine name, and output path are required.";
+                output = "Provisioning was not started: domain, machine name, and output path are required.";
+                return 3;
+            }
+
+            if (runner == null)
+            {
+                output = "Provisioning was not started: no command runner is available.";
                 return 3;
             }
 
             string domainError = DomainValidation.ValidateDomainArgument(domain);
             if (domainError != null)
             {
-                output = "Invalid domain: " + domainError;
+                output = "Provisioning was not started: invalid domain: " + domainError;
                 return 3;
             }
 
             string machineError = DomainValidation.ValidateComputerName(machine);
             if (machineError != null)
             {
-                output = "Invalid computer name: " + machineError;
+                output = "Provisioning was not started: invalid computer name: " + machineError;
                 return 3;
             }
 
             string fullOutputPath;
-            try
+            string preflightError;
+            if (!PreflightProvisioningOutput(outputPath, out fullOutputPath, out preflightError))
             {
-                fullOutputPath = Path.GetFullPath(outputPath);
-            }
-            catch (Exception ex)
-            {
-                output = "Invalid output path: " + ex.Message;
-                return 3;
-            }
-
-            if (File.Exists(fullOutputPath))
-            {
-                output =
-                    "Offline Domain Join output already exists. Refusing to overwrite a provisioning blob: " +
-                    fullOutputPath;
+                output = "Provisioning was not started: output preflight failed: " + preflightError;
                 return 3;
             }
 
             string staging = String.Empty;
+            bool commandInvoked = false;
+            bool commandReportedSuccess = false;
             try
             {
                 staging =
@@ -350,14 +364,15 @@ namespace DomainMembershipCheckRepair
                     reuse);
 
                 string djoinOutput;
-                int code =
-                    RunDjoin(
-                        args,
-                        out djoinOutput);
+                commandInvoked = true;
+                int code = runner(args, out djoinOutput);
+                commandReportedSuccess = code == 0;
 
                 if (code != 0)
                 {
-                    output = djoinOutput;
+                    output = (djoinOutput ?? String.Empty).TrimEnd() + Environment.NewLine +
+                        "Provisioning was attempted but djoin.exe did not report success. " +
+                        "The Active Directory outcome may be incomplete; no automatic retry or rollback was performed.";
                     return code;
                 }
 
@@ -365,7 +380,8 @@ namespace DomainMembershipCheckRepair
                     new FileInfo(stagedBlob).Length == 0)
                 {
                     output =
-                        "djoin.exe reported success but did not create a non-empty provisioning blob.";
+                        "djoin.exe reported successful provisioning, but did not create a non-empty provisioning blob. " +
+                        "Active Directory may already have changed; no automatic retry or rollback was performed.";
                     return 1;
                 }
 
@@ -376,8 +392,10 @@ namespace DomainMembershipCheckRepair
                     out commitError))
                 {
                     output =
-                        "Offline Domain Join provisioning succeeded, but the blob could not be committed securely: " +
-                        commitError;
+                        "djoin.exe reported successful provisioning, but the blob could not be committed securely: " +
+                        commitError + Environment.NewLine +
+                        "Active Directory may already have changed. Inspect the target computer account before retrying. " +
+                        "No automatic retry or rollback was performed.";
                     return 1;
                 }
 
@@ -390,9 +408,12 @@ namespace DomainMembershipCheckRepair
             }
             catch (Exception ex)
             {
-                output =
-                    "Offline Domain Join provisioning failed: " +
-                    ex.Message;
+                output = commandReportedSuccess
+                    ? "djoin.exe reported successful provisioning, but output finalization failed. Active Directory may already have changed. "
+                    : (commandInvoked
+                        ? "Provisioning was attempted, but its Active Directory outcome is unknown. "
+                        : "Provisioning was not started. ");
+                output += "No automatic retry or rollback was performed. " + ex.Message;
                 return 1;
             }
             finally
@@ -400,6 +421,164 @@ namespace DomainMembershipCheckRepair
                 PrivateStagingService.DeleteSession(
                     staging);
             }
+        }
+
+        internal static bool PreflightProvisioningOutput(
+            string outputPath,
+            out string fullOutputPath,
+            out string error)
+        {
+            fullOutputPath = String.Empty;
+            error = String.Empty;
+            try
+            {
+                if (String.IsNullOrWhiteSpace(outputPath))
+                {
+                    error = "Provisioning output path is empty.";
+                    return false;
+                }
+
+                // Reject device namespace paths and alternate data streams rather
+                // than probing a name that Windows might interpret as a device.
+                if (outputPath.StartsWith(@"\\?\", StringComparison.Ordinal) ||
+                    outputPath.StartsWith(@"\\.\", StringComparison.Ordinal))
+                {
+                    error = "Device namespace paths are not supported for provisioning output.";
+                    return false;
+                }
+
+                fullOutputPath = Path.GetFullPath(outputPath);
+                string root = Path.GetPathRoot(fullOutputPath) ?? String.Empty;
+                string name = Path.GetFileName(fullOutputPath);
+                if (String.IsNullOrEmpty(name) ||
+                    name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+                    name.EndsWith(".", StringComparison.Ordinal) ||
+                    name.EndsWith(" ", StringComparison.Ordinal) ||
+                    fullOutputPath.IndexOf(':', root.Length) >= 0 ||
+                    IsReservedProvisioningFileName(name))
+                {
+                    error = "A normal file name without a device name or alternate data stream is required.";
+                    return false;
+                }
+
+                if (!IsProvisioningOutputAbsent(fullOutputPath, out error))
+                    return false;
+
+                string folder = Path.GetDirectoryName(fullOutputPath);
+                if (String.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+                {
+                    error = "The output parent directory must already exist. Create or select a private directory before provisioning.";
+                    return false;
+                }
+
+                SecurityIdentifier currentUser;
+                using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+                {
+                    if (identity == null || identity.User == null)
+                    {
+                        error = "Current Windows user SID is unavailable.";
+                        return false;
+                    }
+                    currentUser = identity.User;
+                }
+
+                if (!IsProvisioningOutputParentTrusted(folder, currentUser, out error))
+                    return false;
+
+                // This probe contains no provisioning data. The handle applies
+                // the private DACL at creation and removes the probe on close.
+                // Its suffix matches the final commit's temporary-file length.
+                string probe = fullOutputPath + ".tmp-" + Guid.NewGuid().ToString("N");
+                using (FileStream stream = new FileStream(
+                    probe,
+                    FileMode.CreateNew,
+                    FileSystemRights.FullControl,
+                    FileShare.None,
+                    4096,
+                    FileOptions.WriteThrough | FileOptions.DeleteOnClose,
+                    CreateProvisioningBlobSecurity(currentUser)))
+                {
+                    stream.WriteByte(0);
+                    stream.Flush(true);
+                    if (!IsProvisioningFileSecurityTrusted(stream.GetAccessControl(), currentUser, out error))
+                        return false;
+                }
+
+                if (!IsProvisioningOutputAbsent(probe, out error))
+                {
+                    error = "The non-secret output capability probe could not be removed: " + error;
+                    return false;
+                }
+
+                // Preflight does not reserve the output name. Recheck now and
+                // retain all commit-time path/ACL/no-overwrite checks below.
+                if (!IsProvisioningOutputParentTrusted(folder, currentUser, out error))
+                    return false;
+
+                return IsProvisioningOutputAbsent(fullOutputPath, out error);
+            }
+            catch (Exception ex)
+            {
+                error = "Unable to prepare provisioning output safely: " + ex.Message;
+                return false;
+            }
+        }
+
+        private static bool IsReservedProvisioningFileName(string name)
+        {
+            string stem = (name.Split('.')[0]).TrimEnd(' ').ToUpperInvariant();
+            if (stem == "CON" || stem == "PRN" || stem == "AUX" || stem == "NUL" ||
+                stem == "CONIN$" || stem == "CONOUT$" || stem == "CLOCK$")
+                return true;
+
+            if (stem.Length != 4 ||
+                (!stem.StartsWith("COM", StringComparison.Ordinal) &&
+                 !stem.StartsWith("LPT", StringComparison.Ordinal)))
+                return false;
+
+            char number = stem[3];
+            return (number >= '1' && number <= '9') ||
+                   number == '\u00b9' || number == '\u00b2' || number == '\u00b3';
+        }
+
+        private static bool IsProvisioningOutputAbsent(string path, out string error)
+        {
+            error = String.Empty;
+            try
+            {
+                // Unlike File.Exists, this does not hide access errors or treat
+                // an existing directory as an available output file name.
+                File.GetAttributes(path);
+                error = "Provisioning output already exists as a file, directory, or reparse point; overwrite is not allowed.";
+                return false;
+            }
+            catch (FileNotFoundException)
+            {
+                return true;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = "Unable to verify that provisioning output is absent: " + ex.Message;
+                return false;
+            }
+        }
+
+        private static bool IsProvisioningOutputParentTrusted(
+            string folder,
+            SecurityIdentifier currentUser,
+            out string error)
+        {
+            if (!ProtectedStorageAcl.IsDirectoryPathFreeOfReparsePoints(folder, out error))
+            {
+                error = "Provisioning output parent failed reparse-point verification: " + error;
+                return false;
+            }
+
+            return IsProvisioningDestinationDirectoryTrusted(folder, currentUser, out error);
         }
 
         internal static bool CommitProvisionedBlob(
@@ -787,57 +966,7 @@ namespace DomainMembershipCheckRepair
                         AccessControlSections.Owner |
                         AccessControlSections.Access);
 
-                SecurityIdentifier owner =
-                    security.GetOwner(
-                        typeof(SecurityIdentifier))
-                    as SecurityIdentifier;
-
-                bool ownerTrusted =
-                    owner != null &&
-                    ((currentUser != null &&
-                      owner.Equals(currentUser)) ||
-                     ProtectedStorageAcl.IsTrustedOwner(owner));
-
-                if (!ownerTrusted)
-                {
-                    details =
-                        "Provisioning blob owner is not the current user, LocalSystem or Administrators.";
-                    return false;
-                }
-
-                if (!security.AreAccessRulesProtected)
-                {
-                    details =
-                        "Provisioning blob ACL still inherits access rules.";
-                    return false;
-                }
-
-                AuthorizationRuleCollection rules =
-                    security.GetAccessRules(
-                        true,
-                        true,
-                        typeof(SecurityIdentifier));
-
-                foreach (FileSystemAccessRule rule in rules)
-                {
-                    SecurityIdentifier sid =
-                        rule.IdentityReference
-                        as SecurityIdentifier;
-
-                    if (IsUntrustedProvisioningBlobAllowRule(
-                        sid,
-                        currentUser,
-                        rule.AccessControlType))
-                    {
-                        details =
-                            "Another identity has allow access to the provisioning blob.";
-                        return false;
-                    }
-                }
-
-                details =
-                    "Provisioning blob ACL is restricted to the current user, LocalSystem and Administrators.";
-                return true;
+                return IsProvisioningFileSecurityTrusted(security, currentUser, out details);
             }
             catch (Exception ex)
             {
@@ -846,6 +975,46 @@ namespace DomainMembershipCheckRepair
                     ex.Message;
                 return false;
             }
+        }
+
+        private static bool IsProvisioningFileSecurityTrusted(
+            FileSecurity security,
+            SecurityIdentifier currentUser,
+            out string details)
+        {
+            details = String.Empty;
+            SecurityIdentifier owner =
+                security.GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
+
+            bool ownerTrusted = owner != null &&
+                ((currentUser != null && owner.Equals(currentUser)) ||
+                 ProtectedStorageAcl.IsTrustedOwner(owner));
+            if (!ownerTrusted)
+            {
+                details = "Provisioning blob owner is not the current user, LocalSystem or Administrators.";
+                return false;
+            }
+
+            if (!security.AreAccessRulesProtected)
+            {
+                details = "Provisioning blob ACL still inherits access rules.";
+                return false;
+            }
+
+            AuthorizationRuleCollection rules =
+                security.GetAccessRules(true, true, typeof(SecurityIdentifier));
+            foreach (FileSystemAccessRule rule in rules)
+            {
+                SecurityIdentifier sid = rule.IdentityReference as SecurityIdentifier;
+                if (IsUntrustedProvisioningBlobAllowRule(sid, currentUser, rule.AccessControlType))
+                {
+                    details = "Another identity has allow access to the provisioning blob.";
+                    return false;
+                }
+            }
+
+            details = "Provisioning blob ACL is restricted to the current user, LocalSystem and Administrators.";
+            return true;
         }
 
         private static int RunDjoin(
