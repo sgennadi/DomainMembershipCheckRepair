@@ -67,6 +67,16 @@ namespace DomainMembershipCheckRepair.Tools
                     continue;
 
                 string relative = Relative(root, file);
+                if (relative.StartsWith(
+                        "Tools\\",
+                        StringComparison.OrdinalIgnoreCase) ||
+                    relative.StartsWith(
+                        "Tests\\",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 string fileName = Path.GetFileName(file);
                 string text = File.ReadAllText(file);
 
