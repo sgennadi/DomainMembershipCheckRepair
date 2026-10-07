@@ -45,6 +45,7 @@ namespace DomainMembershipCheckRepair
         internal const int ActionTabsMinimumHeight = 220;
         internal const float ActionAreaRowHeight = 320F;
         internal const float LogAreaRowHeight = 220F;
+        internal static readonly Point ActionTabHeaderPadding = new Point(12, 4);
 
         internal const int ScreenMarginMinimum = 12;
         internal const int ScreenMarginMaximum = 32;
