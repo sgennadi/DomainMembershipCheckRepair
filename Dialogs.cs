@@ -36,7 +36,7 @@ namespace DomainMembershipCheckRepair
     {
         private AccountConflictChoice choice = AccountConflictChoice.Cancel;
 
-        private AccountConflictDialog(
+        internal AccountConflictDialog(
             string computerName,
             string reason,
             AdComputerAccountInfo account,
@@ -180,7 +180,7 @@ namespace DomainMembershipCheckRepair
     {
         private readonly TextBox nameBox;
 
-        private NewNameDialog(string currentName, string suggested)
+        internal NewNameDialog(string currentName, string suggested)
         {
             Text = "Enter new computer name";
             Size = UiStyle.NewNameDialogSize;
@@ -250,7 +250,7 @@ namespace DomainMembershipCheckRepair
     {
         private readonly TextBox nameBox;
 
-        private ComputerNameLookupDialog(string suggested)
+        internal ComputerNameLookupDialog(string suggested)
         {
             Text = "Check AD computer account";
             Size = UiStyle.ComputerLookupDialogSize;
@@ -313,7 +313,7 @@ namespace DomainMembershipCheckRepair
 
     internal sealed class ReportDialog : Form
     {
-        private ReportDialog(string title, string report)
+        internal ReportDialog(string title, string report)
         {
             Text = title;
             Size = UiStyle.ReportDialogSize;
