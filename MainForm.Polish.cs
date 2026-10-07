@@ -36,8 +36,8 @@ namespace DomainMembershipCheckRepair
             panel.AutoSize = true;
             panel.WrapContents = true;
             panel.FlowDirection = FlowDirection.LeftToRight;
-            panel.Margin = new Padding(0, 3, 0, 0);
-            panel.Padding = new Padding(0);
+            panel.Margin = UiStyle.StatusPanelMargin;
+            panel.Padding = UiStyle.ZeroPadding;
             panel.BackColor = SystemColors.ControlLightLight;
 
             domainStatusBadge = CreateStatusBadge("Domain: Checking...");
@@ -74,7 +74,7 @@ namespace DomainMembershipCheckRepair
             label.AutoEllipsis = true;
             label.TextAlign = ContentAlignment.MiddleLeft;
             label.Font = UiStyle.CaptionBoldFont;
-            label.Margin = new Padding(1);
+            label.Margin = UiStyle.StatusBadgeMargin;
             label.Padding = UiStyle.StatusBadgePadding;
             label.Text = text;
             return label;
