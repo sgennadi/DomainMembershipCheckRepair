@@ -106,6 +106,51 @@ namespace DomainMembershipCheckRepair.Tools
                         relative +
                         " defines a local DPI baseline. Apply the centralized UiStyle DPI configuration instead.");
                 }
+
+                bool uiSurface =
+                    fileName.StartsWith(
+                        "MainForm",
+                        StringComparison.OrdinalIgnoreCase) ||
+                    String.Equals(
+                        fileName,
+                        "Dialogs.cs",
+                        StringComparison.OrdinalIgnoreCase) ||
+                    String.Equals(
+                        fileName,
+                        "UiLayoutHelper.cs",
+                        StringComparison.OrdinalIgnoreCase);
+
+                if (uiSurface &&
+                    Regex.IsMatch(
+                        text,
+                        @"\bnew\s+Padding\s*\(",
+                        RegexOptions.CultureInvariant))
+                {
+                    failures.Add(
+                        relative +
+                        " creates Padding directly. Shared spacing must be defined in UiStyle.");
+                }
+
+                if (uiSurface &&
+                    text.IndexOf(
+                        "Color.FromArgb(",
+                        StringComparison.Ordinal) >= 0)
+                {
+                    failures.Add(
+                        relative +
+                        " defines a local RGB color. Shared visual colors must be defined in UiStyle.");
+                }
+
+                if (uiSurface &&
+                    Regex.IsMatch(
+                        text,
+                        @"\.(?:Width|Height)\s*=\s*\d+\s*;",
+                        RegexOptions.CultureInvariant))
+                {
+                    failures.Add(
+                        relative +
+                        " hard-codes a control Width/Height. Use UiStyle metrics or adaptive layout.");
+                }
             }
         }
 
