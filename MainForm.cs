@@ -169,7 +169,7 @@ namespace DomainMembershipCheckRepair
             };
             domainPanel.Controls.Add(domainBox, 0, 0);
 
-            detectButton = CreateButton("Detect Domain", 115);
+            detectButton = CreateButton("Detect Domain");
             detectButton.Margin = UiStyle.InlineButtonMargin;
             detectButton.Click += delegate { DetectDomain(true); };
             domainPanel.Controls.Add(detectButton, 1, 0);
@@ -287,38 +287,38 @@ namespace DomainMembershipCheckRepair
             actionTabs.TabPages.Add(basicPage);
             actionTabs.TabPages.Add(advancedPage);
 
-            checkButton = CreateButton("Check Trust", 120);
-            diagnosticsButton = CreateButton("Diagnostics", 120);
-            copyDiagnosticsButton = CreateButton("Copy Diagnostics", 135);
-            exportButton = CreateButton("Export Diagnostics", 145);
-            advancedButton = CreateButton("Advanced Diagnostics", 155);
-            recoveryPlanButton = CreateButton("Recovery Plan", 125);
-            dcMatrixButton = CreateButton("DC Matrix", 105);
-            supportBundleButton = CreateButton("Support Bundle", 125);
-            cyberArkButton = CreateButton("CyberArk Health", 125);
-            offlineJoinButton = CreateButton("Offline Join", 110);
-            safeFixesButton = CreateButton("Safe Fixes", 105);
-            selfTestButton = CreateButton("Self Test", 105);
-            siteSubnetButton = CreateButton("Site / Subnet", 115);
-            protocolsButton = CreateButton("Protocol Tests", 120);
-            hardeningButton = CreateButton("Hardening", 105);
-            joinPermissionsButton = CreateButton("Join Permissions", 135);
-            hybridEntraButton = CreateButton("Hybrid Entra", 115);
-            policySourceButton = CreateButton("Policy Sources", 120);
-            replicationMetadataButton = CreateButton("Replication Metadata", 155);
-            spnCollisionsButton = CreateButton("SPN Collisions", 125);
-            smbKerberosButton = CreateButton("SMB / Kerberos", 130);
-            kerberosDeepButton = CreateButton("Kerberos Deep", 120);
-            ldapCompatibilityButton = CreateButton("LDAP Compatibility", 145);
-            rpcEndpointsButton = CreateButton("RPC Endpoints", 120);
-            replicationTimelineButton = CreateButton("Replication Timeline", 145);
-            identityConsistencyButton = CreateButton("Identity Consistency", 145);
-            adRecoveryButton = CreateButton("AD Recovery", 110);
-            restoreDeletedAdButton = CreateButton("Restore Deleted AD", 145);
-            nextActionButton = CreateButton("Next Safe Action", 130);
-            transactionsButton = CreateButton("Transactions", 110);
-            rollbackLocalButton = CreateButton("Rollback Local", 120);
-            cancelDiagnosticsButton = CreateButton("Cancel Diagnostics", 135);
+            checkButton = CreateButton("Check Trust");
+            diagnosticsButton = CreateButton("Diagnostics");
+            copyDiagnosticsButton = CreateButton("Copy Diagnostics");
+            exportButton = CreateButton("Export Diagnostics");
+            advancedButton = CreateButton("Advanced Diagnostics");
+            recoveryPlanButton = CreateButton("Recovery Plan");
+            dcMatrixButton = CreateButton("DC Matrix");
+            supportBundleButton = CreateButton("Support Bundle");
+            cyberArkButton = CreateButton("CyberArk Health");
+            offlineJoinButton = CreateButton("Offline Join");
+            safeFixesButton = CreateButton("Safe Fixes");
+            selfTestButton = CreateButton("Self Test");
+            siteSubnetButton = CreateButton("Site / Subnet");
+            protocolsButton = CreateButton("Protocol Tests");
+            hardeningButton = CreateButton("Hardening");
+            joinPermissionsButton = CreateButton("Join Permissions");
+            hybridEntraButton = CreateButton("Hybrid Entra");
+            policySourceButton = CreateButton("Policy Sources");
+            replicationMetadataButton = CreateButton("Replication Metadata");
+            spnCollisionsButton = CreateButton("SPN Collisions");
+            smbKerberosButton = CreateButton("SMB / Kerberos");
+            kerberosDeepButton = CreateButton("Kerberos Deep");
+            ldapCompatibilityButton = CreateButton("LDAP Compatibility");
+            rpcEndpointsButton = CreateButton("RPC Endpoints");
+            replicationTimelineButton = CreateButton("Replication Timeline");
+            identityConsistencyButton = CreateButton("Identity Consistency");
+            adRecoveryButton = CreateButton("AD Recovery");
+            restoreDeletedAdButton = CreateButton("Restore Deleted AD");
+            nextActionButton = CreateButton("Next Safe Action");
+            transactionsButton = CreateButton("Transactions");
+            rollbackLocalButton = CreateButton("Rollback Local");
+            cancelDiagnosticsButton = CreateButton("Cancel Diagnostics");
             cancelDiagnosticsButton.Enabled = false;
 
             diagnosticsProgressLabel = new Label();
@@ -328,11 +328,11 @@ namespace DomainMembershipCheckRepair
             diagnosticsProgressLabel.Margin = new Padding(10, 7, 2, 1);
             diagnosticsProgressLabel.Text = "Diagnostics: Idle";
 
-            repairButton = CreateButton("Repair Trust", 120);
-            joinButton = CreateButton("Join / Rejoin Domain", 170);
-            adCheckButton = CreateButton("Check AD Account", 150);
-            restartButton = CreateButton("Restart Windows", 140);
-            aboutButton = CreateButton("About", 85);
+            repairButton = CreateButton("Repair Trust");
+            joinButton = CreateButton("Join / Rejoin Domain");
+            adCheckButton = CreateButton("Check AD Account");
+            restartButton = CreateButton("Restart Windows");
+            aboutButton = CreateButton("About");
 
             bool needsElevation = !ElevationHelper.IsAdministrator();
             ElevationHelper.SetElevationShield(repairButton, needsElevation);
@@ -566,9 +566,9 @@ namespace DomainMembershipCheckRepair
             return group;
         }
 
-        private static Button CreateButton(string text, int width)
+        private static Button CreateButton(string text)
         {
-            return UiStyle.CreateButton(text, width);
+            return UiStyle.CreateButton(text);
         }
 
 
