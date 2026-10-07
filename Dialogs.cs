@@ -15,9 +15,9 @@ namespace DomainMembershipCheckRepair
             form.ShowInTaskbar = false;
         }
 
-        internal static Button CreateButton(string text, int minimumWidth)
+        internal static Button CreateButton(string text)
         {
-            return UiStyle.CreateButton(text, minimumWidth);
+            return UiStyle.CreateButton(text);
         }
 
         internal static FlowLayoutPanel CreateButtonRow()
@@ -108,7 +108,7 @@ namespace DomainMembershipCheckRepair
 
             FlowLayoutPanel buttons = DialogUi.CreateButtonRow();
 
-            Button cancel = DialogUi.CreateButton("Cancel", 90);
+            Button cancel = DialogUi.CreateButton("Cancel");
             cancel.Click += delegate
             {
                 choice = AccountConflictChoice.Cancel;
@@ -116,7 +116,7 @@ namespace DomainMembershipCheckRepair
                 Close();
             };
 
-            Button delete = DialogUi.CreateButton("Delete + Retry", 125);
+            Button delete = DialogUi.CreateButton("Delete + Retry");
             delete.Enabled = canDelete;
             delete.Click += delegate
             {
@@ -125,7 +125,7 @@ namespace DomainMembershipCheckRepair
                 Close();
             };
 
-            Button rename = DialogUi.CreateButton("Use New Name", 120);
+            Button rename = DialogUi.CreateButton("Use New Name");
             rename.Click += delegate
             {
                 choice = AccountConflictChoice.RenameAndJoin;
@@ -133,7 +133,7 @@ namespace DomainMembershipCheckRepair
                 Close();
             };
 
-            Button safeRetry = DialogUi.CreateButton("Safe Fixes + Retry Same Name", 220);
+            Button safeRetry = DialogUi.CreateButton("Safe Fixes + Retry Same Name");
             safeRetry.Click += delegate
             {
                 choice = AccountConflictChoice.SafeFixesAndRetry;
@@ -213,9 +213,9 @@ namespace DomainMembershipCheckRepair
             layout.Controls.Add(nameBox, 0, 1);
 
             FlowLayoutPanel buttons = DialogUi.CreateButtonRow();
-            Button cancel = DialogUi.CreateButton("Cancel", 90);
+            Button cancel = DialogUi.CreateButton("Cancel");
             cancel.DialogResult = DialogResult.Cancel;
-            Button ok = DialogUi.CreateButton("OK", 90);
+            Button ok = DialogUi.CreateButton("OK");
             ok.DialogResult = DialogResult.OK;
             buttons.Controls.Add(cancel);
             buttons.Controls.Add(ok);
@@ -281,9 +281,9 @@ namespace DomainMembershipCheckRepair
             layout.Controls.Add(nameBox, 0, 1);
 
             FlowLayoutPanel buttons = DialogUi.CreateButtonRow();
-            Button cancel = DialogUi.CreateButton("Cancel", 90);
+            Button cancel = DialogUi.CreateButton("Cancel");
             cancel.DialogResult = DialogResult.Cancel;
-            Button ok = DialogUi.CreateButton("Check", 90);
+            Button ok = DialogUi.CreateButton("Check");
             ok.DialogResult = DialogResult.OK;
             buttons.Controls.Add(cancel);
             buttons.Controls.Add(ok);
@@ -341,10 +341,10 @@ namespace DomainMembershipCheckRepair
             layout.Controls.Add(box, 0, 0);
 
             FlowLayoutPanel buttons = DialogUi.CreateButtonRow();
-            Button close = DialogUi.CreateButton("Close", 90);
+            Button close = DialogUi.CreateButton("Close");
             close.DialogResult = DialogResult.OK;
 
-            Button copy = DialogUi.CreateButton("Copy", 90);
+            Button copy = DialogUi.CreateButton("Copy");
             copy.Click += delegate
             {
                 try
