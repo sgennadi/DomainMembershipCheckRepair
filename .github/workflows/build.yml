@@ -100,11 +100,21 @@ jobs:
 
       - name: Run GUI/DPI smoke tests (x86)
         shell: cmd
-        run: bin\Release\x86\DomainMembershipCheckRepair.exe --cli --action ui-smoke --json
+        run: |
+          set "DMCR_UI_SMOKE_REPORT=ui-smoke-x86.txt"
+          bin\Release\x86\DomainMembershipCheckRepair.exe --cli --action ui-smoke --json
+          set "UI_SMOKE_EXIT=%ERRORLEVEL%"
+          if exist "%DMCR_UI_SMOKE_REPORT%" type "%DMCR_UI_SMOKE_REPORT%"
+          exit /b %UI_SMOKE_EXIT%
 
       - name: Run GUI/DPI smoke tests (x64)
         shell: cmd
-        run: bin\Release\x64\DomainMembershipCheckRepair.exe --cli --action ui-smoke --json
+        run: |
+          set "DMCR_UI_SMOKE_REPORT=ui-smoke-x64.txt"
+          bin\Release\x64\DomainMembershipCheckRepair.exe --cli --action ui-smoke --json
+          set "UI_SMOKE_EXIT=%ERRORLEVEL%"
+          if exist "%DMCR_UI_SMOKE_REPORT%" type "%DMCR_UI_SMOKE_REPORT%"
+          exit /b %UI_SMOKE_EXIT%
 
       - name: Build ARM64
         shell: cmd
