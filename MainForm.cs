@@ -261,6 +261,7 @@ namespace DomainMembershipCheckRepair
             actionTabs.Dock = DockStyle.Fill;
             actionTabs.Height = UiStyle.ActionTabsHeight;
             actionTabs.MinimumSize = new Size(0, UiStyle.ActionTabsMinimumHeight);
+            actionTabs.Padding = UiStyle.ActionTabHeaderPadding;
 
             TabPage basicPage = new TabPage("Basic");
             TabPage advancedPage = new TabPage("Advanced");
