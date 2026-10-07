@@ -458,26 +458,66 @@ namespace DomainMembershipCheckRepair
                 return;
             }
 
-            bool shouldFitPreferred =
-                (control is Label && ((Label)control).AutoSize) ||
-                (control is Button && ((Button)control).AutoSize) ||
-                (control is CheckBox && ((CheckBox)control).AutoSize) ||
-                (control is RadioButton && ((RadioButton)control).AutoSize) ||
-                (control is LinkLabel && ((LinkLabel)control).AutoSize);
-
-            if (shouldFitPreferred)
+            const int tolerance = 2;
+            Label label = control as Label;
+            if (label != null && label.AutoSize)
             {
-                Size preferred = control.GetPreferredSize(Size.Empty);
-                const int tolerance = 2;
+                bool widthConstrained =
+                    label.Dock == DockStyle.Fill ||
+                    label.MaximumSize.Width > 0;
 
-                if (control.Width + tolerance < preferred.Width ||
-                    control.Height + tolerance < preferred.Height)
+                if (widthConstrained && label.ClientSize.Width > 0)
                 {
-                    failures.Add(
-                        scenario + ": text clipping detected for " +
-                        DescribeControl(control) +
-                        "; actual=" + control.Width + "x" + control.Height +
-                        ", preferred=" + preferred.Width + "x" + preferred.Height + ".");
+                    Size wrapped = TextRenderer.MeasureText(
+                        label.Text,
+                        label.Font,
+                        new Size(label.ClientSize.Width, Int32.MaxValue),
+                        TextFormatFlags.WordBreak |
+                        TextFormatFlags.NoPadding);
+
+                    if (label.Height + tolerance < wrapped.Height)
+                    {
+                        failures.Add(
+                            scenario + ": wrapped label text is vertically clipped for " +
+                            DescribeControl(label) +
+                            "; actual height=" + label.Height +
+                            ", required=" + wrapped.Height + ".");
+                    }
+                }
+                else
+                {
+                    Size preferred = label.GetPreferredSize(Size.Empty);
+                    if (label.Width + tolerance < preferred.Width ||
+                        label.Height + tolerance < preferred.Height)
+                    {
+                        failures.Add(
+                            scenario + ": text clipping detected for " +
+                            DescribeControl(label) +
+                            "; actual=" + label.Width + "x" + label.Height +
+                            ", preferred=" + preferred.Width + "x" + preferred.Height + ".");
+                    }
+                }
+            }
+            else
+            {
+                bool shouldFitPreferred =
+                    (control is Button && ((Button)control).AutoSize) ||
+                    (control is CheckBox && ((CheckBox)control).AutoSize) ||
+                    (control is RadioButton && ((RadioButton)control).AutoSize) ||
+                    (control is LinkLabel && ((LinkLabel)control).AutoSize);
+
+                if (shouldFitPreferred)
+                {
+                    Size preferred = control.GetPreferredSize(Size.Empty);
+                    if (control.Width + tolerance < preferred.Width ||
+                        control.Height + tolerance < preferred.Height)
+                    {
+                        failures.Add(
+                            scenario + ": text clipping detected for " +
+                            DescribeControl(control) +
+                            "; actual=" + control.Width + "x" + control.Height +
+                            ", preferred=" + preferred.Width + "x" + preferred.Height + ".");
+                    }
                 }
             }
 
