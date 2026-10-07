@@ -122,6 +122,8 @@ The **Preferred DC** field is optional. It pins Active Directory LDAP lookup/del
 
 The bottom status footer shows color-coded **Domain**, **Trust**, **DC**, and **AD** state plus the current application version/architecture. **Copy Diagnostics** places the current human-readable diagnostic report on the clipboard without including the entered domain username or password.
 
+The GUI uses a centralized `UiStyle` layer for typography, common sizing, spacing and status colors. Forms remain Per-Monitor V2 DPI-aware and use AutoSize/flow/table layouts plus scroll-safe containers instead of relying on fixed text heights. The protected build runs GUI/DPI regression scenarios from 100% through 250%, including 4K at 200% and 250%, and fails if supported labels, buttons, check boxes, group titles or tab headers no longer fit their measured text.
+
 The application uses the built-in Windows shield icon for the window and compiled EXE resource.
 
 The **Write application log to file** checkbox is OFF by default and is not saved anywhere.

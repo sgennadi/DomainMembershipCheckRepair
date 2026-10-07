@@ -77,15 +77,14 @@ namespace DomainMembershipCheckRepair
             initialFileLogging = enableFileLogging;
             startupOptions = ElevationHelper.ParseGuiResumeOptions(args);
             Text = "Domain Membership Check & Repair v" + BuildInfo.Version;
-            Width = 980;
-            Height = 820;
+            Size = UiStyle.MainWindowSize;
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = true;
             MinimizeBox = true;
-            Font = new Font("Segoe UI", 9F);
+            UiStyle.ApplyForm(this);
             ApplyWindowPolish();
-            UiLayoutHelper.EnableScreenAwareSizing(this, new Size(640, 480));
+            UiLayoutHelper.EnableScreenAwareSizing(this, UiStyle.MainWindowMinimumSize);
 
             FormClosing += delegate
             {
@@ -120,7 +119,7 @@ namespace DomainMembershipCheckRepair
             root.Dock = DockStyle.Top;
             root.AutoSize = true;
             root.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            root.Padding = new Padding(14);
+            root.Padding = UiStyle.RootPadding;
             root.ColumnCount = 2;
             root.RowCount = 12;
             root.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -128,7 +127,7 @@ namespace DomainMembershipCheckRepair
 
             Label title = new Label();
             title.Text = "Domain Membership Check & Repair  v" + BuildInfo.Version;
-            title.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
+            title.Font = UiStyle.TitleFont;
             title.AutoSize = true;
             root.Controls.Add(title, 0, 0);
             root.SetColumnSpan(title, 2);
@@ -151,7 +150,7 @@ namespace DomainMembershipCheckRepair
             domainPanel.Dock = DockStyle.Fill;
             domainPanel.ColumnCount = 2;
             domainPanel.RowCount = 3;
-            domainPanel.Margin = new Padding(0);
+            domainPanel.Margin = UiStyle.ZeroPadding;
             domainPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             domainPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             domainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -170,8 +169,8 @@ namespace DomainMembershipCheckRepair
             };
             domainPanel.Controls.Add(domainBox, 0, 0);
 
-            detectButton = CreateButton("Detect Domain", 115);
-            detectButton.Margin = new Padding(8, 0, 0, 0);
+            detectButton = CreateButton("Detect Domain");
+            detectButton.Margin = UiStyle.InlineButtonMargin;
             detectButton.Click += delegate { DetectDomain(true); };
             domainPanel.Controls.Add(detectButton, 1, 0);
 
@@ -187,16 +186,16 @@ namespace DomainMembershipCheckRepair
             dcPanel.FlowDirection = FlowDirection.LeftToRight;
             dcPanel.WrapContents = true;
             dcPanel.AutoSize = true;
-            dcPanel.Margin = new Padding(0, 2, 0, 0);
+            dcPanel.Margin = UiStyle.DcPanelMargin;
 
             Label dcLabel = new Label();
             dcLabel.Text = "Preferred DC (optional):";
             dcLabel.AutoSize = true;
-            dcLabel.Margin = new Padding(0, 5, 8, 0);
+            dcLabel.Margin = UiStyle.InlineLabelMargin;
             dcPanel.Controls.Add(dcLabel);
 
             dcBox = new TextBox();
-            dcBox.Width = 285;
+            dcBox.Width = UiStyle.PreferredDcWidth;
             dcBox.Text = String.Empty;
             dcBox.TextChanged += delegate { UpdatePreferredDcStatus(); };
             dcPanel.Controls.Add(dcBox);
@@ -205,7 +204,7 @@ namespace DomainMembershipCheckRepair
             dcHint.Text = "LDAP operations only";
             dcHint.AutoSize = true;
             dcHint.ForeColor = SystemColors.GrayText;
-            dcHint.Margin = new Padding(8, 5, 0, 0);
+            dcHint.Margin = UiStyle.InlineHintMargin;
             dcPanel.Controls.Add(dcHint);
 
             domainPanel.Controls.Add(dcPanel, 0, 2);
@@ -219,9 +218,9 @@ namespace DomainMembershipCheckRepair
             userPanel.Dock = DockStyle.Fill;
             userPanel.ColumnCount = 1;
             userPanel.RowCount = 2;
-            userPanel.Margin = new Padding(0);
-            userPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 25F));
-            userPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 20F));
+            userPanel.Margin = UiStyle.ZeroPadding;
+            userPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            userPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
             userBox = new TextBox();
             userBox.Dock = DockStyle.Fill;
@@ -244,7 +243,7 @@ namespace DomainMembershipCheckRepair
             passwordPanel.AutoSize = true;
 
             passwordBox = new TextBox();
-            passwordBox.Width = 320;
+            passwordBox.Width = UiStyle.PasswordWidth;
             passwordBox.UseSystemPasswordChar = true;
             passwordPanel.Controls.Add(passwordBox);
 
@@ -260,8 +259,9 @@ namespace DomainMembershipCheckRepair
 
             TabControl actionTabs = new TabControl();
             actionTabs.Dock = DockStyle.Fill;
-            actionTabs.Height = 300;
-            actionTabs.MinimumSize = new Size(0, 220);
+            actionTabs.Height = UiStyle.ActionTabsHeight;
+            actionTabs.MinimumSize = new Size(0, UiStyle.ActionTabsMinimumHeight);
+            actionTabs.Padding = UiStyle.ActionTabHeaderPadding;
 
             TabPage basicPage = new TabPage("Basic");
             TabPage advancedPage = new TabPage("Advanced");
@@ -271,7 +271,7 @@ namespace DomainMembershipCheckRepair
             basicActions.Dock = DockStyle.Fill;
             basicActions.AutoScroll = true;
             basicActions.WrapContents = true;
-            basicActions.Padding = new Padding(6);
+            basicActions.Padding = UiStyle.SectionPadding;
 
             TableLayoutPanel advancedLayout = new TableLayoutPanel();
             advancedLayout.Dock = DockStyle.Top;
@@ -279,8 +279,8 @@ namespace DomainMembershipCheckRepair
             advancedLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             advancedLayout.ColumnCount = 1;
             advancedLayout.RowCount = 5;
-            advancedLayout.Padding = new Padding(6);
-            advancedLayout.Margin = new Padding(0);
+            advancedLayout.Padding = UiStyle.SectionPadding;
+            advancedLayout.Margin = UiStyle.ZeroPadding;
             advancedLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
             basicPage.Controls.Add(basicActions);
@@ -288,52 +288,52 @@ namespace DomainMembershipCheckRepair
             actionTabs.TabPages.Add(basicPage);
             actionTabs.TabPages.Add(advancedPage);
 
-            checkButton = CreateButton("Check Trust", 120);
-            diagnosticsButton = CreateButton("Diagnostics", 120);
-            copyDiagnosticsButton = CreateButton("Copy Diagnostics", 135);
-            exportButton = CreateButton("Export Diagnostics", 145);
-            advancedButton = CreateButton("Advanced Diagnostics", 155);
-            recoveryPlanButton = CreateButton("Recovery Plan", 125);
-            dcMatrixButton = CreateButton("DC Matrix", 105);
-            supportBundleButton = CreateButton("Support Bundle", 125);
-            cyberArkButton = CreateButton("CyberArk Health", 125);
-            offlineJoinButton = CreateButton("Offline Join", 110);
-            safeFixesButton = CreateButton("Safe Fixes", 105);
-            selfTestButton = CreateButton("Self Test", 105);
-            siteSubnetButton = CreateButton("Site / Subnet", 115);
-            protocolsButton = CreateButton("Protocol Tests", 120);
-            hardeningButton = CreateButton("Hardening", 105);
-            joinPermissionsButton = CreateButton("Join Permissions", 135);
-            hybridEntraButton = CreateButton("Hybrid Entra", 115);
-            policySourceButton = CreateButton("Policy Sources", 120);
-            replicationMetadataButton = CreateButton("Replication Metadata", 155);
-            spnCollisionsButton = CreateButton("SPN Collisions", 125);
-            smbKerberosButton = CreateButton("SMB / Kerberos", 130);
-            kerberosDeepButton = CreateButton("Kerberos Deep", 120);
-            ldapCompatibilityButton = CreateButton("LDAP Compatibility", 145);
-            rpcEndpointsButton = CreateButton("RPC Endpoints", 120);
-            replicationTimelineButton = CreateButton("Replication Timeline", 145);
-            identityConsistencyButton = CreateButton("Identity Consistency", 145);
-            adRecoveryButton = CreateButton("AD Recovery", 110);
-            restoreDeletedAdButton = CreateButton("Restore Deleted AD", 145);
-            nextActionButton = CreateButton("Next Safe Action", 130);
-            transactionsButton = CreateButton("Transactions", 110);
-            rollbackLocalButton = CreateButton("Rollback Local", 120);
-            cancelDiagnosticsButton = CreateButton("Cancel Diagnostics", 135);
+            checkButton = CreateButton("Check Trust");
+            diagnosticsButton = CreateButton("Diagnostics");
+            copyDiagnosticsButton = CreateButton("Copy Diagnostics");
+            exportButton = CreateButton("Export Diagnostics");
+            advancedButton = CreateButton("Advanced Diagnostics");
+            recoveryPlanButton = CreateButton("Recovery Plan");
+            dcMatrixButton = CreateButton("DC Matrix");
+            supportBundleButton = CreateButton("Support Bundle");
+            cyberArkButton = CreateButton("CyberArk Health");
+            offlineJoinButton = CreateButton("Offline Join");
+            safeFixesButton = CreateButton("Safe Fixes");
+            selfTestButton = CreateButton("Self Test");
+            siteSubnetButton = CreateButton("Site / Subnet");
+            protocolsButton = CreateButton("Protocol Tests");
+            hardeningButton = CreateButton("Hardening");
+            joinPermissionsButton = CreateButton("Join Permissions");
+            hybridEntraButton = CreateButton("Hybrid Entra");
+            policySourceButton = CreateButton("Policy Sources");
+            replicationMetadataButton = CreateButton("Replication Metadata");
+            spnCollisionsButton = CreateButton("SPN Collisions");
+            smbKerberosButton = CreateButton("SMB / Kerberos");
+            kerberosDeepButton = CreateButton("Kerberos Deep");
+            ldapCompatibilityButton = CreateButton("LDAP Compatibility");
+            rpcEndpointsButton = CreateButton("RPC Endpoints");
+            replicationTimelineButton = CreateButton("Replication Timeline");
+            identityConsistencyButton = CreateButton("Identity Consistency");
+            adRecoveryButton = CreateButton("AD Recovery");
+            restoreDeletedAdButton = CreateButton("Restore Deleted AD");
+            nextActionButton = CreateButton("Next Safe Action");
+            transactionsButton = CreateButton("Transactions");
+            rollbackLocalButton = CreateButton("Rollback Local");
+            cancelDiagnosticsButton = CreateButton("Cancel Diagnostics");
             cancelDiagnosticsButton.Enabled = false;
 
             diagnosticsProgressLabel = new Label();
             diagnosticsProgressLabel.AutoSize = true;
             diagnosticsProgressLabel.AutoEllipsis = true;
             diagnosticsProgressLabel.ForeColor = SystemColors.GrayText;
-            diagnosticsProgressLabel.Margin = new Padding(10, 7, 2, 1);
+            diagnosticsProgressLabel.Margin = UiStyle.FooterMargin;
             diagnosticsProgressLabel.Text = "Diagnostics: Idle";
 
-            repairButton = CreateButton("Repair Trust", 120);
-            joinButton = CreateButton("Join / Rejoin Domain", 170);
-            adCheckButton = CreateButton("Check AD Account", 150);
-            restartButton = CreateButton("Restart Windows", 140);
-            aboutButton = CreateButton("About", 85);
+            repairButton = CreateButton("Repair Trust");
+            joinButton = CreateButton("Join / Rejoin Domain");
+            adCheckButton = CreateButton("Check AD Account");
+            restartButton = CreateButton("Restart Windows");
+            aboutButton = CreateButton("About");
 
             bool needsElevation = !ElevationHelper.IsAdministrator();
             ElevationHelper.SetElevationShield(repairButton, needsElevation);
@@ -467,7 +467,7 @@ namespace DomainMembershipCheckRepair
             fileLogPanel.FlowDirection = FlowDirection.LeftToRight;
             fileLogPanel.WrapContents = true;
             fileLogPanel.AutoSize = true;
-            fileLogPanel.Margin = new Padding(0);
+            fileLogPanel.Margin = UiStyle.ZeroPadding;
 
             fileLogBox = new CheckBox();
             fileLogBox.Text = "Write application log to file";
@@ -479,7 +479,7 @@ namespace DomainMembershipCheckRepair
             fileLogPath.Text = LogFile + "  (default: No)";
             fileLogPath.AutoSize = true;
             fileLogPath.ForeColor = SystemColors.GrayText;
-            fileLogPath.Margin = new Padding(12, 4, 0, 0);
+            fileLogPath.Margin = UiStyle.FileLogPathMargin;
             fileLogPanel.Controls.Add(fileLogPath);
 
             root.Controls.Add(fileLogPanel, 0, 9);
@@ -490,7 +490,7 @@ namespace DomainMembershipCheckRepair
             logBox.ReadOnly = true;
             logBox.ScrollBars = ScrollBars.Vertical;
             logBox.Dock = DockStyle.Fill;
-            logBox.Font = new Font("Consolas", 9F);
+            logBox.Font = UiStyle.MonospaceFont;
             root.Controls.Add(logBox, 0, 10);
             root.SetColumnSpan(logBox, 2);
 
@@ -505,10 +505,10 @@ namespace DomainMembershipCheckRepair
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 320F));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, UiStyle.ActionAreaRowHeight));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 220F));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, UiStyle.LogAreaRowHeight));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
             scrollHost.Controls.Add(root);
@@ -529,7 +529,7 @@ namespace DomainMembershipCheckRepair
             Label label = new Label();
             label.AutoSize = true;
             label.Anchor = AnchorStyles.Left;
-            label.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            label.Font = UiStyle.ValueFont;
             return label;
         }
 
@@ -542,8 +542,8 @@ namespace DomainMembershipCheckRepair
             group.Dock = DockStyle.Top;
             group.AutoSize = true;
             group.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            group.Padding = new Padding(8, 6, 8, 8);
-            group.Margin = new Padding(0, 0, 0, 6);
+            group.Padding = UiStyle.GroupPadding;
+            group.Margin = UiStyle.GroupMargin;
 
             FlowLayoutPanel flow = new FlowLayoutPanel();
             flow.Dock = DockStyle.Top;
@@ -551,8 +551,8 @@ namespace DomainMembershipCheckRepair
             flow.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             flow.WrapContents = true;
             flow.FlowDirection = FlowDirection.LeftToRight;
-            flow.Padding = new Padding(2);
-            flow.Margin = new Padding(0);
+            flow.Padding = UiStyle.TightPadding;
+            flow.Margin = UiStyle.ZeroPadding;
 
             if (controls != null)
             {
@@ -567,15 +567,9 @@ namespace DomainMembershipCheckRepair
             return group;
         }
 
-        private static Button CreateButton(string text, int width)
+        private static Button CreateButton(string text)
         {
-            Button button = new Button();
-            button.Text = text;
-            button.AutoSize = true;
-            button.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            button.MinimumSize = new Size(width, 32);
-            button.Padding = new Padding(6, 2, 6, 2);
-            return button;
+            return UiStyle.CreateButton(text);
         }
 
 

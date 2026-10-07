@@ -24,6 +24,7 @@ namespace DomainMembershipCheckRepair.Tools
             List<string> failures = new List<string>();
 
             ValidateNoPowerShellFiles(root, failures);
+            ValidateUiStylePolicy(root, failures);
             ValidateWorkflows(root, failures);
 
             if (failures.Count > 0)
@@ -36,6 +37,7 @@ namespace DomainMembershipCheckRepair.Tools
 
             Console.WriteLine("Repository policy validation passed.");
             Console.WriteLine("No .ps1 files are present.");
+            Console.WriteLine("WinForms fonts and DPI baseline are centralized in UiStyle.");
             Console.WriteLine("Remote actions are pinned to immutable commit SHAs.");
             Console.WriteLine("Workflow token permissions and checkout credential policy are explicit.");
             return 0;
@@ -49,6 +51,106 @@ namespace DomainMembershipCheckRepair.Tools
                     continue;
 
                 failures.Add("PowerShell script files are not allowed: " + Relative(root, file));
+            }
+        }
+
+        private static void ValidateUiStylePolicy(
+            string root,
+            List<string> failures)
+        {
+            foreach (string file in Directory.GetFiles(
+                root,
+                "*.cs",
+                SearchOption.AllDirectories))
+            {
+                if (IsIgnoredPath(root, file))
+                    continue;
+
+                string relative = Relative(root, file);
+                if (relative.StartsWith(
+                        "Tools\\",
+                        StringComparison.OrdinalIgnoreCase) ||
+                    relative.StartsWith(
+                        "Tests\\",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                string fileName = Path.GetFileName(file);
+                string text = File.ReadAllText(file);
+
+                if (!String.Equals(
+                    fileName,
+                    "UiStyle.cs",
+                    StringComparison.OrdinalIgnoreCase) &&
+                    Regex.IsMatch(
+                        text,
+                        @"\bnew\s+Font\s*\(",
+                        RegexOptions.CultureInvariant))
+                {
+                    failures.Add(
+                        relative +
+                        " creates a Font directly. Define shared typography in UiStyle and reference it from forms/controls.");
+                }
+
+                if (!String.Equals(
+                    fileName,
+                    "UiStyle.cs",
+                    StringComparison.OrdinalIgnoreCase) &&
+                    text.IndexOf(
+                        "AutoScaleDimensions = new SizeF(",
+                        StringComparison.Ordinal) >= 0)
+                {
+                    failures.Add(
+                        relative +
+                        " defines a local DPI baseline. Apply the centralized UiStyle DPI configuration instead.");
+                }
+
+                bool uiSurface =
+                    fileName.StartsWith(
+                        "MainForm",
+                        StringComparison.OrdinalIgnoreCase) ||
+                    String.Equals(
+                        fileName,
+                        "Dialogs.cs",
+                        StringComparison.OrdinalIgnoreCase) ||
+                    String.Equals(
+                        fileName,
+                        "UiLayoutHelper.cs",
+                        StringComparison.OrdinalIgnoreCase);
+
+                if (uiSurface &&
+                    Regex.IsMatch(
+                        text,
+                        @"\bnew\s+Padding\s*\(",
+                        RegexOptions.CultureInvariant))
+                {
+                    failures.Add(
+                        relative +
+                        " creates Padding directly. Shared spacing must be defined in UiStyle.");
+                }
+
+                if (uiSurface &&
+                    text.IndexOf(
+                        "Color.FromArgb(",
+                        StringComparison.Ordinal) >= 0)
+                {
+                    failures.Add(
+                        relative +
+                        " defines a local RGB color. Shared visual colors must be defined in UiStyle.");
+                }
+
+                if (uiSurface &&
+                    Regex.IsMatch(
+                        text,
+                        @"\.(?:Width|Height)\s*=\s*\d+\s*;",
+                        RegexOptions.CultureInvariant))
+                {
+                    failures.Add(
+                        relative +
+                        " hard-codes a control Width/Height. Use UiStyle metrics or adaptive layout.");
+                }
             }
         }
 

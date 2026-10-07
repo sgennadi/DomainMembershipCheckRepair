@@ -45,6 +45,9 @@
     <Compile Include="..\ElevationHelper.cs">
       <Link>ElevationHelper.cs</Link>
     </Compile>
+    <Compile Include="..\UiStyle.cs">
+      <Link>UiStyle.cs</Link>
+    </Compile>
     <Compile Include="..\UiLayoutHelper.cs">
       <Link>UiLayoutHelper.cs</Link>
     </Compile>

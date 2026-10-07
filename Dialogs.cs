@@ -8,24 +8,16 @@ namespace DomainMembershipCheckRepair
     {
         internal static void ApplyDpi(Form form, Size minimumSize)
         {
-            form.AutoScaleDimensions = new SizeF(96F, 96F);
-            form.AutoScaleMode = AutoScaleMode.Dpi;
+            UiStyle.ApplyForm(form);
             form.MinimumSize = Size.Empty;
-            form.Font = new Font("Segoe UI", 9F);
             UiLayoutHelper.EnableScreenAwareSizing(form, minimumSize);
             form.StartPosition = FormStartPosition.CenterParent;
             form.ShowInTaskbar = false;
         }
 
-        internal static Button CreateButton(string text, int minimumWidth)
+        internal static Button CreateButton(string text)
         {
-            Button button = new Button();
-            button.Text = text;
-            button.AutoSize = true;
-            button.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            button.MinimumSize = new Size(minimumWidth, 32);
-            button.Padding = new Padding(8, 2, 8, 2);
-            return button;
+            return UiStyle.CreateButton(text);
         }
 
         internal static FlowLayoutPanel CreateButtonRow()
@@ -35,7 +27,7 @@ namespace DomainMembershipCheckRepair
             buttons.AutoSize = true;
             buttons.WrapContents = true;
             buttons.FlowDirection = FlowDirection.RightToLeft;
-            buttons.Padding = new Padding(0, 6, 0, 0);
+            buttons.Padding = UiStyle.ButtonRowPadding;
             return buttons;
         }
     }
@@ -44,23 +36,22 @@ namespace DomainMembershipCheckRepair
     {
         private AccountConflictChoice choice = AccountConflictChoice.Cancel;
 
-        private AccountConflictDialog(
+        internal AccountConflictDialog(
             string computerName,
             string reason,
             AdComputerAccountInfo account,
             bool canDelete)
         {
             Text = "Computer account conflict";
-            Width = 820;
-            Height = 560;
+            Size = UiStyle.AccountConflictDialogSize;
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = true;
             MinimizeBox = false;
-            DialogUi.ApplyDpi(this, new Size(620, 430));
+            DialogUi.ApplyDpi(this, UiStyle.AccountConflictDialogMinimumSize);
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.Dock = DockStyle.Fill;
-            layout.Padding = new Padding(14);
+            layout.Padding = UiStyle.RootPadding;
             layout.ColumnCount = 1;
             layout.RowCount = 4;
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -80,7 +71,7 @@ namespace DomainMembershipCheckRepair
             details.ScrollBars = ScrollBars.Both;
             details.WordWrap = false;
             details.Dock = DockStyle.Fill;
-            details.Font = new Font("Consolas", 9F);
+            details.Font = UiStyle.MonospaceFont;
 
             if (account != null && account.LookupSucceeded && account.Exists)
             {
@@ -109,7 +100,7 @@ namespace DomainMembershipCheckRepair
             Label warning = new Label();
             warning.AutoSize = true;
             warning.Dock = DockStyle.Fill;
-            warning.Margin = new Padding(0, 10, 0, 4);
+            warning.Margin = UiStyle.DialogWarningMargin;
             warning.Text =
                 "Recommended order: Safe Fixes + Retry Same Name -> Use New Name -> Delete + Retry only as a last resort. " +
                 "The final delete step is also protected by a separate safety gate.";
@@ -117,7 +108,7 @@ namespace DomainMembershipCheckRepair
 
             FlowLayoutPanel buttons = DialogUi.CreateButtonRow();
 
-            Button cancel = DialogUi.CreateButton("Cancel", 90);
+            Button cancel = DialogUi.CreateButton("Cancel");
             cancel.Click += delegate
             {
                 choice = AccountConflictChoice.Cancel;
@@ -125,7 +116,7 @@ namespace DomainMembershipCheckRepair
                 Close();
             };
 
-            Button delete = DialogUi.CreateButton("Delete + Retry", 125);
+            Button delete = DialogUi.CreateButton("Delete + Retry");
             delete.Enabled = canDelete;
             delete.Click += delegate
             {
@@ -134,7 +125,7 @@ namespace DomainMembershipCheckRepair
                 Close();
             };
 
-            Button rename = DialogUi.CreateButton("Use New Name", 120);
+            Button rename = DialogUi.CreateButton("Use New Name");
             rename.Click += delegate
             {
                 choice = AccountConflictChoice.RenameAndJoin;
@@ -142,7 +133,7 @@ namespace DomainMembershipCheckRepair
                 Close();
             };
 
-            Button safeRetry = DialogUi.CreateButton("Safe Fixes + Retry Same Name", 220);
+            Button safeRetry = DialogUi.CreateButton("Safe Fixes + Retry Same Name");
             safeRetry.Click += delegate
             {
                 choice = AccountConflictChoice.SafeFixesAndRetry;
@@ -189,19 +180,18 @@ namespace DomainMembershipCheckRepair
     {
         private readonly TextBox nameBox;
 
-        private NewNameDialog(string currentName, string suggested)
+        internal NewNameDialog(string currentName, string suggested)
         {
             Text = "Enter new computer name";
-            Width = 560;
-            Height = 230;
+            Size = UiStyle.NewNameDialogSize;
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = false;
             MinimizeBox = false;
-            DialogUi.ApplyDpi(this, new Size(430, 210));
+            DialogUi.ApplyDpi(this, UiStyle.NewNameDialogMinimumSize);
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.Dock = DockStyle.Fill;
-            layout.Padding = new Padding(16);
+            layout.Padding = UiStyle.DialogPadding;
             layout.ColumnCount = 1;
             layout.RowCount = 3;
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -218,14 +208,14 @@ namespace DomainMembershipCheckRepair
 
             nameBox = new TextBox();
             nameBox.Dock = DockStyle.Top;
-            nameBox.Margin = new Padding(0, 10, 0, 6);
+            nameBox.Margin = UiStyle.DialogInputMargin;
             nameBox.Text = suggested;
             layout.Controls.Add(nameBox, 0, 1);
 
             FlowLayoutPanel buttons = DialogUi.CreateButtonRow();
-            Button cancel = DialogUi.CreateButton("Cancel", 90);
+            Button cancel = DialogUi.CreateButton("Cancel");
             cancel.DialogResult = DialogResult.Cancel;
-            Button ok = DialogUi.CreateButton("OK", 90);
+            Button ok = DialogUi.CreateButton("OK");
             ok.DialogResult = DialogResult.OK;
             buttons.Controls.Add(cancel);
             buttons.Controls.Add(ok);
@@ -260,19 +250,18 @@ namespace DomainMembershipCheckRepair
     {
         private readonly TextBox nameBox;
 
-        private ComputerNameLookupDialog(string suggested)
+        internal ComputerNameLookupDialog(string suggested)
         {
             Text = "Check AD computer account";
-            Width = 560;
-            Height = 210;
+            Size = UiStyle.ComputerLookupDialogSize;
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = false;
             MinimizeBox = false;
-            DialogUi.ApplyDpi(this, new Size(430, 195));
+            DialogUi.ApplyDpi(this, UiStyle.ComputerLookupDialogMinimumSize);
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.Dock = DockStyle.Fill;
-            layout.Padding = new Padding(16);
+            layout.Padding = UiStyle.DialogPadding;
             layout.ColumnCount = 1;
             layout.RowCount = 3;
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -287,14 +276,14 @@ namespace DomainMembershipCheckRepair
 
             nameBox = new TextBox();
             nameBox.Dock = DockStyle.Top;
-            nameBox.Margin = new Padding(0, 10, 0, 6);
+            nameBox.Margin = UiStyle.DialogInputMargin;
             nameBox.Text = suggested ?? String.Empty;
             layout.Controls.Add(nameBox, 0, 1);
 
             FlowLayoutPanel buttons = DialogUi.CreateButtonRow();
-            Button cancel = DialogUi.CreateButton("Cancel", 90);
+            Button cancel = DialogUi.CreateButton("Cancel");
             cancel.DialogResult = DialogResult.Cancel;
-            Button ok = DialogUi.CreateButton("Check", 90);
+            Button ok = DialogUi.CreateButton("Check");
             ok.DialogResult = DialogResult.OK;
             buttons.Controls.Add(cancel);
             buttons.Controls.Add(ok);
@@ -324,19 +313,18 @@ namespace DomainMembershipCheckRepair
 
     internal sealed class ReportDialog : Form
     {
-        private ReportDialog(string title, string report)
+        internal ReportDialog(string title, string report)
         {
             Text = title;
-            Width = 900;
-            Height = 650;
+            Size = UiStyle.ReportDialogSize;
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = true;
             MinimizeBox = false;
-            DialogUi.ApplyDpi(this, new Size(560, 400));
+            DialogUi.ApplyDpi(this, UiStyle.ReportDialogMinimumSize);
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.Dock = DockStyle.Fill;
-            layout.Padding = new Padding(12);
+            layout.Padding = UiStyle.CompactDialogPadding;
             layout.ColumnCount = 1;
             layout.RowCount = 2;
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
@@ -348,15 +336,15 @@ namespace DomainMembershipCheckRepair
             box.ScrollBars = ScrollBars.Both;
             box.WordWrap = false;
             box.Dock = DockStyle.Fill;
-            box.Font = new Font("Consolas", 9F);
+            box.Font = UiStyle.MonospaceFont;
             box.Text = report ?? String.Empty;
             layout.Controls.Add(box, 0, 0);
 
             FlowLayoutPanel buttons = DialogUi.CreateButtonRow();
-            Button close = DialogUi.CreateButton("Close", 90);
+            Button close = DialogUi.CreateButton("Close");
             close.DialogResult = DialogResult.OK;
 
-            Button copy = DialogUi.CreateButton("Copy", 90);
+            Button copy = DialogUi.CreateButton("Copy");
             copy.Click += delegate
             {
                 try
