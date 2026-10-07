@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Text;
 using System.Windows.Forms;
 
@@ -83,6 +84,10 @@ namespace DomainMembershipCheckRepair
             }
 
             ValidateScaleRoundTrip(failures);
+            WriteSmokeReport(
+                scenarios.Length,
+                passed,
+                failures);
 
             if (json)
             {
@@ -307,6 +312,45 @@ namespace DomainMembershipCheckRepair
                 failures.Add(
                     scenario + ": exception: " +
                     ex.GetType().Name + ": " +
+                    ex.Message);
+            }
+        }
+
+        private static void WriteSmokeReport(
+            int scenarioCount,
+            List<string> passed,
+            List<string> failures)
+        {
+            string path = Environment.GetEnvironmentVariable(
+                "DMCR_UI_SMOKE_REPORT");
+            if (String.IsNullOrWhiteSpace(path))
+                return;
+
+            try
+            {
+                StringBuilder report = new StringBuilder();
+                report.AppendLine("GUI / DPI smoke test");
+                report.AppendLine("====================");
+                report.AppendLine("Architecture: " + BuildInfo.TargetArchitecture);
+                report.AppendLine("Scenarios: " + scenarioCount);
+                report.AppendLine("Passed: " + passed.Count);
+                report.AppendLine("Failed: " + failures.Count);
+
+                foreach (string scenario in passed)
+                    report.AppendLine("PASS: " + scenario);
+
+                foreach (string failure in failures)
+                    report.AppendLine("FAIL: " + failure);
+
+                File.WriteAllText(
+                    Path.GetFullPath(path),
+                    report.ToString(),
+                    Encoding.UTF8);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(
+                    "Unable to write UI smoke report: " +
                     ex.Message);
             }
         }
