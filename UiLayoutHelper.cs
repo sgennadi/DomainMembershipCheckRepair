@@ -66,7 +66,11 @@ namespace DomainMembershipCheckRepair
             if (working.Width <= 0 || working.Height <= 0)
                 return;
 
-            int margin = Math.Max(12, Math.Min(32, working.Width / 40));
+            int margin = Math.Max(
+                UiStyle.ScreenMarginMinimum,
+                Math.Min(
+                    UiStyle.ScreenMarginMaximum,
+                    working.Width / UiStyle.ScreenMarginDivisor));
             float scale = Math.Max(1.0F, form.DeviceDpi / 96.0F);
             Size scaledMinimum = new Size(
                 Math.Max(1, (int)Math.Round(minimumLogicalSize.Width * scale)),
