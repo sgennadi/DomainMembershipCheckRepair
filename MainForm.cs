@@ -150,7 +150,7 @@ namespace DomainMembershipCheckRepair
             domainPanel.Dock = DockStyle.Fill;
             domainPanel.ColumnCount = 2;
             domainPanel.RowCount = 3;
-            domainPanel.Margin = new Padding(0);
+            domainPanel.Margin = UiStyle.ZeroPadding;
             domainPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             domainPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             domainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -186,12 +186,12 @@ namespace DomainMembershipCheckRepair
             dcPanel.FlowDirection = FlowDirection.LeftToRight;
             dcPanel.WrapContents = true;
             dcPanel.AutoSize = true;
-            dcPanel.Margin = new Padding(0, 2, 0, 0);
+            dcPanel.Margin = UiStyle.DcPanelMargin;
 
             Label dcLabel = new Label();
             dcLabel.Text = "Preferred DC (optional):";
             dcLabel.AutoSize = true;
-            dcLabel.Margin = new Padding(0, 5, 8, 0);
+            dcLabel.Margin = UiStyle.InlineLabelMargin;
             dcPanel.Controls.Add(dcLabel);
 
             dcBox = new TextBox();
@@ -204,7 +204,7 @@ namespace DomainMembershipCheckRepair
             dcHint.Text = "LDAP operations only";
             dcHint.AutoSize = true;
             dcHint.ForeColor = SystemColors.GrayText;
-            dcHint.Margin = new Padding(8, 5, 0, 0);
+            dcHint.Margin = UiStyle.InlineHintMargin;
             dcPanel.Controls.Add(dcHint);
 
             domainPanel.Controls.Add(dcPanel, 0, 2);
@@ -218,7 +218,7 @@ namespace DomainMembershipCheckRepair
             userPanel.Dock = DockStyle.Fill;
             userPanel.ColumnCount = 1;
             userPanel.RowCount = 2;
-            userPanel.Margin = new Padding(0);
+            userPanel.Margin = UiStyle.ZeroPadding;
             userPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             userPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
@@ -270,7 +270,7 @@ namespace DomainMembershipCheckRepair
             basicActions.Dock = DockStyle.Fill;
             basicActions.AutoScroll = true;
             basicActions.WrapContents = true;
-            basicActions.Padding = new Padding(6);
+            basicActions.Padding = UiStyle.SectionPadding;
 
             TableLayoutPanel advancedLayout = new TableLayoutPanel();
             advancedLayout.Dock = DockStyle.Top;
@@ -278,8 +278,8 @@ namespace DomainMembershipCheckRepair
             advancedLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             advancedLayout.ColumnCount = 1;
             advancedLayout.RowCount = 5;
-            advancedLayout.Padding = new Padding(6);
-            advancedLayout.Margin = new Padding(0);
+            advancedLayout.Padding = UiStyle.SectionPadding;
+            advancedLayout.Margin = UiStyle.ZeroPadding;
             advancedLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
             basicPage.Controls.Add(basicActions);
@@ -325,7 +325,7 @@ namespace DomainMembershipCheckRepair
             diagnosticsProgressLabel.AutoSize = true;
             diagnosticsProgressLabel.AutoEllipsis = true;
             diagnosticsProgressLabel.ForeColor = SystemColors.GrayText;
-            diagnosticsProgressLabel.Margin = new Padding(10, 7, 2, 1);
+            diagnosticsProgressLabel.Margin = UiStyle.FooterMargin;
             diagnosticsProgressLabel.Text = "Diagnostics: Idle";
 
             repairButton = CreateButton("Repair Trust");
@@ -466,7 +466,7 @@ namespace DomainMembershipCheckRepair
             fileLogPanel.FlowDirection = FlowDirection.LeftToRight;
             fileLogPanel.WrapContents = true;
             fileLogPanel.AutoSize = true;
-            fileLogPanel.Margin = new Padding(0);
+            fileLogPanel.Margin = UiStyle.ZeroPadding;
 
             fileLogBox = new CheckBox();
             fileLogBox.Text = "Write application log to file";
@@ -478,7 +478,7 @@ namespace DomainMembershipCheckRepair
             fileLogPath.Text = LogFile + "  (default: No)";
             fileLogPath.AutoSize = true;
             fileLogPath.ForeColor = SystemColors.GrayText;
-            fileLogPath.Margin = new Padding(12, 4, 0, 0);
+            fileLogPath.Margin = UiStyle.FileLogPathMargin;
             fileLogPanel.Controls.Add(fileLogPath);
 
             root.Controls.Add(fileLogPanel, 0, 9);
@@ -541,8 +541,8 @@ namespace DomainMembershipCheckRepair
             group.Dock = DockStyle.Top;
             group.AutoSize = true;
             group.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            group.Padding = new Padding(8, 6, 8, 8);
-            group.Margin = new Padding(0, 0, 0, 6);
+            group.Padding = UiStyle.GroupPadding;
+            group.Margin = UiStyle.GroupMargin;
 
             FlowLayoutPanel flow = new FlowLayoutPanel();
             flow.Dock = DockStyle.Top;
@@ -550,8 +550,8 @@ namespace DomainMembershipCheckRepair
             flow.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             flow.WrapContents = true;
             flow.FlowDirection = FlowDirection.LeftToRight;
-            flow.Padding = new Padding(2);
-            flow.Margin = new Padding(0);
+            flow.Padding = UiStyle.TightPadding;
+            flow.Margin = UiStyle.ZeroPadding;
 
             if (controls != null)
             {
