@@ -8,10 +8,8 @@ namespace DomainMembershipCheckRepair
     {
         internal static void ApplyDpi(Form form, Size minimumSize)
         {
-            form.AutoScaleDimensions = new SizeF(96F, 96F);
-            form.AutoScaleMode = AutoScaleMode.Dpi;
+            UiStyle.ApplyForm(form);
             form.MinimumSize = Size.Empty;
-            form.Font = new Font("Segoe UI", 9F);
             UiLayoutHelper.EnableScreenAwareSizing(form, minimumSize);
             form.StartPosition = FormStartPosition.CenterParent;
             form.ShowInTaskbar = false;
@@ -19,13 +17,7 @@ namespace DomainMembershipCheckRepair
 
         internal static Button CreateButton(string text, int minimumWidth)
         {
-            Button button = new Button();
-            button.Text = text;
-            button.AutoSize = true;
-            button.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            button.MinimumSize = new Size(minimumWidth, 32);
-            button.Padding = new Padding(8, 2, 8, 2);
-            return button;
+            return UiStyle.CreateButton(text, minimumWidth);
         }
 
         internal static FlowLayoutPanel CreateButtonRow()
@@ -51,12 +43,11 @@ namespace DomainMembershipCheckRepair
             bool canDelete)
         {
             Text = "Computer account conflict";
-            Width = 820;
-            Height = 560;
+            Size = UiStyle.AccountConflictDialogSize;
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = true;
             MinimizeBox = false;
-            DialogUi.ApplyDpi(this, new Size(620, 430));
+            DialogUi.ApplyDpi(this, UiStyle.AccountConflictDialogMinimumSize);
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.Dock = DockStyle.Fill;
@@ -80,7 +71,7 @@ namespace DomainMembershipCheckRepair
             details.ScrollBars = ScrollBars.Both;
             details.WordWrap = false;
             details.Dock = DockStyle.Fill;
-            details.Font = new Font("Consolas", 9F);
+            details.Font = UiStyle.MonospaceFont;
 
             if (account != null && account.LookupSucceeded && account.Exists)
             {
@@ -192,12 +183,11 @@ namespace DomainMembershipCheckRepair
         private NewNameDialog(string currentName, string suggested)
         {
             Text = "Enter new computer name";
-            Width = 560;
-            Height = 230;
+            Size = UiStyle.NewNameDialogSize;
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = false;
             MinimizeBox = false;
-            DialogUi.ApplyDpi(this, new Size(430, 210));
+            DialogUi.ApplyDpi(this, UiStyle.NewNameDialogMinimumSize);
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.Dock = DockStyle.Fill;
@@ -263,12 +253,11 @@ namespace DomainMembershipCheckRepair
         private ComputerNameLookupDialog(string suggested)
         {
             Text = "Check AD computer account";
-            Width = 560;
-            Height = 210;
+            Size = UiStyle.ComputerLookupDialogSize;
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = false;
             MinimizeBox = false;
-            DialogUi.ApplyDpi(this, new Size(430, 195));
+            DialogUi.ApplyDpi(this, UiStyle.ComputerLookupDialogMinimumSize);
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.Dock = DockStyle.Fill;
@@ -327,12 +316,11 @@ namespace DomainMembershipCheckRepair
         private ReportDialog(string title, string report)
         {
             Text = title;
-            Width = 900;
-            Height = 650;
+            Size = UiStyle.ReportDialogSize;
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = true;
             MinimizeBox = false;
-            DialogUi.ApplyDpi(this, new Size(560, 400));
+            DialogUi.ApplyDpi(this, UiStyle.ReportDialogMinimumSize);
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.Dock = DockStyle.Fill;
@@ -348,7 +336,7 @@ namespace DomainMembershipCheckRepair
             box.ScrollBars = ScrollBars.Both;
             box.WordWrap = false;
             box.Dock = DockStyle.Fill;
-            box.Font = new Font("Consolas", 9F);
+            box.Font = UiStyle.MonospaceFont;
             box.Text = report ?? String.Empty;
             layout.Controls.Add(box, 0, 0);
 
