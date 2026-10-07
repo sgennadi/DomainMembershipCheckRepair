@@ -46,12 +46,30 @@ namespace DomainMembershipCheckRepair
         internal const float ActionAreaRowHeight = 320F;
         internal const float LogAreaRowHeight = 220F;
 
+        internal const int ScreenMarginMinimum = 12;
+        internal const int ScreenMarginMaximum = 32;
+        internal const int ScreenMarginDivisor = 40;
+
+        internal static readonly Padding ZeroPadding = new Padding(0);
+        internal static readonly Padding TightPadding = new Padding(2);
+        internal static readonly Padding SectionPadding = new Padding(6);
         internal static readonly Padding ButtonPadding = new Padding(8, 2, 8, 2);
         internal static readonly Padding RootPadding = new Padding(14);
         internal static readonly Padding DialogPadding = new Padding(16);
         internal static readonly Padding CompactDialogPadding = new Padding(12);
+        internal static readonly Padding GroupPadding = new Padding(8, 6, 8, 8);
+        internal static readonly Padding GroupMargin = new Padding(0, 0, 0, 6);
+        internal static readonly Padding DcPanelMargin = new Padding(0, 2, 0, 0);
+        internal static readonly Padding InlineLabelMargin = new Padding(0, 5, 8, 0);
+        internal static readonly Padding InlineHintMargin = new Padding(8, 5, 0, 0);
+        internal static readonly Padding StatusPanelMargin = new Padding(0, 3, 0, 0);
+        internal static readonly Padding StatusBadgeMargin = new Padding(1);
         internal static readonly Padding StatusBadgePadding = new Padding(6, 5, 6, 5);
         internal static readonly Padding FooterMargin = new Padding(10, 7, 2, 1);
+        internal static readonly Padding FileLogPathMargin = new Padding(12, 4, 0, 0);
+        internal static readonly Padding ButtonRowPadding = new Padding(0, 6, 0, 0);
+        internal static readonly Padding DialogWarningMargin = new Padding(0, 10, 0, 4);
+        internal static readonly Padding DialogInputMargin = new Padding(0, 10, 0, 6);
         internal static readonly Padding InlineButtonMargin = new Padding(8, 0, 0, 0);
 
         internal static readonly Color StatusSuccessFore = Color.FromArgb(24, 94, 42);
