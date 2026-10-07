@@ -77,15 +77,14 @@ namespace DomainMembershipCheckRepair
             initialFileLogging = enableFileLogging;
             startupOptions = ElevationHelper.ParseGuiResumeOptions(args);
             Text = "Domain Membership Check & Repair v" + BuildInfo.Version;
-            Width = 980;
-            Height = 820;
+            Size = UiStyle.MainWindowSize;
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = true;
             MinimizeBox = true;
-            Font = new Font("Segoe UI", 9F);
+            UiStyle.ApplyForm(this);
             ApplyWindowPolish();
-            UiLayoutHelper.EnableScreenAwareSizing(this, new Size(640, 480));
+            UiLayoutHelper.EnableScreenAwareSizing(this, UiStyle.MainWindowMinimumSize);
 
             FormClosing += delegate
             {
@@ -120,7 +119,7 @@ namespace DomainMembershipCheckRepair
             root.Dock = DockStyle.Top;
             root.AutoSize = true;
             root.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            root.Padding = new Padding(14);
+            root.Padding = UiStyle.RootPadding;
             root.ColumnCount = 2;
             root.RowCount = 12;
             root.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -128,7 +127,7 @@ namespace DomainMembershipCheckRepair
 
             Label title = new Label();
             title.Text = "Domain Membership Check & Repair  v" + BuildInfo.Version;
-            title.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
+            title.Font = UiStyle.TitleFont;
             title.AutoSize = true;
             root.Controls.Add(title, 0, 0);
             root.SetColumnSpan(title, 2);
@@ -171,7 +170,7 @@ namespace DomainMembershipCheckRepair
             domainPanel.Controls.Add(domainBox, 0, 0);
 
             detectButton = CreateButton("Detect Domain", 115);
-            detectButton.Margin = new Padding(8, 0, 0, 0);
+            detectButton.Margin = UiStyle.InlineButtonMargin;
             detectButton.Click += delegate { DetectDomain(true); };
             domainPanel.Controls.Add(detectButton, 1, 0);
 
@@ -196,7 +195,7 @@ namespace DomainMembershipCheckRepair
             dcPanel.Controls.Add(dcLabel);
 
             dcBox = new TextBox();
-            dcBox.Width = 285;
+            dcBox.Width = UiStyle.PreferredDcWidth;
             dcBox.Text = String.Empty;
             dcBox.TextChanged += delegate { UpdatePreferredDcStatus(); };
             dcPanel.Controls.Add(dcBox);
@@ -220,8 +219,8 @@ namespace DomainMembershipCheckRepair
             userPanel.ColumnCount = 1;
             userPanel.RowCount = 2;
             userPanel.Margin = new Padding(0);
-            userPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 25F));
-            userPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 20F));
+            userPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            userPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
             userBox = new TextBox();
             userBox.Dock = DockStyle.Fill;
@@ -244,7 +243,7 @@ namespace DomainMembershipCheckRepair
             passwordPanel.AutoSize = true;
 
             passwordBox = new TextBox();
-            passwordBox.Width = 320;
+            passwordBox.Width = UiStyle.PasswordWidth;
             passwordBox.UseSystemPasswordChar = true;
             passwordPanel.Controls.Add(passwordBox);
 
@@ -260,8 +259,8 @@ namespace DomainMembershipCheckRepair
 
             TabControl actionTabs = new TabControl();
             actionTabs.Dock = DockStyle.Fill;
-            actionTabs.Height = 300;
-            actionTabs.MinimumSize = new Size(0, 220);
+            actionTabs.Height = UiStyle.ActionTabsHeight;
+            actionTabs.MinimumSize = new Size(0, UiStyle.ActionTabsMinimumHeight);
 
             TabPage basicPage = new TabPage("Basic");
             TabPage advancedPage = new TabPage("Advanced");
@@ -490,7 +489,7 @@ namespace DomainMembershipCheckRepair
             logBox.ReadOnly = true;
             logBox.ScrollBars = ScrollBars.Vertical;
             logBox.Dock = DockStyle.Fill;
-            logBox.Font = new Font("Consolas", 9F);
+            logBox.Font = UiStyle.MonospaceFont;
             root.Controls.Add(logBox, 0, 10);
             root.SetColumnSpan(logBox, 2);
 
@@ -505,10 +504,10 @@ namespace DomainMembershipCheckRepair
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 320F));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, UiStyle.ActionAreaRowHeight));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 220F));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, UiStyle.LogAreaRowHeight));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
             scrollHost.Controls.Add(root);
@@ -529,7 +528,7 @@ namespace DomainMembershipCheckRepair
             Label label = new Label();
             label.AutoSize = true;
             label.Anchor = AnchorStyles.Left;
-            label.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            label.Font = UiStyle.ValueFont;
             return label;
         }
 
@@ -569,13 +568,7 @@ namespace DomainMembershipCheckRepair
 
         private static Button CreateButton(string text, int width)
         {
-            Button button = new Button();
-            button.Text = text;
-            button.AutoSize = true;
-            button.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            button.MinimumSize = new Size(width, 32);
-            button.Padding = new Padding(6, 2, 6, 2);
-            return button;
+            return UiStyle.CreateButton(text, width);
         }
 
 
