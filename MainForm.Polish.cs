@@ -51,8 +51,8 @@ namespace DomainMembershipCheckRepair
             footerLabel.AutoSize = true;
             footerLabel.AutoEllipsis = true;
             footerLabel.ForeColor = SystemColors.GrayText;
-            footerLabel.Font = new Font("Segoe UI", 8.25F);
-            footerLabel.Margin = new Padding(10, 7, 2, 1);
+            footerLabel.Font = UiStyle.CaptionFont;
+            footerLabel.Margin = UiStyle.FooterMargin;
             footerLabel.Text = BuildFooterText();
 
             panel.Controls.Add(domainStatusBadge);
@@ -75,9 +75,9 @@ namespace DomainMembershipCheckRepair
             label.AutoSize = true;
             label.AutoEllipsis = true;
             label.TextAlign = ContentAlignment.MiddleLeft;
-            label.Font = new Font("Segoe UI", 8.25F, FontStyle.Bold);
+            label.Font = UiStyle.CaptionBoldFont;
             label.Margin = new Padding(1);
-            label.Padding = new Padding(6, 5, 6, 5);
+            label.Padding = UiStyle.StatusBadgePadding;
             label.Text = text;
             return label;
         }
@@ -92,20 +92,20 @@ namespace DomainMembershipCheckRepair
             switch (kind)
             {
                 case UiStatusKind.Success:
-                    label.ForeColor = Color.FromArgb(24, 94, 42);
-                    label.BackColor = Color.FromArgb(226, 242, 230);
+                    label.ForeColor = UiStyle.StatusSuccessFore;
+                    label.BackColor = UiStyle.StatusSuccessBack;
                     break;
                 case UiStatusKind.Warning:
-                    label.ForeColor = Color.FromArgb(120, 78, 0);
-                    label.BackColor = Color.FromArgb(255, 244, 204);
+                    label.ForeColor = UiStyle.StatusWarningFore;
+                    label.BackColor = UiStyle.StatusWarningBack;
                     break;
                 case UiStatusKind.Error:
-                    label.ForeColor = Color.FromArgb(151, 22, 22);
-                    label.BackColor = Color.FromArgb(252, 228, 228);
+                    label.ForeColor = UiStyle.StatusErrorFore;
+                    label.BackColor = UiStyle.StatusErrorBack;
                     break;
                 case UiStatusKind.Info:
-                    label.ForeColor = Color.FromArgb(25, 72, 120);
-                    label.BackColor = Color.FromArgb(228, 239, 250);
+                    label.ForeColor = UiStyle.StatusInfoFore;
+                    label.BackColor = UiStyle.StatusInfoBack;
                     break;
                 default:
                     label.ForeColor = SystemColors.GrayText;
