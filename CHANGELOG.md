@@ -2,6 +2,10 @@
 
 ## 1.6.0
 
+- Centralized WinForms typography, common sizing, spacing and status colors in `UiStyle`; local `new Font(...)` and local DPI-baseline definitions are now rejected by repository policy.
+- Removed fixed heights from text-bearing domain-user helper rows and changed common buttons to shared AutoSize/minimum-size behavior.
+- Expanded GUI/DPI smoke coverage to 1366x768 through 4K, 100-250% scaling, explicit 4K at 200%/250%, all custom dialogs, tab/header/text-fit checks, and a 100->200->150 scale cycle so clipped text becomes a CI failure.
+
 - Added GUI parity for Offline Domain Join provisioning: the Offline Join action now offers Apply or Provision modes, protected non-overwriting output selection, computer-name validation and optional `/reuse`, matching the CLI `odj-provision` capability.
 - GUI Restart Windows now requires an explicit Yes/No confirmation after elevation, defaults to No, warns about unsaved work and shows the `shutdown /a` escape path.
 
