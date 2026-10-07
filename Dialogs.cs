@@ -27,7 +27,7 @@ namespace DomainMembershipCheckRepair
             buttons.AutoSize = true;
             buttons.WrapContents = true;
             buttons.FlowDirection = FlowDirection.RightToLeft;
-            buttons.Padding = new Padding(0, 6, 0, 0);
+            buttons.Padding = UiStyle.ButtonRowPadding;
             return buttons;
         }
     }
@@ -51,7 +51,7 @@ namespace DomainMembershipCheckRepair
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.Dock = DockStyle.Fill;
-            layout.Padding = new Padding(14);
+            layout.Padding = UiStyle.RootPadding;
             layout.ColumnCount = 1;
             layout.RowCount = 4;
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -100,7 +100,7 @@ namespace DomainMembershipCheckRepair
             Label warning = new Label();
             warning.AutoSize = true;
             warning.Dock = DockStyle.Fill;
-            warning.Margin = new Padding(0, 10, 0, 4);
+            warning.Margin = UiStyle.DialogWarningMargin;
             warning.Text =
                 "Recommended order: Safe Fixes + Retry Same Name -> Use New Name -> Delete + Retry only as a last resort. " +
                 "The final delete step is also protected by a separate safety gate.";
@@ -191,7 +191,7 @@ namespace DomainMembershipCheckRepair
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.Dock = DockStyle.Fill;
-            layout.Padding = new Padding(16);
+            layout.Padding = UiStyle.DialogPadding;
             layout.ColumnCount = 1;
             layout.RowCount = 3;
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -208,7 +208,7 @@ namespace DomainMembershipCheckRepair
 
             nameBox = new TextBox();
             nameBox.Dock = DockStyle.Top;
-            nameBox.Margin = new Padding(0, 10, 0, 6);
+            nameBox.Margin = UiStyle.DialogInputMargin;
             nameBox.Text = suggested;
             layout.Controls.Add(nameBox, 0, 1);
 
@@ -261,7 +261,7 @@ namespace DomainMembershipCheckRepair
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.Dock = DockStyle.Fill;
-            layout.Padding = new Padding(16);
+            layout.Padding = UiStyle.DialogPadding;
             layout.ColumnCount = 1;
             layout.RowCount = 3;
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -276,7 +276,7 @@ namespace DomainMembershipCheckRepair
 
             nameBox = new TextBox();
             nameBox.Dock = DockStyle.Top;
-            nameBox.Margin = new Padding(0, 10, 0, 6);
+            nameBox.Margin = UiStyle.DialogInputMargin;
             nameBox.Text = suggested ?? String.Empty;
             layout.Controls.Add(nameBox, 0, 1);
 
@@ -324,7 +324,7 @@ namespace DomainMembershipCheckRepair
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.Dock = DockStyle.Fill;
-            layout.Padding = new Padding(12);
+            layout.Padding = UiStyle.CompactDialogPadding;
             layout.ColumnCount = 1;
             layout.RowCount = 2;
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
