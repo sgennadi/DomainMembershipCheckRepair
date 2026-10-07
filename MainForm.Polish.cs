@@ -27,8 +27,6 @@ namespace DomainMembershipCheckRepair
         {
             Icon = SystemIcons.Shield;
             ShowIcon = true;
-            AutoScaleDimensions = new SizeF(96F, 96F);
-            AutoScaleMode = AutoScaleMode.Dpi;
         }
 
         private Control CreateStatusFooterPanel()
