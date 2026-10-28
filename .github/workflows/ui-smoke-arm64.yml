@@ -6,9 +6,6 @@ on:
 permissions:
   contents: read
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-
 jobs:
   ui-smoke-arm64:
     if: ${{ vars.ARM64_UI_LAB_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
